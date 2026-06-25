@@ -50,8 +50,10 @@ export async function buildDistanceMatrix(
     }
 
     // Fix 1: Track row index i and column index j for correct haversine fallback
-    const matrix = data.rows.map((row: any, i: number) =>
-      row.elements.map((el: any, j: number) =>
+    interface DMatrixElement { status: string; duration: { value: number } }
+    interface DMatrixRow { elements: DMatrixElement[] }
+    const matrix = data.rows.map((row: DMatrixRow, i: number) =>
+      row.elements.map((el: DMatrixElement, j: number) =>
         el.status === 'OK' ? el.duration.value : haversineSeconds(places[i], places[j])
       )
     )

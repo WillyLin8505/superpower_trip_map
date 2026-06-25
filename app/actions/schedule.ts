@@ -3,7 +3,6 @@ import type { Place, ScheduledPlace, DayItinerary, DistanceMatrix } from '@/lib/
 
 const DWELL: Record<string, number> = { attraction: 90, restaurant: 60 }
 const DAY_START = 9 * 60   // 09:00 in minutes
-const DAY_END   = 20 * 60  // 20:00
 
 function minsToTime(mins: number): string {
   const h = Math.floor(mins / 60).toString().padStart(2, '0')
