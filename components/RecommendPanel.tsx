@@ -94,9 +94,9 @@ export function RecommendPanel({ currentPlaces, onAddPlaces }: Props) {
       {recs !== null && recs.length > 0 && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-            {recs.map((r) => (
+            {recs.map((r, i) => (
               <RecommendCard
-                key={r.name}
+                key={`${r.sourceLabel}-${i}`}
                 rec={r}
                 selected={selected.has(r.name)}
                 onToggle={() => toggle(r.name)}

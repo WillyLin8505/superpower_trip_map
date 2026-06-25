@@ -60,7 +60,10 @@ export function ItineraryClient({ initial }: Props) {
     const day = plan.days[dayIdx]
     const oldIdx = day.places.findIndex((p) => p.id === active.id)
     const newIdx = day.places.findIndex((p) => p.id === over.id)
-    const newPlaces = arrayMove(day.places, oldIdx, newIdx)
+    const newPlaces = arrayMove(day.places, oldIdx, newIdx).map((p) => ({
+      ...p,
+      travelMinToNext: null,
+    }))
     const newDays = plan.days.map((d, i) =>
       i === dayIdx ? { ...d, places: newPlaces } : d
     )
