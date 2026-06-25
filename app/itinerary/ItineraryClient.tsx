@@ -16,12 +16,7 @@ import {
 import type { PlanResult, ScheduledPlace } from '@/lib/types'
 import { ItineraryDay } from '@/components/ItineraryDay'
 import { MapView } from '@/components/MapView'
-
-// Temporary stub — replaced by Task 11
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function RecommendPanel(_props: { currentPlaces: ScheduledPlace[]; onAddPlaces: (p: ScheduledPlace[]) => void }) {
-  return null
-}
+import { RecommendPanel } from '@/components/RecommendPanel'
 
 interface Props {
   initial: PlanResult
