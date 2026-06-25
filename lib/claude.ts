@@ -1,16 +1,13 @@
-import { spawn } from 'child_process'
+import Anthropic from '@anthropic-ai/sdk'
 
-export function callClaude(prompt: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const child = spawn('claude', ['-p', prompt])
-    let out = ''
-    let err = ''
-    child.stdout.on('data', (d: Buffer) => { out += d.toString() })
-    child.stderr.on('data', (d: Buffer) => { err += d.toString() })
-    child.on('close', (code) => {
-      if (code !== 0) reject(new Error(err || `exit ${code}`))
-      else resolve(out.trim())
-    })
-    child.on('error', reject)
+export async function callClaude(prompt: string): Promise<string> {
+  const client = new Anthropic()
+  const message = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 1024,
+    messages: [{ role: 'user', content: prompt }],
   })
+  const block = message.content[0]
+  if (block.type !== 'text') throw new Error('unexpected content type')
+  return block.text
 }
