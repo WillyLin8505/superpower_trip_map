@@ -4,6 +4,7 @@ import { getPlaceDetails } from './places'
 import { buildDistanceMatrix } from './directions'
 import { optimizeRoute } from './optimize'
 import { schedulePlaces } from './schedule'
+import { generateDaySummaries } from './ai'
 
 export async function planItinerary(
   places: Place[],
@@ -26,5 +27,6 @@ export async function planItinerary(
 
   const dayItineraries = await schedulePlaces(ordered, matrix, days)
 
-  return { days: dayItineraries, transportMode: mode }
+  const enrichedDays = await generateDaySummaries(dayItineraries)
+  return { days: enrichedDays, transportMode: mode }
 }
