@@ -12,15 +12,18 @@ export async function buildDistanceMatrix(
   places: Place[],
   mode: TransportMode
 ): Promise<DistanceMatrix> {
+  // Fix 4: Early return for empty array
+  if (places.length === 0) return { indices: [], matrix: [] }
+
   const n = places.length
   const indices = places.map((p) => p.placeId)
 
+  const haversineMatrix = () =>
+    places.map((a) => places.map((b) => haversineSeconds(a, b)))
+
   if (n > 25) {
     // Fallback: straight-line haversine for all pairs
-    const matrix = places.map((a) =>
-      places.map((b) => haversineSeconds(a, b))
-    )
-    return { indices, matrix }
+    return { indices, matrix: haversineMatrix() }
   }
 
   const origins = places.map((p) => `${p.lat},${p.lng}`).join('|')
@@ -32,21 +35,31 @@ export async function buildDistanceMatrix(
     `&mode=${GOOGLE_MODE[mode]}` +
     `&key=${process.env.GOOGLE_MAPS_API_KEY}`
 
-  const res = await fetch(url)
-  const data = await res.json()
+  // Fix 3: Wrap fetch block in try-catch to handle network/JSON errors
+  try {
+    const res = await fetch(url)
 
-  if (data.status !== 'OK') {
-    // Fallback on API error
-    const matrix = places.map((a) => places.map((b) => haversineSeconds(a, b)))
-    return { indices, matrix }
-  }
+    // Fix 2: Check res.ok before parsing JSON
+    if (!res.ok) return { indices, matrix: haversineMatrix() }
 
-  const matrix = data.rows.map((row: any) =>
-    row.elements.map((el: any) =>
-      el.status === 'OK' ? el.duration.value : haversineSeconds(places[0], places[0])
+    const data = await res.json()
+
+    if (data.status !== 'OK') {
+      // Fallback on API error
+      return { indices, matrix: haversineMatrix() }
+    }
+
+    // Fix 1: Track row index i and column index j for correct haversine fallback
+    const matrix = data.rows.map((row: any, i: number) =>
+      row.elements.map((el: any, j: number) =>
+        el.status === 'OK' ? el.duration.value : haversineSeconds(places[i], places[j])
+      )
     )
-  )
-  return { indices, matrix }
+    return { indices, matrix }
+  } catch {
+    // Fallback on network failure or JSON parse error
+    return { indices, matrix: haversineMatrix() }
+  }
 }
 
 export async function getDirectionsPolyline(
@@ -68,6 +81,7 @@ export async function getDirectionsPolyline(
     `&mode=${GOOGLE_MODE[mode]}` +
     `&key=${process.env.GOOGLE_MAPS_API_KEY}`
   const res = await fetch(url)
+  if (!res.ok) return null
   const data = await res.json()
   if (data.status !== 'OK') return null
   return data.routes[0]?.overview_polyline?.points ?? null
