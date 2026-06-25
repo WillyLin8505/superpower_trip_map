@@ -35,8 +35,9 @@ export async function generateDaySummaries(
 
       try {
         const raw = await callClaude(prompt)
-        // Extract JSON from response (model may add markdown fences)
-        const jsonMatch = raw.match(/\{[\s\S]*\}/)
+        // Strip markdown code fences if present, then find JSON object
+        const stripped = raw.replace(/```(?:json)?\s*([\s\S]*?)```/g, '$1').trim()
+        const jsonMatch = stripped.match(/\{[\s\S]*\}/)
         if (!jsonMatch) throw new Error('no JSON in response')
         const parsed: AiDayResult = JSON.parse(jsonMatch[0])
 
@@ -48,8 +49,8 @@ export async function generateDaySummaries(
             aiDescription: parsed.descriptions?.[p.name] ?? null,
           })),
         }
-      } catch {
-        // Claude unavailable — return day unchanged
+      } catch (err: unknown) {
+        // Claude unavailable or response unparseable — return day unchanged
         return day
       }
     })
