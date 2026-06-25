@@ -26,12 +26,8 @@ export default function InputPage() {
 
   const handleSubmit = () => {
     if (places.length < 2) return
-    const params = new URLSearchParams({
-      places: JSON.stringify(places),
-      days: String(days),
-      mode,
-    })
-    router.push(`/itinerary?${params.toString()}`)
+    sessionStorage.setItem('pendingPlaces', JSON.stringify(places))
+    router.push(`/itinerary?days=${days}&mode=${mode}`)
   }
 
   return (
