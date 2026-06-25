@@ -1,23 +1,33 @@
-jest.mock('@anthropic-ai/sdk')
+jest.mock('@anthropic-ai/sdk', () => {
+  return {
+    __esModule: true,
+    default: jest.fn().mockImplementation(() => ({
+      messages: {
+        create: jest.fn().mockResolvedValue({
+          content: [{ type: 'text', text: 'mock response' }],
+        }),
+      },
+    })),
+  }
+})
 
 import { callClaude } from '@/lib/claude'
 import Anthropic from '@anthropic-ai/sdk'
-
-const mockedAnthropicConstructor = Anthropic as jest.MockedClass<typeof Anthropic>
 
 describe('callClaude', () => {
   let mockCreate: jest.Mock
 
   beforeEach(() => {
     jest.clearAllMocks()
+    const MockAnthropic = Anthropic as jest.Mock
     mockCreate = jest.fn().mockResolvedValue({
       content: [{ type: 'text', text: 'mock response' }],
     })
-    mockedAnthropicConstructor.mockImplementation(() => ({
+    MockAnthropic.mockImplementation(() => ({
       messages: {
         create: mockCreate,
       },
-    }) as any)
+    }))
   })
 
   it('returns text content from the API response', async () => {
