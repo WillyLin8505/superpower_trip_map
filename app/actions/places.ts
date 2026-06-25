@@ -27,7 +27,7 @@ export async function getPlaceDetails(placeId: string): Promise<Place | null> {
     openingHours: r.opening_hours?.weekday_text ?? null,
     rating: r.rating ?? null,
     photoUrl: r.photos?.[0]
-      ? `${BASE}/photo?maxwidth=400&photo_reference=${r.photos[0].photo_reference}&key=${KEY}`
+      ? `/api/photo?ref=${r.photos[0].photo_reference}`
       : null,
     ticketPrice: r.editorial_summary?.overview ?? null,
   }
