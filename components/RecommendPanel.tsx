@@ -16,9 +16,14 @@ export function RecommendPanel({ currentPlaces, onAddPlaces }: Props) {
 
   const load = async () => {
     setLoading(true)
-    const result = await getRecommendations(currentPlaces)
-    setRecs(result)
-    setLoading(false)
+    try {
+      const result = await getRecommendations(currentPlaces)
+      setRecs(result)
+    } catch {
+      setRecs([])
+    } finally {
+      setLoading(false)
+    }
   }
 
   const toggle = (name: string) =>
@@ -35,14 +40,14 @@ export function RecommendPanel({ currentPlaces, onAddPlaces }: Props) {
   const handleAdd = () => {
     if (!recs) return
     const toAdd: ScheduledPlace[] = recs
-      .filter((r) => selected.has(r.name) && r.verified)
+      .filter((r) => selected.has(r.name) && r.verified && r.placeId && r.lat !== null && r.lng !== null)
       .map((r) => ({
         id: crypto.randomUUID(),
-        placeId: r.placeId!,
+        placeId: r.placeId as string,
         name: r.name,
         type: r.type as 'attraction' | 'restaurant',
-        lat: r.lat!,
-        lng: r.lng!,
+        lat: r.lat as number,
+        lng: r.lng as number,
         address: '',
         openingHours: null,
         rating: null,
@@ -70,6 +75,15 @@ export function RecommendPanel({ currentPlaces, onAddPlaces }: Props) {
           className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50"
         >
           {loading ? '分析中...' : '取得推薦'}
+        </button>
+      )}
+
+      {recs !== null && !loading && (
+        <button
+          onClick={load}
+          className="text-sm text-gray-500 underline mb-4"
+        >
+          重新整理推薦
         </button>
       )}
 
