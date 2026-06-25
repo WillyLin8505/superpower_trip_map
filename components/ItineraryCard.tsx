@@ -36,7 +36,7 @@ export function ItineraryCard({ place, index }: Props) {
           )}
         </div>
       </div>
-      {place.travelMinToNext !== null && (
+      {place.travelMinToNext !== null && place.travelMinToNext > 0 && (
         <p className="text-xs text-gray-400 mt-3 pl-10">→ 前往下一站約 {place.travelMinToNext} 分鐘</p>
       )}
     </div>

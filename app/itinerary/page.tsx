@@ -7,7 +7,12 @@ interface Props {
 }
 
 export default async function ItineraryPage({ searchParams }: Props) {
-  const places: Place[] = JSON.parse(searchParams.places ?? '[]')
+  let places: Place[] = []
+  try {
+    places = JSON.parse(searchParams.places ?? '[]')
+  } catch {
+    places = []
+  }
   const days = Number(searchParams.days ?? 2)
   const mode = (searchParams.mode ?? 'driving') as TransportMode
 
