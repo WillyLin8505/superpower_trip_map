@@ -52,7 +52,7 @@ function twoOpt(route: number[], matrix: number[][]): number[] {
   return best
 }
 
-export function optimizeRoute(distMatrix: DistanceMatrix): string[] {
+export async function optimizeRoute(distMatrix: DistanceMatrix): Promise<string[]> {
   const { indices, matrix } = distMatrix
   const initial = nearestNeighbor(matrix, 0)
   const optimized = twoOpt(initial, matrix)

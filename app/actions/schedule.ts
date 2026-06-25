@@ -22,11 +22,11 @@ function travelSecs(
   return matrix.matrix[i][j]
 }
 
-export function schedulePlaces(
+export async function schedulePlaces(
   orderedPlaces: Place[],
   distMatrix: DistanceMatrix,
   days: number
-): DayItinerary[] {
+): Promise<DayItinerary[]> {
   // Split evenly across days
   const chunkSize = Math.ceil(orderedPlaces.length / days)
   const dayChunks: Place[][] = Array.from({ length: days }, (_, d) =>

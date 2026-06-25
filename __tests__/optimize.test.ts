@@ -12,14 +12,14 @@ const matrix: DistanceMatrix = {
   ],
 }
 
-test('returns all place IDs', () => {
-  const result = optimizeRoute(matrix)
+test('returns all place IDs', async () => {
+  const result = await optimizeRoute(matrix)
   expect(result).toHaveLength(4)
   expect(new Set(result)).toEqual(new Set(['a', 'b', 'c', 'd']))
 })
 
-test('finds a reasonable short route', () => {
-  const result = optimizeRoute(matrix)
+test('finds a reasonable short route', async () => {
+  const result = await optimizeRoute(matrix)
   // optimal is a→b→c→d (total 30) — greedy should find this
   const order = result.map((id) => matrix.indices.indexOf(id))
   let total = 0
