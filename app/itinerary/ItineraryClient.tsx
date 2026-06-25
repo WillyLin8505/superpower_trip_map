@@ -1,5 +1,5 @@
 'use client'
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -31,6 +31,12 @@ export function ItineraryClient({ initial }: Props) {
   const [plan, setPlan] = useState<PlanResult>(initial)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sensors = useSensors(useSensor(PointerSensor))
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [])
 
   const scheduleRecalc = useCallback((nextPlan: PlanResult) => {
     setPlan(nextPlan)
