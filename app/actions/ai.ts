@@ -49,7 +49,7 @@ export async function generateDaySummaries(
             aiDescription: parsed.descriptions?.[p.name] ?? null,
           })),
         }
-      } catch (err: unknown) {
+      } catch (_err: unknown) {
         // Claude unavailable or response unparseable — return day unchanged
         return day
       }
