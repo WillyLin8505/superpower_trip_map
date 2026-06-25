@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Recommendation, ScheduledPlace } from '@/lib/types'
 import { RecommendCard } from './RecommendCard'
 import { getRecommendations } from '@/app/actions/recommend'
@@ -25,6 +25,11 @@ export function RecommendPanel({ currentPlaces, onAddPlaces }: Props) {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    load()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const toggle = (name: string) =>
     setSelected((prev) => {
@@ -68,17 +73,11 @@ export function RecommendPanel({ currentPlaces, onAddPlaces }: Props) {
       <h2 className="text-xl font-bold text-gray-800 mb-2">推薦地點</h2>
       <p className="text-sm text-gray-500 mb-4">根據參考網站自動分析，找出適合加入你行程的地點</p>
 
-      {recs === null && (
-        <button
-          onClick={load}
-          disabled={loading}
-          className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50"
-        >
-          {loading ? '分析中...' : '取得推薦'}
-        </button>
+      {loading && (
+        <p className="text-gray-400 text-sm">分析中...</p>
       )}
 
-      {recs !== null && !loading && (
+      {!loading && recs !== null && (
         <button
           onClick={load}
           className="text-sm text-gray-500 underline mb-4"
@@ -87,11 +86,11 @@ export function RecommendPanel({ currentPlaces, onAddPlaces }: Props) {
         </button>
       )}
 
-      {recs !== null && recs.length === 0 && (
+      {!loading && recs !== null && recs.length === 0 && (
         <p className="text-gray-400 text-sm">目前沒有推薦（請先在後台設定參考網站）</p>
       )}
 
-      {recs !== null && recs.length > 0 && (
+      {!loading && recs !== null && recs.length > 0 && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
             {recs.map((r, i) => (
