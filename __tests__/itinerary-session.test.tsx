@@ -1,7 +1,6 @@
 /** @jest-environment jsdom */
 import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 
 // Mock Next.js navigation
 const mockPush = jest.fn()
@@ -24,7 +23,7 @@ jest.mock('@/app/itinerary/ItineraryClient', () => ({
   ItineraryClient: () => <div data-testid="itinerary-client" />,
 }))
 
-import ItineraryPage from '@/app/itinerary/page'
+import ItineraryInner from '@/app/itinerary/ItineraryInner'
 import { planItinerary } from '@/app/actions/plan'
 
 describe('ItineraryPage', () => {
@@ -34,13 +33,13 @@ describe('ItineraryPage', () => {
   })
 
   it('redirects to / when sessionStorage has no places', async () => {
-    render(<ItineraryPage />)
+    render(<ItineraryInner />)
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'))
   })
 
   it('redirects to / when places array has fewer than 2 items', async () => {
     sessionStorage.setItem('pendingPlaces', JSON.stringify([{ id: '1' }]))
-    render(<ItineraryPage />)
+    render(<ItineraryInner />)
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'))
   })
 
@@ -50,7 +49,7 @@ describe('ItineraryPage', () => {
       { id: '2', placeId: 'p2', name: 'B', type: 'restaurant', lat: 1, lng: 1, address: '', openingHours: null, rating: null, photoUrl: null, ticketPrice: null },
     ]
     sessionStorage.setItem('pendingPlaces', JSON.stringify(places))
-    render(<ItineraryPage />)
+    render(<ItineraryInner />)
     await waitFor(() => expect(screen.getByTestId('itinerary-client')).toBeInTheDocument())
     expect(planItinerary).toHaveBeenCalledWith(places, 2, 'driving')
   })
