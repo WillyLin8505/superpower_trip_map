@@ -1,5 +1,6 @@
 import { planItinerary } from '@/app/actions/plan'
 import { ItineraryDay } from '@/components/ItineraryDay'
+import { MapView } from '@/components/MapView'
 import type { Place, TransportMode } from '@/lib/types'
 
 interface Props {
@@ -17,6 +18,7 @@ export default async function ItineraryPage({ searchParams }: Props) {
   const mode = (searchParams.mode ?? 'driving') as TransportMode
 
   const plan = await planItinerary(places, days, mode)
+  const allPlaces = plan.days.flatMap((d) => d.places)
 
   return (
     <main className="max-w-5xl mx-auto px-4 py-10 flex gap-8">
@@ -27,7 +29,7 @@ export default async function ItineraryPage({ searchParams }: Props) {
         ))}
       </div>
       <div className="w-96 shrink-0 sticky top-4 h-[600px] rounded-xl overflow-hidden border border-gray-200">
-        <p className="p-4 text-gray-400 text-sm">地圖（下一個任務加入）</p>
+        <MapView allPlaces={allPlaces} />
       </div>
     </main>
   )
