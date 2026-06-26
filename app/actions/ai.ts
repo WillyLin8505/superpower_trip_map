@@ -29,8 +29,8 @@ export async function extractItinerary(text: string): Promise<ExtractedItinerary
 行程文字：
 ${text}`
 
+  const raw = await callClaude(prompt)
   try {
-    const raw = await callClaude(prompt)
     const stripped = raw.replace(/```(?:json)?\s*([\s\S]*?)```/g, '$1').trim()
     const match = stripped.match(/\{[\s\S]*\}/)
     if (!match) return { country: null, countryCode: null, places: [] }

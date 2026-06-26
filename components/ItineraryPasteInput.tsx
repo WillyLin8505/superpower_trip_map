@@ -46,7 +46,8 @@ export function ItineraryPasteInput({ onPlacesFound }: Props) {
         done++
         setVerifyProgress({ done, total: places.length })
         if (!found) return null
-        return { ...found, type: p.type } as Place
+        const validType: PlaceType = p.type === 'restaurant' ? 'restaurant' : 'attraction'
+        return { ...found, type: validType } as Place
       })
     )
     const valid = results.filter((p): p is Place => p !== null)
@@ -54,24 +55,35 @@ export function ItineraryPasteInput({ onPlacesFound }: Props) {
     setPhase('idle')
     setText('')
     setDetectedCountry(null)
+    setSelectedCountryName('')
   }
 
   const handleAnalyze = async () => {
     if (!text.trim()) return
     setPhase('analyzing')
-    const result = await extractItinerary(text)
-    setExtracted(result.places)
-    if (result.country) {
-      setDetectedCountry(result.country)
-      await runVerify(result.places, result.country)
-    } else {
-      setPhase('confirm-country')
+    try {
+      const result = await extractItinerary(text)
+      setExtracted(result.places)
+      if (result.country && result.places.length > 0) {
+        setDetectedCountry(result.country)
+        await runVerify(result.places, result.country)
+      } else if (result.places.length > 0) {
+        setPhase('confirm-country')
+      } else {
+        setPhase('idle')
+      }
+    } catch {
+      setPhase('idle')
     }
   }
 
   const handleConfirmCountry = async () => {
     if (!selectedCountryName) return
-    await runVerify(extracted, selectedCountryName)
+    try {
+      await runVerify(extracted, selectedCountryName)
+    } catch {
+      setPhase('idle')
+    }
   }
 
   if (phase === 'analyzing') {

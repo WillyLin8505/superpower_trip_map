@@ -13,8 +13,9 @@ export default function InputPage() {
 
   const handlePlacesFound = useCallback((newPlaces: Place[]) => {
     setPlaces((prev) => {
-      const combined = [...prev, ...newPlaces]
-      return combined.slice(0, 25)
+      const existingIds = new Set(prev.map((p) => p.placeId))
+      const deduped = newPlaces.filter((p) => !existingIds.has(p.placeId))
+      return [...prev, ...deduped].slice(0, 25)
     })
   }, [])
 
