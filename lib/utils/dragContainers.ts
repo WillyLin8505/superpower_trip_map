@@ -1,7 +1,10 @@
 import type { DayItinerary, PlanResult } from '@/lib/types'
 
 export function findContainer(id: string, days: DayItinerary[]): number {
-  if (id.startsWith('day-')) return parseInt(id.replace('day-', ''), 10)
+  if (id.startsWith('day-')) {
+    const idx = parseInt(id.replace('day-', ''), 10)
+    return Number.isInteger(idx) && idx >= 0 && idx < days.length ? idx : -1
+  }
   return days.findIndex((day) => day.places.some((p) => p.id === id))
 }
 

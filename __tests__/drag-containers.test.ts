@@ -37,6 +37,14 @@ describe('findContainer', () => {
   test('returns -1 for unknown id', () => {
     expect(findContainer('unknown', PLAN.days)).toBe(-1)
   })
+
+  test('returns -1 for non-numeric day- suffix', () => {
+    expect(findContainer('day-special', PLAN.days)).toBe(-1)
+  })
+
+  test('returns -1 for out-of-bounds day index', () => {
+    expect(findContainer('day-99', PLAN.days)).toBe(-1)
+  })
 })
 
 describe('applyDragResult', () => {

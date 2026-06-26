@@ -14,14 +14,14 @@ interface Props {
 
 export function ItineraryDay({ day, dayIdx, mode, draggable, onTimeChange }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
-  const { setNodeRef } = useDroppable({ id: `day-${dayIdx}` })
+  const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
 
   return (
     <section className="mb-12">
       <h2 className="text-xl font-bold text-gray-800 mb-1">第 {day.day} 天</h2>
       {day.aiSummary && <p className="text-sm text-gray-500 mb-4">{day.aiSummary}</p>}
       <div className="flex gap-6 items-start">
-        <div ref={setNodeRef} className="flex-1 space-y-3">
+        <div ref={setNodeRef} className={`flex-1 space-y-3 rounded-lg transition-colors ${isOver ? 'ring-2 ring-blue-400 bg-blue-50' : ''}`}>
           {day.places.map((place, i) => (
             <ItineraryCard
               key={place.id}
