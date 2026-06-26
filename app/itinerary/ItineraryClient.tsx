@@ -14,12 +14,15 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import type { PlanResult } from '@/lib/types'
+import type { PlanResult, ScheduledPlace, Place } from '@/lib/types'
 import { recalcPlan } from '@/lib/utils/clientScheduler'
 import { ItineraryDay } from '@/components/ItineraryDay'
 import { ItineraryCard } from '@/components/ItineraryCard'
 import { RecommendPanel } from '@/components/RecommendPanel'
 import { applyDragResult, findContainer } from '@/lib/utils/dragContainers'
+import { findClosestDay } from '@/lib/utils/geo'
+import { PlaceSearchBar } from '@/components/PlaceSearchBar'
+import { ItineraryPasteInput } from '@/components/ItineraryPasteInput'
 
 // pointerWithin is essential for multi-container: it checks where the pointer
 // physically is, not center-to-center distance (closestCenter favors the source container)
@@ -143,6 +146,48 @@ export function ItineraryClient({ initial }: Props) {
     [scheduleRecalc]
   )
 
+  const handleAddPlace = useCallback((place: Place) => {
+    const newPlace: ScheduledPlace = {
+      ...place,
+      startTime: '09:00',
+      durationMin: place.type === 'attraction' ? 90 : 60,
+      travelMinToNext: null,
+      aiDescription: null,
+      outsideHours: false,
+      lateExit: false,
+      timeLocked: false,
+    }
+    const targetDayIdx = findClosestDay(planRef.current.days, place)
+    const newDays = planRef.current.days.map((d, i) =>
+      i === targetDayIdx ? { ...d, places: [...d.places, newPlace] } : d
+    )
+    scheduleRecalc({ ...planRef.current, days: newDays })
+  }, [scheduleRecalc])
+
+  const handleAddPlaces = useCallback((places: Place[]) => {
+    let next = planRef.current
+    places.forEach((place) => {
+      const newPlace: ScheduledPlace = {
+        ...place,
+        startTime: '09:00',
+        durationMin: place.type === 'attraction' ? 90 : 60,
+        travelMinToNext: null,
+        aiDescription: null,
+        outsideHours: false,
+        lateExit: false,
+        timeLocked: false,
+      }
+      const targetDayIdx = findClosestDay(next.days, place)
+      next = {
+        ...next,
+        days: next.days.map((d, i) =>
+          i === targetDayIdx ? { ...d, places: [...d.places, newPlace] } : d
+        ),
+      }
+    })
+    scheduleRecalc(next)
+  }, [scheduleRecalc])
+
   const allPlaces = plan.days.flatMap((d) => d.places)
   const activePlace = activeId ? allPlaces.find(p => p.id === activeId) ?? null : null
   const activePlaceIndex = activeId ? allPlaces.findIndex(p => p.id === activeId) : -1
@@ -150,6 +195,11 @@ export function ItineraryClient({ initial }: Props) {
   return (
     <main className="max-w-5xl mx-auto px-4 py-10">
       <a href="/" className="text-blue-600 text-sm mb-6 inline-block">&#x2190; 重新規劃</a>
+      <section className="mb-8 space-y-3">
+        <h2 className="text-sm font-semibold text-gray-700">新增行程</h2>
+        <PlaceSearchBar onAdd={handleAddPlace} />
+        <ItineraryPasteInput onPlacesFound={handleAddPlaces} />
+      </section>
       <DndContext
         sensors={sensors}
         collisionDetection={multiContainerCollision}
