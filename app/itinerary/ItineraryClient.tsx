@@ -2,12 +2,22 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import {
   DndContext,
-  closestCenter,
+  pointerWithin,
+  rectIntersection,
   PointerSensor,
   useSensor,
   useSensors,
   DragEndEvent,
 } from '@dnd-kit/core'
+import type { CollisionDetection } from '@dnd-kit/core'
+
+// closestCenter fails for multi-container: it measures center-to-center distance
+// and keeps snapping to the source container's last card. pointerWithin checks
+// which droppable the pointer is physically inside — correct for cross-day drops.
+const multiContainerCollision: CollisionDetection = (args) => {
+  const hits = pointerWithin(args)
+  return hits.length > 0 ? hits : rectIntersection(args)
+}
 import {
   SortableContext,
   verticalListSortingStrategy,
@@ -82,7 +92,7 @@ export function ItineraryClient({ initial }: Props) {
       <a href="/" className="text-blue-600 text-sm mb-6 inline-block">&#x2190; 重新規劃</a>
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={multiContainerCollision}
         onDragEnd={handleDragEnd}
       >
         <div>
