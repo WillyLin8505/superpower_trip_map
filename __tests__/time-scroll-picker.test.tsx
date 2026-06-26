@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { TimeScrollPicker } from '@/components/TimeScrollPicker'
 
 test('displays the current value as trigger text', () => {
@@ -39,12 +39,15 @@ test('clicking a minute calls onChange with new HH:MM', () => {
 test('hours list contains 00 through 23', () => {
   render(<TimeScrollPicker value="09:30" onChange={jest.fn()} />)
   fireEvent.click(screen.getByRole('button', { name: '09:30' }))
-  expect(screen.getByText('00')).toBeInTheDocument()
-  expect(screen.getByText('23')).toBeInTheDocument()
+  const hoursCol = screen.getByTestId('hours-col')
+  expect(within(hoursCol).getByText('00')).toBeInTheDocument()
+  expect(within(hoursCol).getByText('23')).toBeInTheDocument()
 })
 
 test('minutes list contains 00, 05, 10 … 55', () => {
   render(<TimeScrollPicker value="09:00" onChange={jest.fn()} />)
   fireEvent.click(screen.getByRole('button', { name: '09:00' }))
-  expect(screen.getByText('55')).toBeInTheDocument()
+  const minutesCol = screen.getByTestId('minutes-col')
+  expect(within(minutesCol).getByText('00')).toBeInTheDocument()
+  expect(within(minutesCol).getByText('55')).toBeInTheDocument()
 })

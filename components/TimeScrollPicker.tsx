@@ -2,10 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 
 const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
-// Note: '00' is intentionally excluded — it overlaps with hours '00' and breaks
-// getByText('00') uniqueness in tests. When value prop has m='00', the trigger
-// displays it correctly; users change minutes via the other available options.
-const MINUTES = ['05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55']
+const MINUTES = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55']
 
 interface Props {
   value: string
@@ -66,7 +63,7 @@ export function TimeScrollPicker({ value, onChange }: Props) {
       </button>
       {open && (
         <div className="absolute z-50 top-7 left-0 bg-white border border-gray-200 rounded-lg shadow-lg flex gap-0 overflow-hidden">
-          <ul className="overflow-y-auto h-40 w-12 scroll-smooth">
+          <ul className="overflow-y-auto h-40 w-12 scroll-smooth" data-testid="hours-col">
             {HOURS.map((hr) => (
               <li
                 key={hr}
@@ -81,7 +78,7 @@ export function TimeScrollPicker({ value, onChange }: Props) {
             ))}
           </ul>
           <div className="w-px bg-gray-100" />
-          <ul className="overflow-y-auto h-40 w-12 scroll-smooth">
+          <ul className="overflow-y-auto h-40 w-12 scroll-smooth" data-testid="minutes-col">
             {MINUTES.map((mn) => (
               <li
                 key={mn}
