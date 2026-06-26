@@ -195,7 +195,7 @@ export function ItineraryClient({ initial }: Props) {
   return (
     <main className="max-w-5xl mx-auto px-4 py-10">
       <a href="/" className="text-blue-600 text-sm mb-6 inline-block">&#x2190; 重新規劃</a>
-      <section className="mb-8 space-y-3">
+      <section className="mb-6 space-y-3">
         <h2 className="text-sm font-semibold text-gray-700">新增行程</h2>
         <PlaceSearchBar onAdd={handleAddPlace} />
         <ItineraryPasteInput onPlacesFound={handleAddPlaces} />
