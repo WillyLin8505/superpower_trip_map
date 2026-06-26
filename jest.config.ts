@@ -5,7 +5,7 @@ const createJestConfig = nextJest({ dir: './' })
 
 const config: Config = {
   testEnvironment: 'node',
-  testPathIgnorePatterns: ['/node_modules/', '/.worktrees/'],
+  testMatch: ['<rootDir>/__tests__/**/*.{ts,tsx}'],
   moduleNameMapper: { '^@/(.*)$': '<rootDir>/$1' },
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
 }
