@@ -133,3 +133,19 @@ Task 4: complete (commits e5df74a..9c4dc2e, review clean after fix — extracted
 - Whole-branch review: Ready to merge (no Critical/Important)
 - Minors noted (non-blocking): DWELL typed as Record<string,number> not Record<PlaceType,number>; spec says handleToggleLock calls scheduleRecalc but code correctly does NOT; 8 checkLateExit tests vs spec's 7 (extra is valid); outsideHours/lateExit warning DOM placement inconsistent
 - Final commit: 9c4dc2e
+Task 1: complete (commits 5b23c95..f00b514, review clean)
+Task 2: complete (commits f00b514..d4f4d7a, review clean)
+Task 3: complete (commits d4f4d7a..2d97a5f, review clean after fix — locked card DAY_START check added)
+Task 4: complete (commits 2d97a5f..1d27aec, review clean after fix — MINUTES restored to start with '00', data-testid scoping added)
+Task 5: complete (commits 1d27aec..54ad909, review clean — includes controller hotfix for scrollIntoView guard)
+Task 6: complete (commits 54ad909..38166d1, review clean after fix — mb-6 spacing corrected)
+Task 6: complete (commits 54ad909..38166d1, review clean after fix — mb-6 spacing)
+
+## Final Review
+- Whole-branch review (5b23c95..4f018b6): 3 Important issues found and fixed
+  - PlaceSearchBar type inference (keyword-based, no AI call)
+  - Multi-lock overflow: between-segment places exceeding next lock's start get outsideHours:true
+  - Midnight-wrap: end-time picker duration now uses rawDur+1440 for negative values
+- Minor noted (non-blocking): haversineSeconds semantic comment, findClosestDay empty-days edge, non-5-min TimeScrollPicker state visual
+- 112 tests pass, 19 suites clean
+- Final commit: 4f018b6
