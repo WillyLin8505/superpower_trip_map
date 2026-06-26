@@ -1,8 +1,9 @@
 'use server'
 import type { Place, ScheduledPlace, DayItinerary, DistanceMatrix } from '@/lib/types'
+import { checkLateExit } from '@/lib/utils/hours'
 
-const DWELL: Record<string, number> = { attraction: 90, restaurant: 60 }
-const DAY_START = 9 * 60   // 09:00 in minutes
+const DWELL: Record<string, number> = { attraction: 90, restaurant: 60, dessert: 60 }
+const DAY_START = 9 * 60
 
 function isOutsideHours(startTime: string, openingHours: string[] | null): boolean {
   if (!openingHours) return false
@@ -10,7 +11,6 @@ function isOutsideHours(startTime: string, openingHours: string[] | null): boole
   const today = days[new Date().getDay()]
   const todayHours = openingHours.find((h) => h.startsWith(today))
   if (!todayHours) return false
-  // Parse "Monday: 9:00 AM – 5:00 PM"
   const match = todayHours.match(/(\d+:\d+\s*[AP]M)\s*[–-]\s*(\d+:\d+\s*[AP]M)/)
   if (!match) return false
   const toMins = (t: string) => {
@@ -48,7 +48,6 @@ export async function schedulePlaces(
   distMatrix: DistanceMatrix,
   days: number
 ): Promise<DayItinerary[]> {
-  // Split evenly across days
   const chunkSize = Math.ceil(orderedPlaces.length / days)
   const dayChunks: Place[][] = Array.from({ length: days }, (_, d) =>
     orderedPlaces.slice(d * chunkSize, (d + 1) * chunkSize)
@@ -57,16 +56,14 @@ export async function schedulePlaces(
   return dayChunks.map((chunk, dayIdx) => {
     const placeIds = chunk.map((p) => p.placeId)
 
-    // Separate attractions and restaurants
-    const attractions = chunk.filter((p) => p.type === 'attraction')
+    // Desserts flow freely like attractions (not pinned to meal slots)
+    const attractions = chunk.filter((p) => p.type === 'attraction' || p.type === 'dessert')
     const restaurants = chunk.filter((p) => p.type === 'restaurant')
 
-    // Assign meal slots: first restaurant → lunch, second → dinner
     const lunchRestaurant = restaurants[0] ?? null
     const dinnerRestaurant = restaurants[1] ?? null
     const extraRestaurants = restaurants.slice(2)
 
-    // Build ordered schedule: AM attractions → lunch → PM attractions → dinner
     const amAttractions = attractions.slice(0, Math.ceil(attractions.length / 2))
     const pmAttractions = [
       ...attractions.slice(Math.ceil(attractions.length / 2)),
@@ -83,12 +80,8 @@ export async function schedulePlaces(
     let cursor = DAY_START
 
     const scheduled: ScheduledPlace[] = ordered.map((place, i) => {
-      // Force meal windows
       if (place === lunchRestaurant && cursor < 12 * 60) cursor = 12 * 60
       if (place === dinnerRestaurant && cursor < 18 * 60) cursor = 18 * 60
-
-      // If there are no attractions and only one restaurant, schedule at lunch
-      // (lunchRestaurant handles first restaurant; dinnerRestaurant handles second)
 
       const startTime = minsToTime(cursor)
       const durationMin = DWELL[place.type]
@@ -106,6 +99,7 @@ export async function schedulePlaces(
           : null
 
       const outsideHours = isOutsideHours(startTime, place.openingHours)
+      const lateExit = checkLateExit(startTime, durationMin, place.openingHours)
       cursor += durationMin + (travelMin ?? 0)
 
       return {
@@ -115,6 +109,8 @@ export async function schedulePlaces(
         travelMinToNext: travelMin,
         aiDescription: null,
         outsideHours,
+        lateExit,
+        timeLocked: false,
       }
     })
 

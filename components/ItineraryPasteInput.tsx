@@ -46,7 +46,10 @@ export function ItineraryPasteInput({ onPlacesFound }: Props) {
         done++
         setVerifyProgress({ done, total: places.length })
         if (!found) return null
-        const validType: PlaceType = p.type === 'restaurant' ? 'restaurant' : 'attraction'
+        const validType: PlaceType =
+          p.type === 'restaurant' ? 'restaurant' :
+          p.type === 'dessert' ? 'dessert' :
+          'attraction'
         return { ...found, type: validType } as Place
       })
     )

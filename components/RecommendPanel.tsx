@@ -50,7 +50,7 @@ export function RecommendPanel({ currentPlaces, onAddPlaces }: Props) {
         id: crypto.randomUUID(),
         placeId: r.placeId as string,
         name: r.name,
-        type: r.type as 'attraction' | 'restaurant',
+        type: r.type,
         lat: r.lat as number,
         lng: r.lng as number,
         address: '',
@@ -59,10 +59,12 @@ export function RecommendPanel({ currentPlaces, onAddPlaces }: Props) {
         photoUrl: null,
         description: null,
         startTime: '09:00',
-        durationMin: r.type === 'restaurant' ? 60 : 90,
+        durationMin: r.type === 'attraction' ? 90 : 60,
         travelMinToNext: null,
         aiDescription: r.reason,
         outsideHours: false,
+        lateExit: false,
+        timeLocked: false,
       }))
     onAddPlaces(toAdd)
     setSelected(new Set())
