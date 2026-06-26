@@ -15,7 +15,6 @@ import {
 } from '@dnd-kit/sortable'
 import type { PlanResult, ScheduledPlace } from '@/lib/types'
 import { ItineraryDay } from '@/components/ItineraryDay'
-import { MapView } from '@/components/MapView'
 import { RecommendPanel } from '@/components/RecommendPanel'
 
 interface Props {
@@ -37,7 +36,6 @@ export function ItineraryClient({ initial }: Props) {
     setPlan(nextPlan)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      // Recalculate startTimes for each day based on current order
       const recalced: PlanResult = {
         ...nextPlan,
         days: nextPlan.days.map((day) => {
@@ -91,38 +89,33 @@ export function ItineraryClient({ initial }: Props) {
   return (
     <main className="max-w-5xl mx-auto px-4 py-10">
       <a href="/" className="text-blue-600 text-sm mb-6 inline-block">&#x2190; 重新規劃</a>
-      <div className="flex gap-8">
-        <div className="flex-1 min-w-0">
-          {plan.days.map((day, dayIdx) => (
-            <DndContext
-              key={day.day}
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={(e) => handleDragEnd(e, dayIdx)}
+      <div>
+        {plan.days.map((day, dayIdx) => (
+          <DndContext
+            key={day.day}
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={(e) => handleDragEnd(e, dayIdx)}
+          >
+            <SortableContext
+              items={day.places.map((p) => p.id)}
+              strategy={verticalListSortingStrategy}
             >
-              <SortableContext
-                items={day.places.map((p) => p.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <ItineraryDay
-                  day={day}
-                  onTimeChange={(placeId, field, value) =>
-                    handleTimeChange(dayIdx, placeId, field, value)
-                  }
-                  draggable
-                />
-              </SortableContext>
-            </DndContext>
-          ))}
-        </div>
-        <div className="w-96 shrink-0 sticky top-4 h-[600px] rounded-xl overflow-hidden border border-gray-200">
-          <MapView allPlaces={allPlaces} />
-        </div>
+              <ItineraryDay
+                day={day}
+                mode={plan.transportMode}
+                onTimeChange={(placeId, field, value) =>
+                  handleTimeChange(dayIdx, placeId, field, value)
+                }
+                draggable
+              />
+            </SortableContext>
+          </DndContext>
+        ))}
       </div>
       <RecommendPanel
         currentPlaces={allPlaces}
         onAddPlaces={(newPlaces) => {
-          // Append to last day for now; user can drag to preferred day
           const lastDayIdx = plan.days.length - 1
           const newDays = plan.days.map((d, i) =>
             i === lastDayIdx
