@@ -32,3 +32,81 @@ Task 12: complete (commits 04ba053..4f174f1, review clean)
 - Whole-branch review: 3 important issues found and fixed (commit fbcb107)
 - Minor issues noted (not blocking): photo URL server key latency, URL length for 25 places, no server-side floor for empty places, recommendation auto-trigger is manual button instead of auto-parallel
 - Final commit: fbcb107
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-06-26-itinerary-split-layout.md
+Branch: main
+
+## Tasks
+- [x] Task 1: Move iframe to right-side sticky column in ItineraryDay
+
+Task 1: complete (commits 55ed392..f46b974, review clean)
+
+## Final Review
+- Whole-branch review: Ready to merge (no Critical/Important blocking issues)
+- Follow-up noted: add structural layout test (`iframe.closest('[class*="sticky"]')`) to pin split-column layout in CI
+- Final commit: f46b974
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-06-26-cross-day-drag.md
+Branch: main
+
+## Tasks
+- [x] Task 1: findContainer + applyDragResult utilities
+- [x] Task 2: Wire up single DndContext + useDroppable per day
+
+Task 1: complete (commits be7ac08..2b1c69c, review clean — minor: null as null verbosity)
+Task 2: complete (commits 2b1c69c..1f43aba, review clean)
+Fix: complete (commit 8dde719 — NaN guard in findContainer, isOver highlight)
+
+## Final Review
+- Whole-branch review: Ready to merge
+- Minor noted: null as null cast noise, no same-day no-op test, isOver mock always false in embed tests (all non-blocking)
+- Final commit: 8dde719
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-06-26-google-maps-embed-and-card-info.md
+Branch: main
+
+## Tasks
+- [x] Task 1: Data layer — rename ticketPrice→description, add utility functions
+- [x] Task 2: Update ItineraryCard — opening hours + description display
+- [x] Task 3: Per-day Google Maps Embed + layout cleanup
+
+Task 1: complete (commits 92c262c..b67f4f2, review clean)
+Task 2: complete (commits b67f4f2..906912c, review clean)
+Task 3: complete (commits 906912c..1810306, review clean)
+
+## Final Review
+- All 63 tests pass; 15 test suites clean
+- MapView.tsx deleted; getDirectionsPolyline removed; ticketPrice→description rename complete
+- Final commit: 1810306
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-06-26-batch-itinerary-paste.md
+Branch: main (merged from feat/batch-paste)
+
+## Tasks
+- [x] Task 1: extractItinerary server action
+- [x] Task 2: Update searchPlace to accept country name
+- [x] Task 3: ItineraryPasteInput component
+- [x] Task 4: Wire into app/page.tsx
+
+Task 1: complete (prior to b2a4ff0, review clean)
+Task 2: complete (commits ..b2a4ff0, review clean)
+Task 3: complete (commits b2a4ff0..90fdcf6, review clean)
+Task 4: complete (commits 90fdcf6..dcb3cdd, review clean)
+Fix: complete (commit 4241672 — error recovery, type validation, dedup, stale country reset)
+
+## Final Review
+- Merged via af891c3 (Merge branch 'feat/batch-paste')
+- All 63 tests pass across both plans
+- Final commit: f558bdd (cross-day drag fixes on top)
