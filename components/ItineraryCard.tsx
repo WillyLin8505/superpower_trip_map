@@ -2,6 +2,7 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { TimeEditor } from './TimeEditor'
+import { getTodayHours } from '@/lib/utils/hours'
 import type { ScheduledPlace } from '@/lib/types'
 
 interface Props {
@@ -20,6 +21,9 @@ export function ItineraryCard({ place, index, draggable, onTimeChange }: Props) 
     transition,
     opacity: isDragging ? 0.5 : 1,
   }
+
+  const todayHours = getTodayHours(place.openingHours)
+  const descriptionText = place.description || place.aiDescription
 
   return (
     <div
@@ -71,9 +75,15 @@ export function ItineraryCard({ place, index, draggable, onTimeChange }: Props) 
               <p className="text-sm text-gray-500">{place.startTime} · 停留 {place.durationMin} 分鐘</p>
             )}
           </div>
-          {place.rating && <p className="text-sm text-gray-500 mt-0.5">評分：{place.rating} &#x2605;</p>}
-          {place.description && <p className="text-sm text-gray-500">{place.description}</p>}
-          {place.aiDescription && <p className="text-sm text-gray-600 mt-2 italic">{place.aiDescription}</p>}
+          {todayHours && (
+            <p className="text-sm text-gray-500 mt-0.5">今日 {todayHours}</p>
+          )}
+          {place.rating && (
+            <p className="text-sm text-gray-500 mt-0.5">評分：{place.rating} &#x2605;</p>
+          )}
+          {descriptionText && (
+            <p className="text-sm text-gray-600 mt-2 italic">{descriptionText}</p>
+          )}
         </div>
       </div>
       {place.travelMinToNext !== null && place.travelMinToNext > 0 && (
