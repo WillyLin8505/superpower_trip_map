@@ -53,8 +53,6 @@ test('handles Chinese format with full-width colon', () => {
   spy.mockRestore()
 })
 
-// --- existing getTodayHours tests stay above unchanged ---
-
 describe('checkLateExit', () => {
   test('returns false for null openingHours', () => {
     expect(checkLateExit('09:00', 90, null)).toBe(false)

@@ -24,8 +24,8 @@ function getCloseMin(openingHours: string[] | null): number | null {
   // AM/PM format: "5:00 PM"
   const ampm = closeStr.match(/^(\d+):(\d+)\s*([AP]M)$/i)
   if (ampm) {
-    let h = parseInt(ampm[1])
-    const m = parseInt(ampm[2])
+    let h = parseInt(ampm[1], 10)
+    const m = parseInt(ampm[2], 10)
     const period = ampm[3].toUpperCase()
     if (period === 'PM' && h !== 12) h += 12
     if (period === 'AM' && h === 12) h = 0
@@ -33,7 +33,7 @@ function getCloseMin(openingHours: string[] | null): number | null {
   }
   // 24h format: "17:00"
   const plain = closeStr.match(/^(\d+):(\d+)$/)
-  if (plain) return parseInt(plain[1]) * 60 + parseInt(plain[2])
+  if (plain) return parseInt(plain[1], 10) * 60 + parseInt(plain[2], 10)
   return null
 }
 

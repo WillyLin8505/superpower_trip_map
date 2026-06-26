@@ -2,31 +2,31 @@ export type PlaceType = 'attraction' | 'restaurant' | 'dessert'
 export type TransportMode = 'driving' | 'walking' | 'transit'
 
 export interface Place {
-  id: string
-  placeId: string
+  id: string            // UUID generated client-side
+  placeId: string       // Google Place ID
   name: string
   type: PlaceType
   lat: number
   lng: number
   address: string
-  openingHours: string[] | null
+  openingHours: string[] | null   // e.g. ["Monday: 9:00 AM – 5:00 PM", ...]
   rating: number | null
   photoUrl: string | null
-  description: string | null
+  description: string | null   // from Google editorial_summary.overview; null if unavailable
 }
 
 export interface ScheduledPlace extends Place {
-  startTime: string
-  durationMin: number
-  travelMinToNext: number | null
+  startTime: string         // "HH:MM" 24h
+  durationMin: number       // minutes
+  travelMinToNext: number | null  // null for last place of the day
   aiDescription: string | null
-  outsideHours: boolean
-  lateExit: boolean      // startTime + durationMin exceeds today's closing time
-  timeLocked: boolean    // recalc skips this place's startTime and durationMin
+  outsideHours: boolean     // true → show orange warning
+  lateExit: boolean         // startTime + durationMin exceeds today's closing time
+  timeLocked: boolean       // recalc skips this place's startTime and durationMin
 }
 
 export interface DayItinerary {
-  day: number
+  day: number               // 1-indexed
   places: ScheduledPlace[]
   aiSummary: string | null
 }
@@ -39,9 +39,9 @@ export interface PlanResult {
 export interface Recommendation {
   name: string
   type: PlaceType
-  reason: string
-  sourceLabel: string
-  placeId: string | null
+  reason: string            // Claude's 1-sentence explanation (Traditional Chinese)
+  sourceLabel: string       // label from sources.json
+  placeId: string | null    // null if Google couldn't verify
   lat: number | null
   lng: number | null
   verified: boolean
@@ -56,6 +56,6 @@ export interface Source {
 }
 
 export interface DistanceMatrix {
-  indices: string[]
-  matrix: number[][]
+  indices: string[]         // place IDs in order
+  matrix: number[][]        // matrix[i][j] = seconds from i to j
 }
