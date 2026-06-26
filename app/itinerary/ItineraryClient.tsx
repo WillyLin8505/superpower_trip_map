@@ -11,11 +11,11 @@ import {
 import {
   SortableContext,
   verticalListSortingStrategy,
-  arrayMove,
 } from '@dnd-kit/sortable'
 import type { PlanResult, ScheduledPlace } from '@/lib/types'
 import { ItineraryDay } from '@/components/ItineraryDay'
 import { RecommendPanel } from '@/components/RecommendPanel'
+import { applyDragResult } from '@/lib/utils/dragContainers'
 
 interface Props {
   initial: PlanResult
@@ -52,20 +52,11 @@ export function ItineraryClient({ initial }: Props) {
     }, 2000)
   }, [])
 
-  const handleDragEnd = useCallback((event: DragEndEvent, dayIdx: number) => {
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
-    const day = plan.days[dayIdx]
-    const oldIdx = day.places.findIndex((p) => p.id === active.id)
-    const newIdx = day.places.findIndex((p) => p.id === over.id)
-    const newPlaces = arrayMove(day.places, oldIdx, newIdx).map((p) => ({
-      ...p,
-      travelMinToNext: null,
-    }))
-    const newDays = plan.days.map((d, i) =>
-      i === dayIdx ? { ...d, places: newPlaces } : d
-    )
-    scheduleRecalc({ ...plan, days: newDays })
+    const nextPlan = applyDragResult(plan, String(active.id), String(over.id))
+    if (nextPlan !== plan) scheduleRecalc(nextPlan)
   }, [plan, scheduleRecalc])
 
   const handleTimeChange = useCallback(
@@ -89,20 +80,21 @@ export function ItineraryClient({ initial }: Props) {
   return (
     <main className="max-w-5xl mx-auto px-4 py-10">
       <a href="/" className="text-blue-600 text-sm mb-6 inline-block">&#x2190; 重新規劃</a>
-      <div>
-        {plan.days.map((day, dayIdx) => (
-          <DndContext
-            key={day.day}
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={(e) => handleDragEnd(e, dayIdx)}
-          >
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <div>
+          {plan.days.map((day, dayIdx) => (
             <SortableContext
+              key={day.day}
               items={day.places.map((p) => p.id)}
               strategy={verticalListSortingStrategy}
             >
               <ItineraryDay
                 day={day}
+                dayIdx={dayIdx}
                 mode={plan.transportMode}
                 onTimeChange={(placeId, field, value) =>
                   handleTimeChange(dayIdx, placeId, field, value)
@@ -110,9 +102,9 @@ export function ItineraryClient({ initial }: Props) {
                 draggable
               />
             </SortableContext>
-          </DndContext>
-        ))}
-      </div>
+          ))}
+        </div>
+      </DndContext>
       <RecommendPanel
         currentPlaces={allPlaces}
         onAddPlaces={(newPlaces) => {

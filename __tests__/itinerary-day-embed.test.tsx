@@ -2,6 +2,9 @@
 import { render, screen } from '@testing-library/react'
 import type { DayItinerary, ScheduledPlace } from '@/lib/types'
 
+jest.mock('@dnd-kit/core', () => ({
+  useDroppable: () => ({ setNodeRef: jest.fn(), isOver: false }),
+}))
 jest.mock('@/components/ItineraryCard', () => ({
   ItineraryCard: ({ place }: { place: ScheduledPlace }) => <div>{place.name}</div>,
 }))
@@ -30,7 +33,7 @@ const DAY_TWO_PLACES: DayItinerary = {
 }
 
 test('renders iframe with embed URL when 2+ places', () => {
-  render(<ItineraryDay day={DAY_TWO_PLACES} mode="driving" />)
+  render(<ItineraryDay day={DAY_TWO_PLACES} dayIdx={0} mode="driving" />)
   const iframe = screen.getByTitle('第 1 天路線地圖')
   expect(iframe).toBeInTheDocument()
   expect(iframe).toHaveAttribute('src', 'https://maps.google.com/embed/test')
@@ -38,12 +41,12 @@ test('renders iframe with embed URL when 2+ places', () => {
 
 test('does not render iframe when only 1 place', () => {
   const onePlace = { ...DAY_TWO_PLACES, places: [makePlace('景點A')] }
-  render(<ItineraryDay day={onePlace} mode="driving" />)
+  render(<ItineraryDay day={onePlace} dayIdx={0} mode="driving" />)
   expect(screen.queryByTitle('第 1 天路線地圖')).toBeNull()
 })
 
 test('passes mode to buildDayEmbedUrl', () => {
   const { buildDayEmbedUrl } = require('@/lib/utils/mapUrl')
-  render(<ItineraryDay day={DAY_TWO_PLACES} mode="transit" />)
+  render(<ItineraryDay day={DAY_TWO_PLACES} dayIdx={0} mode="transit" />)
   expect(buildDayEmbedUrl).toHaveBeenCalledWith(DAY_TWO_PLACES.places, 'transit')
 })
