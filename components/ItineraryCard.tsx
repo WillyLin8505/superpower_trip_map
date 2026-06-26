@@ -102,6 +102,7 @@ export function ItineraryCard({ place, index, draggable, onTimeChange, onToggleL
         </div>
         {onToggleLock && (
           <button
+            type="button"
             onClick={() => onToggleLock(place.id)}
             className="text-xl leading-none mt-0.5 opacity-50 hover:opacity-100 transition-opacity shrink-0"
             aria-label={place.timeLocked ? '解鎖時間' : '鎖定時間'}
