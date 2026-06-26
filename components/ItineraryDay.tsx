@@ -11,9 +11,10 @@ interface Props {
   isDragging?: boolean
   draggable?: boolean
   onTimeChange?: (placeId: string, field: 'startTime' | 'durationMin', value: string | number) => void
+  onToggleLock?: (placeId: string) => void
 }
 
-export function ItineraryDay({ day, dayIdx, mode, isDragging, draggable, onTimeChange }: Props) {
+export function ItineraryDay({ day, dayIdx, mode, isDragging, draggable, onTimeChange, onToggleLock }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
 
@@ -33,6 +34,7 @@ export function ItineraryDay({ day, dayIdx, mode, isDragging, draggable, onTimeC
               index={i}
               draggable={draggable}
               onTimeChange={onTimeChange}
+              onToggleLock={onToggleLock}
             />
           ))}
         </div>
