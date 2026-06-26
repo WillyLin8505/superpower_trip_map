@@ -71,12 +71,23 @@ function recalcDay(day: DayItinerary): DayItinerary {
 
   // Segments after each lock (between locks and trailing): forward from lock's end
   lockIndices.forEach((lockIdx, k) => {
-    const nextLockIdx = lockIndices[k + 1] ?? places.length
+    const nextLockPosInList = lockIndices[k + 1]
+    const nextLockIdx = nextLockPosInList ?? places.length
     const segment = places.slice(lockIdx + 1, nextLockIdx)
     if (segment.length === 0) return
     const lock = places[lockIdx]
     const lockEndMin = toMin(lock.startTime) + lock.durationMin + (lock.travelMinToNext ?? 0)
-    const scheduled = scheduleForward(segment, lockEndMin)
+    let scheduled = scheduleForward(segment, lockEndMin)
+
+    // cap check — flag overflow if segment spills past the next lock
+    if (nextLockPosInList !== undefined) {
+      const nextLockStartMin = toMin(places[nextLockPosInList].startTime)
+      scheduled = scheduled.map(p => {
+        const pStartMin = toMin(p.startTime)
+        return pStartMin >= nextLockStartMin ? { ...p, outsideHours: true } : p
+      })
+    }
+
     scheduled.forEach((p, i) => { result[lockIdx + 1 + i] = p })
   })
 

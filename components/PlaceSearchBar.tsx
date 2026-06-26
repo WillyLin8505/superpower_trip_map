@@ -9,6 +9,13 @@ const TYPE_LABEL: Record<PlaceType, string> = {
   dessert: '甜點',
 }
 
+function inferType(query: string): PlaceType {
+  const q = query.toLowerCase()
+  if (q.includes('甜點') || q.includes('dessert') || q.includes('咖啡') || q.includes('cafe') || q.includes('ice cream') || q.includes('蛋糕')) return 'dessert'
+  if (q.includes('餐') || q.includes('restaurant') || q.includes('食堂') || q.includes('bistro')) return 'restaurant'
+  return 'attraction'
+}
+
 interface Props {
   onAdd: (place: Place) => void
 }
@@ -28,7 +35,7 @@ export function PlaceSearchBar({ onAdd }: Props) {
   }
 
   const handleAdd = (place: Place) => {
-    onAdd(place)
+    onAdd({ ...place, type: inferType(query) })
     setQuery('')
     setResult(null)
   }
@@ -65,7 +72,7 @@ export function PlaceSearchBar({ onAdd }: Props) {
           <div className="flex items-center gap-2">
             <span className="font-medium text-gray-900 text-sm">{result.name}</span>
             <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
-              {TYPE_LABEL[result.type]}
+              {TYPE_LABEL[inferType(query)]}
             </span>
           </div>
           <p className="text-xs text-gray-500 mt-0.5 truncate">{result.address}</p>

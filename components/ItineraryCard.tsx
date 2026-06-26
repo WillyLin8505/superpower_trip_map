@@ -80,7 +80,8 @@ export function ItineraryCard({ place, index, draggable, onTimeChange, onToggleL
                   onChange={(v) => {
                     const [eh, em] = v.split(':').map(Number)
                     const [sh, sm] = place.startTime.split(':').map(Number)
-                    const dur = eh * 60 + em - (sh * 60 + sm)
+                    const rawDur = (eh * 60 + em) - (sh * 60 + sm)
+                    const dur = rawDur > 0 ? rawDur : rawDur + 1440
                     if (dur > 0) onTimeChange(place.id, 'durationMin', dur)
                   }}
                 />

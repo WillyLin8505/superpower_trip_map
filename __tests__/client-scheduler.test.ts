@@ -98,6 +98,17 @@ test('locked card at 08:00 with null openingHours gets outsideHours true', () =>
   expect(result.days[0].places[0].outsideHours).toBe(true)
 })
 
+// --- multi-lock overflow past next lock's start ---
+test('between-segment overflow past next lock gets outsideHours true', () => {
+  const lock1 = makePlace({ startTime: '10:00', durationMin: 60, travelMinToNext: 0, timeLocked: true })
+  const overflow = makePlace({ durationMin: 90, travelMinToNext: 0, timeLocked: false })
+  const lock2 = makePlace({ startTime: '11:00', durationMin: 60, travelMinToNext: 0, timeLocked: true })
+  const result = recalcPlan(makePlan([lock1, overflow, lock2]))
+  // overflow starts at 11:00 (lock1 ends 11:00), but lock2 also starts 11:00
+  // overflow places start >= lock2.startTime => outsideHours true
+  expect(result.days[0].places[1].outsideHours).toBe(true)
+})
+
 // --- multiple days processed independently ---
 test('multiple days each recalculated independently', () => {
   const plan: PlanResult = {
