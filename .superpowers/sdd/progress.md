@@ -110,3 +110,26 @@ Fix: complete (commit 4241672 — error recovery, type validation, dedup, stale 
 - Merged via af891c3 (Merge branch 'feat/batch-paste')
 - All 63 tests pass across both plans
 - Final commit: f558bdd (cross-day drag fixes on top)
+
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-06-26-dessert-lock-late-exit.md
+Branch: main
+
+## Tasks
+- [x] Task 1: Data layer — types + checkLateExit + construction sites
+- [x] Task 2: Scheduler + paste input + RecommendPanel
+- [x] Task 3: Card UI — dessert badge, lock toggle, lateExit warning
+- [x] Task 4: Client lock logic + scheduleRecalc with lateExit
+
+Task 1: complete (commits 422aff9..73cfb44, review clean — minor: getCloseMin duplicates day-index logic, inconsistent closed-check target)
+Task 2: complete (commits 73cfb44..6282e81, review clean)
+Task 3: complete (commits 6282e81..e5df74a, review clean after fix — type=button on lock button)
+Task 4: complete (commits e5df74a..9c4dc2e, review clean after fix — extracted checkOutsideHours to lib/utils/hours.ts, restored comments)
+
+## Final Review
+- Whole-branch review: Ready to merge (no Critical/Important)
+- Minors noted (non-blocking): DWELL typed as Record<string,number> not Record<PlaceType,number>; spec says handleToggleLock calls scheduleRecalc but code correctly does NOT; 8 checkLateExit tests vs spec's 7 (extra is valid); outsideHours/lateExit warning DOM placement inconsistent
+- Final commit: 9c4dc2e
