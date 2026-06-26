@@ -1,0 +1,96 @@
+import { ItineraryClient } from '../itinerary/ItineraryClient'
+import type { PlanResult } from '@/lib/types'
+
+const FIXTURE: PlanResult = {
+  transportMode: 'driving',
+  days: [
+    {
+      day: 1,
+      aiSummary: null,
+      places: [
+        {
+          id: 'p1',
+          placeId: 'ChIJ_day0_p1',
+          name: '九份老街',
+          type: 'attraction',
+          lat: 25.109,
+          lng: 121.845,
+          address: '新北市瑞芳區',
+          openingHours: null,
+          rating: null,
+          photoUrl: null,
+          description: null,
+          startTime: '09:00',
+          durationMin: 120,
+          travelMinToNext: null,
+          aiDescription: null,
+          outsideHours: false,
+        },
+        {
+          id: 'p2',
+          placeId: 'ChIJ_day0_p2',
+          name: '基隆廟口夜市',
+          type: 'restaurant',
+          lat: 25.128,
+          lng: 121.740,
+          address: '基隆市仁愛區',
+          openingHours: null,
+          rating: null,
+          photoUrl: null,
+          description: null,
+          startTime: '11:00',
+          durationMin: 90,
+          travelMinToNext: null,
+          aiDescription: null,
+          outsideHours: false,
+        },
+      ],
+    },
+    {
+      day: 2,
+      aiSummary: null,
+      places: [
+        {
+          id: 'p3',
+          placeId: 'ChIJ_day1_p3',
+          name: '太魯閣國家公園',
+          type: 'attraction',
+          lat: 24.157,
+          lng: 121.621,
+          address: '花蓮縣秀林鄉',
+          openingHours: null,
+          rating: null,
+          photoUrl: null,
+          description: null,
+          startTime: '09:00',
+          durationMin: 180,
+          travelMinToNext: null,
+          aiDescription: null,
+          outsideHours: false,
+        },
+        {
+          id: 'p4',
+          placeId: 'ChIJ_day1_p4',
+          name: '花蓮市區',
+          type: 'restaurant',
+          lat: 23.991,
+          lng: 121.601,
+          address: '花蓮縣花蓮市',
+          openingHours: null,
+          rating: null,
+          photoUrl: null,
+          description: null,
+          startTime: '12:00',
+          durationMin: 60,
+          travelMinToNext: null,
+          aiDescription: null,
+          outsideHours: false,
+        },
+      ],
+    },
+  ],
+}
+
+export default function TestDragPage() {
+  return <ItineraryClient initial={FIXTURE} />
+}

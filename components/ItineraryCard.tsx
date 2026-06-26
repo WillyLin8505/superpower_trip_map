@@ -30,6 +30,7 @@ export function ItineraryCard({ place, index, draggable, onTimeChange }: Props) 
       ref={setNodeRef}
       style={style}
       className={`bg-white border rounded-xl p-4 ${place.outsideHours ? 'border-orange-300' : 'border-gray-200'}`}
+      data-testid={`card-${place.id}`}
     >
       <div className="flex items-start gap-3">
         {draggable && (
@@ -37,6 +38,7 @@ export function ItineraryCard({ place, index, draggable, onTimeChange }: Props) 
             {...attributes}
             {...listeners}
             className="cursor-grab text-gray-300 hover:text-gray-500 mt-1 select-none"
+            data-testid="drag-handle"
           >&#x2807;</span>
         )}
         <span className="w-7 h-7 rounded-full bg-blue-600 text-white text-sm font-bold flex items-center justify-center shrink-0">

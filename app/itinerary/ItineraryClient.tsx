@@ -2,30 +2,30 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import {
   DndContext,
+  DragOverlay,
   pointerWithin,
   rectIntersection,
   PointerSensor,
   useSensor,
   useSensors,
-  DragEndEvent,
 } from '@dnd-kit/core'
-import type { CollisionDetection } from '@dnd-kit/core'
-
-// closestCenter fails for multi-container: it measures center-to-center distance
-// and keeps snapping to the source container's last card. pointerWithin checks
-// which droppable the pointer is physically inside — correct for cross-day drops.
-const multiContainerCollision: CollisionDetection = (args) => {
-  const hits = pointerWithin(args)
-  return hits.length > 0 ? hits : rectIntersection(args)
-}
+import type { CollisionDetection, DragStartEvent, DragOverEvent, DragEndEvent } from '@dnd-kit/core'
 import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import type { PlanResult, ScheduledPlace } from '@/lib/types'
 import { ItineraryDay } from '@/components/ItineraryDay'
+import { ItineraryCard } from '@/components/ItineraryCard'
 import { RecommendPanel } from '@/components/RecommendPanel'
-import { applyDragResult } from '@/lib/utils/dragContainers'
+import { applyDragResult, findContainer } from '@/lib/utils/dragContainers'
+
+// pointerWithin is essential for multi-container: it checks where the pointer
+// physically is, not center-to-center distance (closestCenter favors the source container)
+const multiContainerCollision: CollisionDetection = (args) => {
+  const hits = pointerWithin(args)
+  return hits.length > 0 ? hits : rectIntersection(args)
+}
 
 interface Props {
   initial: PlanResult
@@ -33,8 +33,17 @@ interface Props {
 
 export function ItineraryClient({ initial }: Props) {
   const [plan, setPlan] = useState<PlanResult>(initial)
+  const [activeId, setActiveId] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const sensors = useSensors(useSensor(PointerSensor))
+  // planRef always tracks the latest committed plan (avoids stale closures in handlers)
+  const planRef = useRef<PlanResult>(initial)
+  const savedPlanRef = useRef<PlanResult>(initial)
+  // true when onDragOver fired for a cross-container move
+  const didCrossRef = useRef(false)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  )
 
   useEffect(() => {
     return () => {
@@ -43,6 +52,7 @@ export function ItineraryClient({ initial }: Props) {
   }, [])
 
   const scheduleRecalc = useCallback((nextPlan: PlanResult) => {
+    planRef.current = nextPlan
     setPlan(nextPlan)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
@@ -58,20 +68,67 @@ export function ItineraryClient({ initial }: Props) {
           return { ...day, places }
         }),
       }
+      planRef.current = recalced
       setPlan(recalced)
     }, 2000)
   }, [])
 
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveId(String(event.active.id))
+    savedPlanRef.current = planRef.current
+    didCrossRef.current = false
+  }, [])
+
+  const handleDragOver = useCallback((event: DragOverEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
-    const nextPlan = applyDragResult(plan, String(active.id), String(over.id))
-    if (nextPlan !== plan) scheduleRecalc(nextPlan)
-  }, [plan, scheduleRecalc])
+
+    // Only handle cross-container moves here; within-container sort is left to onDragEnd
+    setPlan(prev => {
+      const sourceIdx = findContainer(String(active.id), prev.days)
+      const targetIdx = findContainer(String(over.id), prev.days)
+      if (sourceIdx === -1 || targetIdx === -1 || sourceIdx === targetIdx) return prev
+      const next = applyDragResult(prev, String(active.id), String(over.id))
+      planRef.current = next
+      didCrossRef.current = true
+      return next
+    })
+  }, [])
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event
+    setActiveId(null)
+    const didCross = didCrossRef.current
+    didCrossRef.current = false
+
+    if (!over || active.id === over.id) {
+      // If cross-container happened but user released off-screen, keep the onDragOver state
+      if (didCross) scheduleRecalc(planRef.current)
+      return
+    }
+
+    if (didCross) {
+      // Cross-container was handled live by onDragOver; just commit + recalc
+      scheduleRecalc(planRef.current)
+    } else {
+      // Pure within-day sort (or quick cross-day with no onDragOver)
+      const current = planRef.current
+      const nextPlan = applyDragResult(current, String(active.id), String(over.id))
+      scheduleRecalc(nextPlan !== current ? nextPlan : current)
+    }
+  }, [scheduleRecalc])
+
+  const handleDragCancel = useCallback(() => {
+    setActiveId(null)
+    didCrossRef.current = false
+    const saved = savedPlanRef.current
+    planRef.current = saved
+    setPlan(saved)
+  }, [])
 
   const handleTimeChange = useCallback(
     (dayIdx: number, placeId: string, field: 'startTime' | 'durationMin', value: string | number) => {
-      const newDays = plan.days.map((d, i) => {
+      const newDays = planRef.current.days.map((d, i) => {
         if (i !== dayIdx) return d
         return {
           ...d,
@@ -80,12 +137,14 @@ export function ItineraryClient({ initial }: Props) {
           ),
         }
       })
-      scheduleRecalc({ ...plan, days: newDays })
+      scheduleRecalc({ ...planRef.current, days: newDays })
     },
-    [plan, scheduleRecalc]
+    [scheduleRecalc]
   )
 
   const allPlaces = plan.days.flatMap((d) => d.places)
+  const activePlace = activeId ? allPlaces.find(p => p.id === activeId) ?? null : null
+  const activePlaceIndex = activeId ? allPlaces.findIndex(p => p.id === activeId) : -1
 
   return (
     <main className="max-w-5xl mx-auto px-4 py-10">
@@ -93,7 +152,10 @@ export function ItineraryClient({ initial }: Props) {
       <DndContext
         sensors={sensors}
         collisionDetection={multiContainerCollision}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
       >
         <div>
           {plan.days.map((day, dayIdx) => (
@@ -106,6 +168,7 @@ export function ItineraryClient({ initial }: Props) {
                 day={day}
                 dayIdx={dayIdx}
                 mode={plan.transportMode}
+                isDragging={activeId !== null}
                 onTimeChange={(placeId, field, value) =>
                   handleTimeChange(dayIdx, placeId, field, value)
                 }
@@ -114,17 +177,28 @@ export function ItineraryClient({ initial }: Props) {
             </SortableContext>
           ))}
         </div>
+        <DragOverlay>
+          {activePlace ? (
+            <div className="shadow-2xl rotate-1 opacity-95">
+              <ItineraryCard
+                place={activePlace}
+                index={activePlaceIndex}
+                draggable={false}
+              />
+            </div>
+          ) : null}
+        </DragOverlay>
       </DndContext>
       <RecommendPanel
         currentPlaces={allPlaces}
         onAddPlaces={(newPlaces) => {
-          const lastDayIdx = plan.days.length - 1
-          const newDays = plan.days.map((d, i) =>
+          const lastDayIdx = planRef.current.days.length - 1
+          const newDays = planRef.current.days.map((d, i) =>
             i === lastDayIdx
               ? { ...d, places: [...d.places, ...newPlaces] }
               : d
           )
-          scheduleRecalc({ ...plan, days: newDays })
+          scheduleRecalc({ ...planRef.current, days: newDays })
         }}
       />
     </main>
