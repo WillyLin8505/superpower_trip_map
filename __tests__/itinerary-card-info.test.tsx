@@ -18,6 +18,11 @@ jest.mock('@dnd-kit/utilities', () => ({
 jest.mock('@/lib/utils/hours', () => ({
   getTodayHours: jest.fn(() => '9:00 AM – 5:00 PM'),
 }))
+jest.mock('@/components/TimeScrollPicker', () => ({
+  TimeScrollPicker: ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
+    <button type="button" onClick={() => onChange(value)}>{value}</button>
+  ),
+}))
 
 import { ItineraryCard } from '@/components/ItineraryCard'
 
@@ -112,7 +117,7 @@ test('shows 解鎖時間 aria-label when timeLocked is true', () => {
   expect(screen.getByRole('button', { name: '解鎖時間' })).toBeInTheDocument()
 })
 
-test('hides TimeEditors and shows static time text when timeLocked', () => {
+test('hides TimeScrollPickers and shows static start→end when timeLocked', () => {
   render(
     <ItineraryCard
       place={{ ...BASE_PLACE, timeLocked: true }}
@@ -121,10 +126,16 @@ test('hides TimeEditors and shows static time text when timeLocked', () => {
       onToggleLock={jest.fn()}
     />
   )
-  // Static text visible
-  expect(screen.getByText(/09:00 · 停留 90 分鐘/)).toBeInTheDocument()
-  // No editable time buttons (TimeEditor renders as a button with "開始:" prefix)
-  expect(screen.queryByRole('button', { name: /開始:/ })).toBeNull()
+  // Static text: 09:00 → 10:30 (09:00 + 90 min)
+  expect(screen.getByText('09:00 → 10:30')).toBeInTheDocument()
+  // No pickers (TimeScrollPicker mock renders as a button with the time value)
+  expect(screen.queryByRole('button', { name: '09:00' })).toBeNull()
+})
+
+test('shows start→end time for read-only card (no onTimeChange)', () => {
+  render(<ItineraryCard place={BASE_PLACE} index={0} />)
+  // BASE_PLACE: startTime=09:00, durationMin=90 → end=10:30
+  expect(screen.getByText('09:00 → 10:30')).toBeInTheDocument()
 })
 
 test('shows lateExit warning when lateExit is true', () => {

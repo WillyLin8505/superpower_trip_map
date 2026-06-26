@@ -1,8 +1,9 @@
 'use client'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { TimeEditor } from './TimeEditor'
+import { TimeScrollPicker } from './TimeScrollPicker'
 import { getTodayHours } from '@/lib/utils/hours'
+import { addMinutes } from '@/lib/utils/time'
 import type { PlaceType, ScheduledPlace } from '@/lib/types'
 
 const TYPE_STYLE: Record<PlaceType, { bg: string; text: string; label: string }> = {
@@ -62,29 +63,32 @@ export function ItineraryCard({ place, index, draggable, onTimeChange, onToggleL
               <span className="text-xs text-orange-600 font-medium">&#x26A0; 請確認營業時間</span>
             )}
           </div>
-          <div className="flex gap-4 mt-1 flex-wrap">
+          <div className="flex items-center gap-1 mt-1 flex-wrap">
             {place.timeLocked ? (
               <p className="text-sm text-gray-500">
-                {place.startTime} · 停留 {place.durationMin} 分鐘
+                {place.startTime} → {addMinutes(place.startTime, place.durationMin)}
               </p>
             ) : onTimeChange ? (
               <>
-                <TimeEditor
+                <TimeScrollPicker
                   value={place.startTime}
-                  label="開始"
                   onChange={(v) => onTimeChange(place.id, 'startTime', v)}
                 />
-                <TimeEditor
-                  value={`${Math.floor(place.durationMin / 60).toString().padStart(2, '0')}:${(place.durationMin % 60).toString().padStart(2, '0')}`}
-                  label="停留"
+                <span className="text-gray-400 text-sm">→</span>
+                <TimeScrollPicker
+                  value={addMinutes(place.startTime, place.durationMin)}
                   onChange={(v) => {
-                    const [h, m] = v.split(':').map(Number)
-                    onTimeChange(place.id, 'durationMin', h * 60 + m)
+                    const [eh, em] = v.split(':').map(Number)
+                    const [sh, sm] = place.startTime.split(':').map(Number)
+                    const dur = eh * 60 + em - (sh * 60 + sm)
+                    if (dur > 0) onTimeChange(place.id, 'durationMin', dur)
                   }}
                 />
               </>
             ) : (
-              <p className="text-sm text-gray-500">{place.startTime} · 停留 {place.durationMin} 分鐘</p>
+              <p className="text-sm text-gray-500">
+                {place.startTime} → {addMinutes(place.startTime, place.durationMin)}
+              </p>
             )}
           </div>
           {todayHours && (
