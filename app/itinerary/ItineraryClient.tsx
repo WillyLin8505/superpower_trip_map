@@ -14,8 +14,8 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import type { PlanResult, ScheduledPlace } from '@/lib/types'
-import { checkLateExit, checkOutsideHours } from '@/lib/utils/hours'
+import type { PlanResult } from '@/lib/types'
+import { recalcPlan } from '@/lib/utils/clientScheduler'
 import { ItineraryDay } from '@/components/ItineraryDay'
 import { ItineraryCard } from '@/components/ItineraryCard'
 import { RecommendPanel } from '@/components/RecommendPanel'
@@ -57,34 +57,7 @@ export function ItineraryClient({ initial }: Props) {
     setPlan(nextPlan)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      const recalced: PlanResult = {
-        ...nextPlan,
-        days: nextPlan.days.map((day) => {
-          let cursor = 9 * 60
-          const places: ScheduledPlace[] = day.places.map((p) => {
-            if (p.timeLocked) {
-              // Locked place: keep startTime and durationMin, advance cursor past it
-              const [h, m] = p.startTime.split(':').map(Number)
-              cursor = h * 60 + m + p.durationMin + (p.travelMinToNext ?? 0)
-              return {
-                ...p,
-                lateExit: checkLateExit(p.startTime, p.durationMin, p.openingHours),
-                outsideHours: checkOutsideHours(p.startTime, p.openingHours),
-              }
-            }
-            const startMins = cursor
-            const startTime = `${String(Math.floor(startMins / 60)).padStart(2, '0')}:${String(startMins % 60).padStart(2, '0')}`
-            cursor += p.durationMin + (p.travelMinToNext ?? 0)
-            return {
-              ...p,
-              startTime,
-              lateExit: checkLateExit(startTime, p.durationMin, p.openingHours),
-              outsideHours: checkOutsideHours(startTime, p.openingHours),
-            }
-          })
-          return { ...day, places }
-        }),
-      }
+      const recalced = recalcPlan(planRef.current)
       planRef.current = recalced
       setPlan(recalced)
     }, 2000)
