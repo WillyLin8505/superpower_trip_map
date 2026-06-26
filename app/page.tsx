@@ -2,7 +2,7 @@
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Place, PlaceType, TransportMode } from '@/lib/types'
-import { PlaceSearch } from '@/components/PlaceSearch'
+import { ItineraryPasteInput } from '@/components/ItineraryPasteInput'
 import { PlaceList } from '@/components/PlaceList'
 
 export default function InputPage() {
@@ -11,10 +11,12 @@ export default function InputPage() {
   const [days, setDays] = useState(2)
   const [mode, setMode] = useState<TransportMode>('driving')
 
-  const handleAdd = useCallback((p: Place) => {
-    if (places.length >= 25) return
-    setPlaces((prev) => [...prev, p])
-  }, [places.length])
+  const handlePlacesFound = useCallback((newPlaces: Place[]) => {
+    setPlaces((prev) => {
+      const combined = [...prev, ...newPlaces]
+      return combined.slice(0, 25)
+    })
+  }, [])
 
   const handleTypeChange = useCallback((id: string, type: PlaceType) => {
     setPlaces((prev) => prev.map((p) => (p.id === id ? { ...p, type } : p)))
@@ -33,12 +35,12 @@ export default function InputPage() {
   return (
     <main className="max-w-2xl mx-auto px-4 py-10">
       <h1 className="text-3xl font-bold text-gray-900 mb-2">旅遊行程規劃</h1>
-      <p className="text-gray-500 mb-8">輸入景點和餐廳，自動安排最順路的行程</p>
+      <p className="text-gray-500 mb-8">貼上旅遊文章或行程筆記，自動分析所有景點與餐廳</p>
 
       <section className="mb-6">
-        <PlaceSearch onAdd={handleAdd} />
+        <ItineraryPasteInput onPlacesFound={handlePlacesFound} />
         {places.length >= 25 && (
-          <p className="text-red-500 text-sm mt-2">最多輸入 25 個地點</p>
+          <p className="text-red-500 text-sm mt-2">已達最多 25 個地點</p>
         )}
       </section>
 
