@@ -38,6 +38,8 @@ const BASE_PLACE: ScheduledPlace = {
   travelMinToNext: 15,
   aiDescription: null,
   outsideHours: false,
+  lateExit: false,
+  timeLocked: false,
 }
 
 test('shows today opening hours', () => {
