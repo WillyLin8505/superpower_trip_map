@@ -33,10 +33,11 @@ export async function getPlaceDetails(placeId: string): Promise<Place | null> {
   }
 }
 
-export async function searchPlace(query: string): Promise<Place | null> {
+export async function searchPlace(query: string, countryName?: string): Promise<Place | null> {
+  const input = countryName ? `${query}, ${countryName}` : query
   const url =
     `${BASE}/findplacefromtext/json` +
-    `?input=${encodeURIComponent(query)}&inputtype=textquery` +
+    `?input=${encodeURIComponent(input)}&inputtype=textquery` +
     `&fields=place_id&key=${KEY}`
   const res = await fetch(url)
   const data = await res.json()
