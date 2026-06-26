@@ -45,8 +45,8 @@ describe('ItineraryPage', () => {
 
   it('calls planItinerary and renders ItineraryClient when places are valid', async () => {
     const places = [
-      { id: '1', placeId: 'p1', name: 'A', type: 'attraction', lat: 0, lng: 0, address: '', openingHours: null, rating: null, photoUrl: null, ticketPrice: null },
-      { id: '2', placeId: 'p2', name: 'B', type: 'restaurant', lat: 1, lng: 1, address: '', openingHours: null, rating: null, photoUrl: null, ticketPrice: null },
+      { id: '1', placeId: 'p1', name: 'A', type: 'attraction', lat: 0, lng: 0, address: '', openingHours: null, rating: null, photoUrl: null, description: null },
+      { id: '2', placeId: 'p2', name: 'B', type: 'restaurant', lat: 1, lng: 1, address: '', openingHours: null, rating: null, photoUrl: null, description: null },
     ]
     sessionStorage.setItem('pendingPlaces', JSON.stringify(places))
     render(<ItineraryInner />)

@@ -26,7 +26,7 @@ export function PlaceSearch({ onAdd }: Props) {
         openingHours: null,
         rating: null,
         photoUrl: null,
-        ticketPrice: null,
+        description: null,
       }
       onAdd(place)
       if (inputRef.current) inputRef.current.value = ''

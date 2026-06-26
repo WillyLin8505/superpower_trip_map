@@ -72,7 +72,7 @@ export function ItineraryCard({ place, index, draggable, onTimeChange }: Props) 
             )}
           </div>
           {place.rating && <p className="text-sm text-gray-500 mt-0.5">評分：{place.rating} &#x2605;</p>}
-          {place.ticketPrice && <p className="text-sm text-gray-500">票價：{place.ticketPrice}</p>}
+          {place.description && <p className="text-sm text-gray-500">{place.description}</p>}
           {place.aiDescription && <p className="text-sm text-gray-600 mt-2 italic">{place.aiDescription}</p>}
         </div>
       </div>

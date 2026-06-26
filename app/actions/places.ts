@@ -29,7 +29,7 @@ export async function getPlaceDetails(placeId: string): Promise<Place | null> {
     photoUrl: r.photos?.[0]
       ? `/api/photo?ref=${r.photos[0].photo_reference}`
       : null,
-    ticketPrice: r.editorial_summary?.overview ?? null,
+    description: r.editorial_summary?.overview ?? null,
   }
 }
 

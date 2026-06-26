@@ -57,7 +57,7 @@ export function RecommendPanel({ currentPlaces, onAddPlaces }: Props) {
         openingHours: null,
         rating: null,
         photoUrl: null,
-        ticketPrice: null,
+        description: null,
         startTime: '09:00',
         durationMin: r.type === 'restaurant' ? 60 : 90,
         travelMinToNext: null,

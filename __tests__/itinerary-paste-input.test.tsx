@@ -27,7 +27,7 @@ const MOCK_PLACE: Place = {
   openingHours: null,
   rating: null,
   photoUrl: null,
-  ticketPrice: null,
+  description: null,
 }
 
 describe('ItineraryPasteInput', () => {

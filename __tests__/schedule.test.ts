@@ -13,7 +13,7 @@ const makePlaces = (types: ('attraction' | 'restaurant')[]): Place[] =>
     openingHours: null,
     rating: null,
     photoUrl: null,
-    ticketPrice: null,
+    description: null,
   }))
 
 const zeroMatrix = (n: number): DistanceMatrix => ({

@@ -12,7 +12,7 @@ export interface Place {
   openingHours: string[] | null   // e.g. ["Monday: 9:00 AM – 5:00 PM", ...]
   rating: number | null
   photoUrl: string | null
-  ticketPrice: string | null      // from editorial summary; null if unavailable
+  description: string | null   // from Google editorial_summary.overview; null if unavailable
 }
 
 export interface ScheduledPlace extends Place {
