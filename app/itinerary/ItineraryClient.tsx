@@ -15,13 +15,12 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import type { PlanResult, ScheduledPlace } from '@/lib/types'
+import { checkLateExit } from '@/lib/utils/hours'
 import { ItineraryDay } from '@/components/ItineraryDay'
 import { ItineraryCard } from '@/components/ItineraryCard'
 import { RecommendPanel } from '@/components/RecommendPanel'
 import { applyDragResult, findContainer } from '@/lib/utils/dragContainers'
 
-// pointerWithin is essential for multi-container: it checks where the pointer
-// physically is, not center-to-center distance (closestCenter favors the source container)
 const multiContainerCollision: CollisionDetection = (args) => {
   const hits = pointerWithin(args)
   return hits.length > 0 ? hits : rectIntersection(args)
@@ -35,10 +34,8 @@ export function ItineraryClient({ initial }: Props) {
   const [plan, setPlan] = useState<PlanResult>(initial)
   const [activeId, setActiveId] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // planRef always tracks the latest committed plan (avoids stale closures in handlers)
   const planRef = useRef<PlanResult>(initial)
   const savedPlanRef = useRef<PlanResult>(initial)
-  // true when onDragOver fired for a cross-container move
   const didCrossRef = useRef(false)
 
   const sensors = useSensors(
@@ -61,9 +58,20 @@ export function ItineraryClient({ initial }: Props) {
         days: nextPlan.days.map((day) => {
           let cursor = 9 * 60
           const places: ScheduledPlace[] = day.places.map((p) => {
-            const startTime = `${String(Math.floor(cursor / 60)).padStart(2, '0')}:${String(cursor % 60).padStart(2, '0')}`
+            if (p.timeLocked) {
+              // Locked place: keep startTime and durationMin, advance cursor past it
+              const [h, m] = p.startTime.split(':').map(Number)
+              cursor = h * 60 + m + p.durationMin + (p.travelMinToNext ?? 0)
+              return { ...p, lateExit: checkLateExit(p.startTime, p.durationMin, p.openingHours) }
+            }
+            const startMins = cursor
+            const startTime = `${String(Math.floor(startMins / 60)).padStart(2, '0')}:${String(startMins % 60).padStart(2, '0')}`
             cursor += p.durationMin + (p.travelMinToNext ?? 0)
-            return { ...p, startTime }
+            return {
+              ...p,
+              startTime,
+              lateExit: checkLateExit(startTime, p.durationMin, p.openingHours),
+            }
           })
           return { ...day, places }
         }),
@@ -71,6 +79,21 @@ export function ItineraryClient({ initial }: Props) {
       planRef.current = recalced
       setPlan(recalced)
     }, 2000)
+  }, [])
+
+  const handleToggleLock = useCallback((dayIdx: number, placeId: string) => {
+    const newDays = planRef.current.days.map((d, i) => {
+      if (i !== dayIdx) return d
+      return {
+        ...d,
+        places: d.places.map((p) =>
+          p.id === placeId ? { ...p, timeLocked: !p.timeLocked } : p
+        ),
+      }
+    })
+    const newPlan = { ...planRef.current, days: newDays }
+    planRef.current = newPlan
+    setPlan(newPlan)
   }, [])
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -83,7 +106,6 @@ export function ItineraryClient({ initial }: Props) {
     const { active, over } = event
     if (!over || active.id === over.id) return
 
-    // Only handle cross-container moves here; within-container sort is left to onDragEnd
     setPlan(prev => {
       const sourceIdx = findContainer(String(active.id), prev.days)
       const targetIdx = findContainer(String(over.id), prev.days)
@@ -102,16 +124,13 @@ export function ItineraryClient({ initial }: Props) {
     didCrossRef.current = false
 
     if (!over || active.id === over.id) {
-      // If cross-container happened but user released off-screen, keep the onDragOver state
       if (didCross) scheduleRecalc(planRef.current)
       return
     }
 
     if (didCross) {
-      // Cross-container was handled live by onDragOver; just commit + recalc
       scheduleRecalc(planRef.current)
     } else {
-      // Pure within-day sort (or quick cross-day with no onDragOver)
       const current = planRef.current
       const nextPlan = applyDragResult(current, String(active.id), String(over.id))
       scheduleRecalc(nextPlan !== current ? nextPlan : current)
@@ -172,6 +191,7 @@ export function ItineraryClient({ initial }: Props) {
                 onTimeChange={(placeId, field, value) =>
                   handleTimeChange(dayIdx, placeId, field, value)
                 }
+                onToggleLock={(placeId) => handleToggleLock(dayIdx, placeId)}
                 draggable
               />
             </SortableContext>
