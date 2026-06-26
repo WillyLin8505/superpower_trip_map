@@ -64,7 +64,7 @@ function recalcDay(day: DayItinerary): DayItinerary {
     const startTime = p.startTime
     result[idx] = {
       ...p,
-      outsideHours: checkOutsideHours(startTime, p.openingHours),
+      outsideHours: toMin(startTime) < DAY_START || checkOutsideHours(startTime, p.openingHours),
       lateExit: checkLateExit(startTime, p.durationMin, p.openingHours),
     }
   })

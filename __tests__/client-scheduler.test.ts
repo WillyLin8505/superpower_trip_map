@@ -92,6 +92,12 @@ test('locked place outsideHours recomputed', () => {
   expect(result.days[0].places[0].outsideHours).toBe(false)
 })
 
+test('locked card at 08:00 with null openingHours gets outsideHours true', () => {
+  const locked = makePlace({ startTime: '08:00', durationMin: 60, travelMinToNext: 0, timeLocked: true, openingHours: null, outsideHours: false })
+  const result = recalcPlan(makePlan([locked]))
+  expect(result.days[0].places[0].outsideHours).toBe(true)
+})
+
 // --- multiple days processed independently ---
 test('multiple days each recalculated independently', () => {
   const plan: PlanResult = {
