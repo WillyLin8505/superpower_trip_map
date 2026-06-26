@@ -1,4 +1,4 @@
-import { getTodayHours, checkLateExit } from '@/lib/utils/hours'
+import { getTodayHours, checkLateExit, checkOutsideHours } from '@/lib/utils/hours'
 
 test('returns null for null input', () => {
   expect(getTodayHours(null)).toBeNull()
@@ -106,6 +106,48 @@ describe('checkLateExit', () => {
     const hours = Array(7).fill('Monday: Closed')
     const spy = jest.spyOn(Date.prototype, 'getDay').mockReturnValue(1)
     expect(checkLateExit('09:00', 90, hours)).toBe(false)
+    spy.mockRestore()
+  })
+})
+
+describe('checkOutsideHours', () => {
+  test('returns false for null openingHours', () => {
+    expect(checkOutsideHours('09:00', null)).toBe(false)
+  })
+
+  test('returns false for empty array', () => {
+    expect(checkOutsideHours('09:00', [])).toBe(false)
+  })
+
+  test('returns false when start is within hours', () => {
+    // open 09:00 AM – 05:00 PM; start 10:00 → within
+    const hours = ['Sunday: 9:00 AM – 5:00 PM', 'Monday: 9:00 AM – 5:00 PM', 'Tuesday: 9:00 AM – 5:00 PM', 'Wednesday: 9:00 AM – 5:00 PM', 'Thursday: 9:00 AM – 5:00 PM', 'Friday: 9:00 AM – 5:00 PM', 'Saturday: 9:00 AM – 5:00 PM']
+    const spy = jest.spyOn(Date.prototype, 'getDay').mockReturnValue(1)
+    expect(checkOutsideHours('10:00', hours)).toBe(false)
+    spy.mockRestore()
+  })
+
+  test('returns true when start is before open', () => {
+    // open 09:00 AM; start 08:00 → before open
+    const hours = ['Sunday: 9:00 AM – 5:00 PM', 'Monday: 9:00 AM – 5:00 PM', 'Tuesday: 9:00 AM – 5:00 PM', 'Wednesday: 9:00 AM – 5:00 PM', 'Thursday: 9:00 AM – 5:00 PM', 'Friday: 9:00 AM – 5:00 PM', 'Saturday: 9:00 AM – 5:00 PM']
+    const spy = jest.spyOn(Date.prototype, 'getDay').mockReturnValue(1)
+    expect(checkOutsideHours('08:00', hours)).toBe(true)
+    spy.mockRestore()
+  })
+
+  test('returns true when start is exactly at close', () => {
+    // close 05:00 PM = 17:00; start 17:00 → at or past close
+    const hours = ['Sunday: 9:00 AM – 5:00 PM', 'Monday: 9:00 AM – 5:00 PM', 'Tuesday: 9:00 AM – 5:00 PM', 'Wednesday: 9:00 AM – 5:00 PM', 'Thursday: 9:00 AM – 5:00 PM', 'Friday: 9:00 AM – 5:00 PM', 'Saturday: 9:00 AM – 5:00 PM']
+    const spy = jest.spyOn(Date.prototype, 'getDay').mockReturnValue(1)
+    expect(checkOutsideHours('17:00', hours)).toBe(true)
+    spy.mockRestore()
+  })
+
+  test('returns false when hours format does not match AM/PM pattern', () => {
+    // Chinese 24h format won't match the AM/PM regex
+    const hours = Array(7).fill('Monday: 09:00–17:00')
+    const spy = jest.spyOn(Date.prototype, 'getDay').mockReturnValue(1)
+    expect(checkOutsideHours('10:00', hours)).toBe(false)
     spy.mockRestore()
   })
 })

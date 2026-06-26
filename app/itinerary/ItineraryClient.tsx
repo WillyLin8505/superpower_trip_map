@@ -15,12 +15,14 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import type { PlanResult, ScheduledPlace } from '@/lib/types'
-import { checkLateExit } from '@/lib/utils/hours'
+import { checkLateExit, checkOutsideHours } from '@/lib/utils/hours'
 import { ItineraryDay } from '@/components/ItineraryDay'
 import { ItineraryCard } from '@/components/ItineraryCard'
 import { RecommendPanel } from '@/components/RecommendPanel'
 import { applyDragResult, findContainer } from '@/lib/utils/dragContainers'
 
+// pointerWithin is essential for multi-container: it checks where the pointer
+// physically is, not center-to-center distance (closestCenter favors the source container)
 const multiContainerCollision: CollisionDetection = (args) => {
   const hits = pointerWithin(args)
   return hits.length > 0 ? hits : rectIntersection(args)
@@ -34,8 +36,10 @@ export function ItineraryClient({ initial }: Props) {
   const [plan, setPlan] = useState<PlanResult>(initial)
   const [activeId, setActiveId] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // planRef always tracks the latest committed plan (avoids stale closures in dnd-kit callbacks)
   const planRef = useRef<PlanResult>(initial)
   const savedPlanRef = useRef<PlanResult>(initial)
+  // true when onDragOver fired for a cross-container move; needed to detect cross-day drag in onDragEnd
   const didCrossRef = useRef(false)
 
   const sensors = useSensors(
@@ -62,7 +66,11 @@ export function ItineraryClient({ initial }: Props) {
               // Locked place: keep startTime and durationMin, advance cursor past it
               const [h, m] = p.startTime.split(':').map(Number)
               cursor = h * 60 + m + p.durationMin + (p.travelMinToNext ?? 0)
-              return { ...p, lateExit: checkLateExit(p.startTime, p.durationMin, p.openingHours) }
+              return {
+                ...p,
+                lateExit: checkLateExit(p.startTime, p.durationMin, p.openingHours),
+                outsideHours: checkOutsideHours(p.startTime, p.openingHours),
+              }
             }
             const startMins = cursor
             const startTime = `${String(Math.floor(startMins / 60)).padStart(2, '0')}:${String(startMins % 60).padStart(2, '0')}`
@@ -71,6 +79,7 @@ export function ItineraryClient({ initial }: Props) {
               ...p,
               startTime,
               lateExit: checkLateExit(startTime, p.durationMin, p.openingHours),
+              outsideHours: checkOutsideHours(startTime, p.openingHours),
             }
           })
           return { ...day, places }

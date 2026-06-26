@@ -1,29 +1,9 @@
 'use server'
 import type { Place, ScheduledPlace, DayItinerary, DistanceMatrix } from '@/lib/types'
-import { checkLateExit } from '@/lib/utils/hours'
+import { checkLateExit, checkOutsideHours } from '@/lib/utils/hours'
 
 const DWELL: Record<string, number> = { attraction: 90, restaurant: 60, dessert: 60 }
 const DAY_START = 9 * 60
-
-function isOutsideHours(startTime: string, openingHours: string[] | null): boolean {
-  if (!openingHours) return false
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-  const today = days[new Date().getDay()]
-  const todayHours = openingHours.find((h) => h.startsWith(today))
-  if (!todayHours) return false
-  const match = todayHours.match(/(\d+:\d+\s*[AP]M)\s*[–-]\s*(\d+:\d+\s*[AP]M)/)
-  if (!match) return false
-  const toMins = (t: string) => {
-    const [time, period] = t.trim().split(/\s+/)
-    const [h, m] = time.split(':').map(Number)
-    return ((period === 'PM' && h !== 12 ? h + 12 : period === 'AM' && h === 12 ? 0 : h) * 60) + m
-  }
-  const openMin = toMins(match[1])
-  const closeMin = toMins(match[2])
-  const [sh, sm] = startTime.split(':').map(Number)
-  const startMin = sh * 60 + sm
-  return startMin < openMin || startMin >= closeMin
-}
 
 function minsToTime(mins: number): string {
   const h = Math.floor(mins / 60).toString().padStart(2, '0')
@@ -98,7 +78,7 @@ export async function schedulePlaces(
             )
           : null
 
-      const outsideHours = isOutsideHours(startTime, place.openingHours)
+      const outsideHours = checkOutsideHours(startTime, place.openingHours)
       const lateExit = checkLateExit(startTime, durationMin, place.openingHours)
       cursor += durationMin + (travelMin ?? 0)
 

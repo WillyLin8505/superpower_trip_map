@@ -48,3 +48,26 @@ export function checkLateExit(
   const endMin = h * 60 + m + durationMin
   return endMin > closeMin
 }
+
+export function checkOutsideHours(
+  startTime: string,
+  openingHours: string[] | null
+): boolean {
+  if (!openingHours || openingHours.length === 0) return false
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const today = days[new Date().getDay()]
+  const todayHours = openingHours.find((h) => h.startsWith(today))
+  if (!todayHours) return false
+  const match = todayHours.match(/(\d+:\d+\s*[AP]M)\s*[–-]\s*(\d+:\d+\s*[AP]M)/)
+  if (!match) return false
+  const toMins = (t: string) => {
+    const [time, period] = t.trim().split(/\s+/)
+    const [h, m] = time.split(':').map(Number)
+    return ((period === 'PM' && h !== 12 ? h + 12 : period === 'AM' && h === 12 ? 0 : h) * 60) + m
+  }
+  const openMin = toMins(match[1])
+  const closeMin = toMins(match[2])
+  const [sh, sm] = startTime.split(':').map(Number)
+  const startMin = sh * 60 + sm
+  return startMin < openMin || startMin >= closeMin
+}
