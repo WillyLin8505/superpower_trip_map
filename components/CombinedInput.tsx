@@ -38,7 +38,7 @@ function detectMode(text: string): DetectedMode | null {
   const t = text.trim()
   if (!t) return null
   if (/^https?:\/\//.test(t)) return 'url'
-  if (text.length > 150 || text.includes('\n')) return 'article'
+  if (t.length > 150 || text.includes('\n')) return 'article'
   return 'search'
 }
 
@@ -220,7 +220,7 @@ export function CombinedInput({ onAdd, onAddPlaces }: Props) {
           <div className="flex items-center gap-2">
             <span className="font-medium text-gray-900 text-sm">{singleResult.name}</span>
             <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
-              {TYPE_LABEL[inferType(text)]}
+              {TYPE_LABEL[inferType(searchQuery)]}
             </span>
           </div>
           <p className="text-xs text-gray-500 mt-0.5 truncate">{singleResult.address}</p>
