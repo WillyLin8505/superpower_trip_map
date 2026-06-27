@@ -99,4 +99,22 @@ describe('CombinedInput', () => {
     expect(mockScrape).toHaveBeenCalledWith('https://blog.example.com/japan')
     expect(mockExtract).toHaveBeenCalledWith('scraped blog body about Japan')
   })
+
+  it('shows country selector when no country detected, then verifies on confirm', async () => {
+    mockExtract.mockResolvedValue({
+      country: null, countryCode: null,
+      places: [{ name: '某地方', type: 'attraction' }],
+    })
+    mockSearch.mockResolvedValue(MOCK_PLACE)
+    const onAddPlaces = jest.fn()
+    const longText = '一段沒有國家資訊的文字，' + '行程內容'.repeat(50)
+    render(<CombinedInput onAdd={jest.fn()} onAddPlaces={onAddPlaces} />)
+    fireEvent.change(screen.getByPlaceholderText(PLACEHOLDER), { target: { value: longText } })
+    fireEvent.click(screen.getByText('送出'))
+    await waitFor(() => expect(screen.getByText('無法自動判斷國家，請選擇行程所在地：')).toBeInTheDocument())
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Taiwan' } })
+    fireEvent.click(screen.getByText('繼續分析'))
+    await waitFor(() => expect(onAddPlaces).toHaveBeenCalled())
+    expect(mockSearch).toHaveBeenCalledWith('某地方', 'Taiwan')
+  })
 })

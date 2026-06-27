@@ -133,7 +133,7 @@ export function CombinedInput({ onAdd, onAddPlaces }: Props) {
         const found = await searchPlace(trimmed)
         setSingleResult(found)
         setSearchQuery(trimmed)
-        setText('')
+        if (found) setText('')
         setPhase('result')
       }
     } catch {
