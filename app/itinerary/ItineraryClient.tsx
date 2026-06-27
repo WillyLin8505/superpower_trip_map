@@ -21,8 +21,7 @@ import { ItineraryCard } from '@/components/ItineraryCard'
 import { RecommendPanel } from '@/components/RecommendPanel'
 import { applyDragResult, findContainer } from '@/lib/utils/dragContainers'
 import { findClosestDay } from '@/lib/utils/geo'
-import { PlaceSearchBar } from '@/components/PlaceSearchBar'
-import { ItineraryPasteInput } from '@/components/ItineraryPasteInput'
+import { CombinedInput } from '@/components/CombinedInput'
 
 // pointerWithin is essential for multi-container: it checks where the pointer
 // physically is, not center-to-center distance (closestCenter favors the source container)
@@ -197,8 +196,7 @@ export function ItineraryClient({ initial }: Props) {
       <a href="/" className="text-blue-600 text-sm mb-6 inline-block">&#x2190; 重新規劃</a>
       <section className="mb-6 space-y-3">
         <h2 className="text-sm font-semibold text-gray-700">新增行程</h2>
-        <PlaceSearchBar onAdd={handleAddPlace} />
-        <ItineraryPasteInput onPlacesFound={handleAddPlaces} />
+        <CombinedInput onAdd={handleAddPlace} onAddPlaces={handleAddPlaces} />
       </section>
       <DndContext
         sensors={sensors}
