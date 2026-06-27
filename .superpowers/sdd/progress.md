@@ -149,3 +149,28 @@ Task 6: complete (commits 54ad909..38166d1, review clean after fix — mb-6 spac
 - Minor noted (non-blocking): haversineSeconds semantic comment, findClosestDay empty-days edge, non-5-min TimeScrollPicker state visual
 - 112 tests pass, 19 suites clean
 - Final commit: 4f018b6
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-06-27-combined-input.md
+Branch: main
+
+## Tasks
+- [x] Task 1: CombinedInput — search mode + mode badge
+- [x] Task 2: Article + URL extraction pipelines
+- [x] Task 3: Wire CombinedInput into ItineraryClient
+
+Task 1: complete (commits 48a2d5d..2a99b70, review clean after fix — controller stripped deploy-breaking win32 binding devDependency + duplicate jest.setup.js; fixed result-card badge to use searchQuery, detectMode trims before length check)
+  Minors deferred to final review: Enter-to-submit constraint conflicts with multi-line textarea (paste needs newline); COUNTRIES duplicated from ItineraryPasteInput (brief-mandated); unused mockExtract/mockScrape in test (consumed by Task 2)
+Task 2: complete (commits 2a99b70..476b9cf, review clean — two article/url tests appended verbatim, 6/6 pass, test-only)
+Task 3: complete (commits 476b9cf..9ee913f, review clean — import+usage swap only, both old component files retained, home page untouched, build clean 118/118)
+Fix (post-final-review): complete (commit 8b9bb33 — preserve query on failed search [setText gated on found, jsdom workaround intact]; added confirm-country branch test)
+
+## Final Review
+- Whole-branch review (48a2d5d..8b9bb33): Ready to merge — no Critical/Important
+- Controller caught+removed deploy-breaking infra (win32-x64 binding as hard devDependency would EBADPLATFORM on Vercel/Linux; duplicate jest.setup.js) before Task 1 review
+- Applied Minor #1 (failed-search query preservation) + added confirm-country test
+- Follow-ups noted (non-blocking): Enter-to-submit intentionally omitted (multi-line textarea needs newline for paste); COUNTRIES/inferType/TYPE_LABEL/verify-pipeline duplicated from ItineraryPasteInput+PlaceSearchBar — extract to lib/ once home-page input is also migrated
+- 119 tests pass, 20 suites; build clean
+- Final commit: 8b9bb33
