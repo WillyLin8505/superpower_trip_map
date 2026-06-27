@@ -65,4 +65,38 @@ describe('CombinedInput', () => {
     fireEvent.change(ta, { target: { value: 'line one\nline two' } })
     expect(screen.getByText('📄 分析文章')).toBeInTheDocument()
   })
+
+  it('long text extracts then calls onAddPlaces with verified places', async () => {
+    mockExtract.mockResolvedValue({
+      country: 'Japan', countryCode: 'jp',
+      places: [{ name: '淺草寺', type: 'attraction' }],
+    })
+    mockSearch.mockResolvedValue(MOCK_PLACE)
+    const onAddPlaces = jest.fn()
+    const longText = '我去日本玩，' + '行程文字'.repeat(50)
+    render(<CombinedInput onAdd={jest.fn()} onAddPlaces={onAddPlaces} />)
+    fireEvent.change(screen.getByPlaceholderText(PLACEHOLDER), { target: { value: longText } })
+    fireEvent.click(screen.getByText('送出'))
+    await waitFor(() =>
+      expect(onAddPlaces).toHaveBeenCalledWith([expect.objectContaining({ name: '淺草寺' })])
+    )
+    expect(mockExtract).toHaveBeenCalledWith(longText)
+    expect(mockSearch).toHaveBeenCalledWith('淺草寺', 'Japan')
+  })
+
+  it('url text scrapes then extracts then calls onAddPlaces', async () => {
+    mockScrape.mockResolvedValue('scraped blog body about Japan')
+    mockExtract.mockResolvedValue({
+      country: 'Japan', countryCode: 'jp',
+      places: [{ name: '淺草寺', type: 'attraction' }],
+    })
+    mockSearch.mockResolvedValue(MOCK_PLACE)
+    const onAddPlaces = jest.fn()
+    render(<CombinedInput onAdd={jest.fn()} onAddPlaces={onAddPlaces} />)
+    fireEvent.change(screen.getByPlaceholderText(PLACEHOLDER), { target: { value: 'https://blog.example.com/japan' } })
+    fireEvent.click(screen.getByText('送出'))
+    await waitFor(() => expect(onAddPlaces).toHaveBeenCalled())
+    expect(mockScrape).toHaveBeenCalledWith('https://blog.example.com/japan')
+    expect(mockExtract).toHaveBeenCalledWith('scraped blog body about Japan')
+  })
 })
