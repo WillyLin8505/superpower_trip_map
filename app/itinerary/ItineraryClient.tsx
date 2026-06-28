@@ -90,6 +90,25 @@ export function ItineraryClient({ initial }: Props) {
     [toggleLockField]
   )
 
+  const setDayLockField = useCallback((dayIdx: number, field: 'startLocked' | 'durationLocked', locked: boolean) => {
+    const newDays = planRef.current.days.map((d, i) => {
+      if (i !== dayIdx) return d
+      return { ...d, places: d.places.map((p) => ({ ...p, [field]: locked })) }
+    })
+    const newPlan = { ...planRef.current, days: newDays }
+    planRef.current = newPlan
+    setPlan(newPlan)
+  }, [])
+
+  const handleSetDayStartLock = useCallback(
+    (dayIdx: number, locked: boolean) => setDayLockField(dayIdx, 'startLocked', locked),
+    [setDayLockField]
+  )
+  const handleSetDayDurationLock = useCallback(
+    (dayIdx: number, locked: boolean) => setDayLockField(dayIdx, 'durationLocked', locked),
+    [setDayLockField]
+  )
+
   const handleChangeType = useCallback((dayIdx: number, placeId: string, type: PlaceType) => {
     const newDays = planRef.current.days.map((d, i) => {
       if (i !== dayIdx) return d
@@ -251,6 +270,8 @@ export function ItineraryClient({ initial }: Props) {
                 onToggleStartLock={(placeId) => handleToggleStartLock(dayIdx, placeId)}
                 onToggleDurationLock={(placeId) => handleToggleDurationLock(dayIdx, placeId)}
                 onChangeType={(placeId, type) => handleChangeType(dayIdx, placeId, type)}
+                onSetDayStartLock={(locked) => handleSetDayStartLock(dayIdx, locked)}
+                onSetDayDurationLock={(locked) => handleSetDayDurationLock(dayIdx, locked)}
                 draggable
               />
             </SortableContext>

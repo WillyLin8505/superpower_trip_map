@@ -14,15 +14,46 @@ interface Props {
   onToggleStartLock?: (placeId: string) => void
   onToggleDurationLock?: (placeId: string) => void
   onChangeType?: (placeId: string, type: PlaceType) => void
+  onSetDayStartLock?: (locked: boolean) => void
+  onSetDayDurationLock?: (locked: boolean) => void
 }
 
-export function ItineraryDay({ day, dayIdx, mode, isDragging, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType }: Props) {
+export function ItineraryDay({ day, dayIdx, mode, isDragging, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
 
   return (
     <section className="mb-12" data-testid={`day-${dayIdx}`}>
       <h2 className="text-xl font-bold text-gray-800 mb-1">第 {day.day} 天</h2>
+      {(onSetDayStartLock || onSetDayDurationLock) && (() => {
+        const has = day.places.length > 0
+        const allStart = has && day.places.every((p) => p.startLocked)
+        const allDur = has && day.places.every((p) => p.durationLocked)
+        return (
+          <div className="flex gap-2 mb-2">
+            {onSetDayStartLock && (
+              <button
+                type="button"
+                disabled={!has}
+                onClick={() => onSetDayStartLock(!allStart)}
+                className="text-xs px-2 py-1 rounded-full border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {allStart ? '🔒' : '🔓'} 整天鎖開始
+              </button>
+            )}
+            {onSetDayDurationLock && (
+              <button
+                type="button"
+                disabled={!has}
+                onClick={() => onSetDayDurationLock(!allDur)}
+                className="text-xs px-2 py-1 rounded-full border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {allDur ? '🔒' : '🔓'} 整天鎖停留
+              </button>
+            )}
+          </div>
+        )
+      })()}
       {day.aiSummary && <p className="text-sm text-gray-500 mb-4">{day.aiSummary}</p>}
       <div className="flex gap-6 items-start">
         <div
