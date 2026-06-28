@@ -13,7 +13,7 @@ function place(over: Partial<ScheduledPlace> = {}): ScheduledPlace {
 }
 
 test('renders name, rating and description', () => {
-  render(<CardContent place={place()} />)
+  render(<CardContent place={place()} dateIso="2026-06-29" />)
   expect(screen.getByText('故宮')).toBeInTheDocument()
   expect(screen.getByText(/世界級博物館/)).toBeInTheDocument()
   expect(screen.getByText(/4\.5/)).toBeInTheDocument()
@@ -22,7 +22,7 @@ test('renders name, rating and description', () => {
 test('lock buttons fire callbacks', () => {
   const onStart = jest.fn()
   const onDur = jest.fn()
-  render(<CardContent place={place()} onToggleStartLock={onStart} onToggleDurationLock={onDur} />)
+  render(<CardContent place={place()} dateIso="2026-06-29" onToggleStartLock={onStart} onToggleDurationLock={onDur} />)
   fireEvent.click(screen.getByLabelText('鎖定開始時間'))
   fireEvent.click(screen.getByLabelText('鎖定停留時間'))
   expect(onStart).toHaveBeenCalledWith('a')
@@ -30,6 +30,6 @@ test('lock buttons fire callbacks', () => {
 })
 
 test('lateExit warning shown when flagged', () => {
-  render(<CardContent place={place({ lateExit: true })} />)
+  render(<CardContent place={place({ lateExit: true })} dateIso="2026-06-29" />)
   expect(screen.getByText(/結束時間超出營業時間/)).toBeInTheDocument()
 })

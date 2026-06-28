@@ -268,3 +268,12 @@ Final fixes: complete (commit 7cda32e — reset targetDays on extend [fixes stal
 - Accepted deviations (non-blocking): 共 N 天 shows actual container count M with banner explaining surplus (clearer); end-date input reflects M during unresolved shorten
 - 181 tests pass, 38 suites; build clean
 - Final commit: 7cda32e
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-06-28-timeline-view-laneB.md
+Branch: lane/ai-research (Lane B timeline); BASE: 102b63d
+
+## Tasks
+Task 1: complete (102b63d..12612bd, review clean — rulerTicks corrected to exclude on-the-hour start [code/test consistency]; Minor: toMin no NaN guard, non-on-hour tick untested → final triage)

@@ -8,15 +8,15 @@ import { TYPE_META } from '@/lib/placeType'
 
 interface Props {
   place: ScheduledPlace
+  dateIso: string
   onTimeChange?: (placeId: string, field: 'startTime' | 'durationMin', value: string | number) => void
   onToggleStartLock?: (placeId: string) => void
   onToggleDurationLock?: (placeId: string) => void
   onChangeType?: (placeId: string, type: PlaceType) => void
 }
 
-export function CardContent({ place, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType }: Props) {
-  const todayIso = new Date().toISOString().split('T')[0]
-  const todayHours = getHoursForDate(place.openingHours, todayIso)
+export function CardContent({ place, dateIso, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType }: Props) {
+  const todayHours = getHoursForDate(place.openingHours, dateIso)
   const descriptionText = place.description || place.aiDescription
   const meta = TYPE_META[place.type]
 
