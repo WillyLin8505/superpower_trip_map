@@ -6,13 +6,11 @@ import type { PlaceType } from '@/lib/types'
 interface Props {
   type: PlaceType
   onChange: (type: PlaceType) => void
-  size?: 'sm' | 'md'
 }
 
-export function TypePicker({ type, onChange, size = 'md' }: Props) {
+export function TypePicker({ type, onChange }: Props) {
   const [open, setOpen] = useState(false)
   const meta = TYPE_META[type]
-  const pad = size === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-2 py-0.5 text-xs'
 
   const select = (t: PlaceType) => {
     onChange(t)
@@ -24,7 +22,9 @@ export function TypePicker({ type, onChange, size = 'md' }: Props) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`rounded-full font-medium ${pad} ${meta.badge}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={`rounded-full font-medium px-2 py-0.5 text-xs ${meta.badge}`}
       >
         {meta.emoji} {meta.label} ▾
       </button>

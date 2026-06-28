@@ -39,7 +39,7 @@ it('renders accommodation card with purple background', () => {
   expect(screen.getByTestId('card-p1').className).toContain('bg-purple-50')
 })
 
-it('clicking the badge and picking a type calls onChangeType without changing duration', () => {
+it('clicking the badge and picking a type calls onChangeType with the selected type', () => {
   const onChangeType = jest.fn()
   render(<ItineraryCard place={BASE} index={0} onChangeType={onChangeType} />)
   fireEvent.click(screen.getByRole('button', { name: /景點/ }))
