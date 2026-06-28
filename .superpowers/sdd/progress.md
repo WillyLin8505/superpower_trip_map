@@ -215,3 +215,26 @@ Task 1: complete (84e271c..4aa08ff, review clean — Minor: boundary 40/70 untes
 Task 2: complete (4aa08ff..b696979, review clean)
 Task 3: implemented (b696979..171566e) — review pending. NOTE: merged main into lane to bring accommodation PlaceType (子專案#1 dep); resolved tsc TS2367/2352; crowd tests 13/13 green post-merge.
 Task 3: complete (b696979..171566e, review clean — Minor: stale Partial<Place> cast in test (redundant post-merge); CURVES Record<string> vs Partial<Record<PlaceType>>; both defer to final triage)
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-06-28-split-time-lock.md
+Branch: main (Lane A)
+
+## Tasks
+- [x] Task 1: 拆分鎖資料模型 + 卡片兩個鎖按鈕
+- [x] Task 2: 每天標頭兩個整天全鎖按鈕
+
+Task 1: complete (commits e5527e4..2b5455c, review clean — Approved; timeLocked→startLocked+durationLocked fully migrated across 17 files, 157/157 + build green, scheduler anchor a pure rename)
+  Minor for final review: ItineraryClient.tsx:204 durationLocked:false indented 6 spaces instead of 8 (cosmetic, zero impact)
+Task 2: complete (commits 2b5455c..1174a9d, review clean — Approved; per-day lock-all derived state airtight, no recalc, 161/161 + build green)
+  Minor for final review: day-lock-all empty-day test only asserts 整天鎖開始 disabled, not 整天鎖停留 (impl correct; coverage gap)
+Final fixes: complete (commit 3740fe1 — added ItineraryClient lock-toggle invariant test [recalcPlan not called + times unchanged past debounce], scheduler durationLocked-non-anchor case, day-lock-all duration-disabled assertion, fixed handleAddPlaces indentation)
+
+## Final Review
+- Whole-branch review (e5527e4..1174a9d): Ready to merge — no Critical/Important
+- Anchor swap verified a pure rename; no-reschedule/no-time-mutation invariant correct by construction for all 4 handlers; zero timeLocked residue
+- All 4 final-review minors fixed in 3740fe1
+- 164 tests pass, 33 suites; build clean
+- Final commit: 3740fe1
