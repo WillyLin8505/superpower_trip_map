@@ -7,6 +7,20 @@ jest.mock('@dnd-kit/sortable', () => ({
   useSortable: () => ({ attributes: {}, listeners: {}, setNodeRef: () => {}, transform: null, transition: undefined, isDragging: false }),
 }))
 
+// jsdom 26 does not ship PointerEvent; polyfill here to keep jest.setup.ts Lane-A-safe
+beforeAll(() => {
+  if (typeof window !== 'undefined' && typeof (window as unknown as { PointerEvent?: unknown }).PointerEvent === 'undefined') {
+    class PolyPointerEvent extends MouseEvent {
+      readonly pointerId: number
+      constructor(type: string, params: PointerEventInit & MouseEventInit = {}) {
+        super(type, params)
+        this.pointerId = params.pointerId ?? 0
+      }
+    }
+    Object.defineProperty(window, 'PointerEvent', { value: PolyPointerEvent, writable: true, configurable: true })
+  }
+})
+
 function place(over: Partial<ScheduledPlace> = {}): ScheduledPlace {
   return {
     id: 'a', placeId: 'pid', name: '故宮', type: 'attraction', lat: 0, lng: 0, address: '',

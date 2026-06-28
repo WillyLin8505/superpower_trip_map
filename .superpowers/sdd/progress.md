@@ -277,3 +277,4 @@ Branch: lane/ai-research (Lane B timeline); BASE: 102b63d
 
 ## Tasks
 Task 1: complete (102b63d..12612bd, review clean — rulerTicks corrected to exclude on-the-hour start [code/test consistency]; Minor: toMin no NaN guard, non-on-hour tick untested → final triage)
+Task 2: complete (12612bd..85d5220 [initial 95ab6b8 + dateIso revise 85d5220], review clean — Minor: end-time picker rawDur==0→1440, copied verbatim from existing ItineraryCard, defer)
