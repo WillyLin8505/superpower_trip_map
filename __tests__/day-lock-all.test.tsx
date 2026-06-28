@@ -45,4 +45,5 @@ it('disables lock-all buttons for an empty day', () => {
   render(<ItineraryDay day={day([])} dayIdx={0} mode="driving"
     onSetDayStartLock={jest.fn()} onSetDayDurationLock={jest.fn()} />)
   expect(screen.getByRole('button', { name: /整天鎖開始/ })).toBeDisabled()
+  expect(screen.getByRole('button', { name: /整天鎖停留/ })).toBeDisabled()
 })

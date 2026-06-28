@@ -220,7 +220,7 @@ export function ItineraryClient({ initial }: Props) {
         outsideHours: false,
         lateExit: false,
         startLocked: false,
-      durationLocked: false,
+        durationLocked: false,
       }
       const targetDayIdx = findClosestDay(next.days, place)
       next = {

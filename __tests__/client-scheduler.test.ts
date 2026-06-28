@@ -39,6 +39,16 @@ test('no locked cards: first place starts at 09:00', () => {
   expect(result.days[0].places[1].startTime).toBe('11:00') // 09:00 + 90 + 30 = 11:00
 })
 
+// --- durationLocked does NOT anchor: scheduled forward like an unlocked place ---
+test('durationLocked (not startLocked) is not an anchor: scheduled forward from day start', () => {
+  // durationLocked:true but startLocked:false → startTime recomputed from 09:00, not pinned
+  const p1 = makePlace({ startTime: '15:00', durationMin: 90, travelMinToNext: 30, durationLocked: true, startLocked: false })
+  const p2 = makePlace({ durationMin: 60, travelMinToNext: 0 })
+  const result = recalcPlan(makePlan([p1, p2]))
+  expect(result.days[0].places[0].startTime).toBe('09:00') // recomputed, not pinned at 15:00
+  expect(result.days[0].places[1].startTime).toBe('11:00') // 09:00 + 90 + 30
+})
+
 // --- Leading segment backwards fill ---
 test('one unlocked before locked: unlocked ends exactly at locked start', () => {
   // lock at 11:00, unlocked durationMin=60, travelMinToNext=30
