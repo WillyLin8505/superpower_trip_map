@@ -119,6 +119,14 @@ export async function schedulePlaces(
       const prevHotel = d > 0 ? dayHotels[d - 1] : null
       return routeDay(prevHotel, buckets[d], thisHotel)
     })
+    // Surface accommodations beyond day capacity (hotels > days) on the last day rather than dropping them
+    const assignedIds = new Set(
+      dayHotels.filter((h): h is Place => h !== null).map((h) => h.placeId)
+    )
+    const overflowHotels = orderedHotels.filter((h) => !assignedIds.has(h.placeId))
+    if (overflowHotels.length > 0) {
+      dayOrderedPlaces[days - 1] = [...dayOrderedPlaces[days - 1], ...overflowHotels]
+    }
   } else {
     // 既有 chunk 路徑：產生每天 ordered（沿用原 am/lunch/pm/dinner 排序）
     const chunkSize = Math.ceil(orderedPlaces.length / days)

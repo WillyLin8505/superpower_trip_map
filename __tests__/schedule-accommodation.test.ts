@@ -26,6 +26,23 @@ it('hotels get a 1-indexed nightIndex', async () => {
   expect(hotel?.nightIndex).toBe(1)
 })
 
+it('accommodations exceeding day count all appear on last day (no silent drop)', async () => {
+  // 3 hotels, only 2 days → hotel index 2 overflows; must not be dropped
+  const places = [
+    p('A', 0, 0), p('B', 0, 1),
+    p('H1', 1, 0, 'accommodation'),
+    p('H2', 1, 1, 'accommodation'),
+    p('H3', 1, 2, 'accommodation'),
+  ]
+  const days = await schedulePlaces(places, emptyMatrix, 2, '2026-06-28')
+  const allPlaces = days.flatMap((d) => d.places)
+  const hotelIds = allPlaces.filter((pl) => pl.type === 'accommodation').map((pl) => pl.placeId)
+  expect(hotelIds).toContain('H1')
+  expect(hotelIds).toContain('H2')
+  expect(hotelIds).toContain('H3')
+  expect(hotelIds).toHaveLength(3)
+})
+
 it('without accommodation, falls back to count-based chunking (unchanged)', async () => {
   const places = [p('A', 0, 0), p('B', 0, 1), p('C', 0, 2), p('D', 0, 3)]
   const days = await schedulePlaces(places, emptyMatrix, 2, '2026-06-28')
