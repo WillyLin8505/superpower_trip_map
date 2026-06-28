@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import type { Recommendation, ScheduledPlace } from '@/lib/types'
 import { RecommendCard } from './RecommendCard'
 import { getRecommendations } from '@/app/actions/recommend'
+import { DWELL } from '@/lib/placeType'
 
 interface Props {
   currentPlaces: ScheduledPlace[]
@@ -59,7 +60,7 @@ export function RecommendPanel({ currentPlaces, onAddPlaces }: Props) {
         photoUrl: null,
         description: null,
         startTime: '09:00',
-        durationMin: r.type === 'attraction' ? 90 : 60,
+        durationMin: DWELL[r.type],
         travelMinToNext: null,
         aiDescription: r.reason,
         outsideHours: false,

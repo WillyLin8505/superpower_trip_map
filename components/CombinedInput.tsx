@@ -4,6 +4,7 @@ import { extractItinerary } from '@/app/actions/ai'
 import { searchPlace } from '@/app/actions/places'
 import { scrapeText } from '@/app/actions/scrape'
 import type { Place, PlaceType } from '@/lib/types'
+import { inferType, validateType, TYPE_META } from '@/lib/placeType'
 
 const COUNTRIES = [
   { name: 'Taiwan', label: '台灣' },
@@ -20,12 +21,6 @@ const COUNTRIES = [
   { name: 'Vietnam', label: '越南' },
 ]
 
-const TYPE_LABEL: Record<PlaceType, string> = {
-  attraction: '景點',
-  restaurant: '餐廳',
-  dessert: '甜點',
-}
-
 type DetectedMode = 'search' | 'article' | 'url'
 type Phase = 'idle' | 'loading' | 'confirm-country' | 'verifying' | 'result'
 
@@ -40,13 +35,6 @@ function detectMode(text: string): DetectedMode | null {
   if (/^https?:\/\//.test(t)) return 'url'
   if (t.length > 150 || text.includes('\n')) return 'article'
   return 'search'
-}
-
-function inferType(query: string): PlaceType {
-  const q = query.toLowerCase()
-  if (q.includes('甜點') || q.includes('dessert') || q.includes('咖啡') || q.includes('cafe') || q.includes('ice cream') || q.includes('蛋糕')) return 'dessert'
-  if (q.includes('餐') || q.includes('restaurant') || q.includes('食堂') || q.includes('bistro')) return 'restaurant'
-  return 'attraction'
 }
 
 const MODE_BADGE: Record<DetectedMode, string> = {
@@ -92,11 +80,7 @@ export function CombinedInput({ onAdd, onAddPlaces }: Props) {
         done++
         setVerifyProgress({ done, total: places.length })
         if (!found) return null
-        const validType: PlaceType =
-          p.type === 'restaurant' ? 'restaurant' :
-          p.type === 'dessert' ? 'dessert' :
-          'attraction'
-        return { ...found, type: validType } as Place
+        return { ...found, type: validateType(p.type) } as Place
       })
     )
     const valid = results.filter((p): p is Place => p !== null)
@@ -219,8 +203,8 @@ export function CombinedInput({ onAdd, onAddPlaces }: Props) {
         >
           <div className="flex items-center gap-2">
             <span className="font-medium text-gray-900 text-sm">{singleResult.name}</span>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
-              {TYPE_LABEL[inferType(searchQuery)]}
+            <span className={`text-xs px-2 py-0.5 rounded-full ${TYPE_META[inferType(searchQuery)].badge}`}>
+              {TYPE_META[inferType(searchQuery)].label}
             </span>
           </div>
           <p className="text-xs text-gray-500 mt-0.5 truncate">{singleResult.address}</p>

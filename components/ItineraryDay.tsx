@@ -2,7 +2,7 @@
 import { useDroppable } from '@dnd-kit/core'
 import { ItineraryCard } from './ItineraryCard'
 import { buildDayEmbedUrl } from '@/lib/utils/mapUrl'
-import type { DayItinerary, TransportMode } from '@/lib/types'
+import type { DayItinerary, TransportMode, PlaceType } from '@/lib/types'
 
 interface Props {
   day: DayItinerary
@@ -12,9 +12,10 @@ interface Props {
   draggable?: boolean
   onTimeChange?: (placeId: string, field: 'startTime' | 'durationMin', value: string | number) => void
   onToggleLock?: (placeId: string) => void
+  onChangeType?: (placeId: string, type: PlaceType) => void
 }
 
-export function ItineraryDay({ day, dayIdx, mode, isDragging, draggable, onTimeChange, onToggleLock }: Props) {
+export function ItineraryDay({ day, dayIdx, mode, isDragging, draggable, onTimeChange, onToggleLock, onChangeType }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
 
@@ -35,6 +36,7 @@ export function ItineraryDay({ day, dayIdx, mode, isDragging, draggable, onTimeC
               draggable={draggable}
               onTimeChange={onTimeChange}
               onToggleLock={onToggleLock}
+              onChangeType={onChangeType}
             />
           ))}
         </div>

@@ -1,4 +1,4 @@
-export type PlaceType = 'attraction' | 'restaurant' | 'dessert'
+export type PlaceType = 'attraction' | 'restaurant' | 'dessert' | 'accommodation'
 export type TransportMode = 'driving' | 'walking' | 'transit'
 
 export interface Place {

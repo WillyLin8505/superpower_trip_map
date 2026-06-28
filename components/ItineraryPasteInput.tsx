@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { extractItinerary } from '@/app/actions/ai'
 import { searchPlace } from '@/app/actions/places'
 import type { Place, PlaceType } from '@/lib/types'
+import { validateType } from '@/lib/placeType'
 
 const COUNTRIES = [
   { name: 'Taiwan', label: '台灣' },
@@ -46,11 +47,7 @@ export function ItineraryPasteInput({ onPlacesFound }: Props) {
         done++
         setVerifyProgress({ done, total: places.length })
         if (!found) return null
-        const validType: PlaceType =
-          p.type === 'restaurant' ? 'restaurant' :
-          p.type === 'dessert' ? 'dessert' :
-          'attraction'
-        return { ...found, type: validType } as Place
+        return { ...found, type: validateType(p.type) } as Place
       })
     )
     const valid = results.filter((p): p is Place => p !== null)
