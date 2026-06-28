@@ -13,6 +13,7 @@ export interface Place {
   rating: number | null
   photoUrl: string | null
   description: string | null   // from Google editorial_summary.overview; null if unavailable
+  nightIndex?: number          // 住宿夜次（1-indexed），僅 accommodation
 }
 
 export interface ScheduledPlace extends Place {
