@@ -12,6 +12,9 @@ interface Props {
   startDate: string
   isDragging?: boolean
   draggable?: boolean
+  isOverflow?: boolean
+  onScatter?: () => void
+  onDelete?: () => void
   onTimeChange?: (placeId: string, field: 'startTime' | 'durationMin', value: string | number) => void
   onToggleStartLock?: (placeId: string) => void
   onToggleDurationLock?: (placeId: string) => void
@@ -21,15 +24,31 @@ interface Props {
   onChangeWindow?: (field: 'dayStart' | 'dayEnd', value: string) => void
 }
 
-export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow }: Props) {
+export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
 
   return (
     <section className="mb-12" data-testid={`day-${dayIdx}`}>
       <h2 className="text-xl font-bold text-gray-800 mb-1">
-        第 {day.day} 天 · {formatDateLabel(dayDate(startDate, day.day))}
+        第 {day.day} 天 · {isOverflow ? '超出行程' : formatDateLabel(dayDate(startDate, day.day))}
       </h2>
+      {isOverflow && (onScatter || onDelete) && (
+        <div className="flex gap-2 mb-2">
+          {onScatter && (
+            <button type="button" onClick={onScatter}
+              className="text-xs px-2 py-1 rounded-full border border-orange-300 text-orange-700 hover:bg-orange-50">
+              散到其他天
+            </button>
+          )}
+          {onDelete && (
+            <button type="button" onClick={onDelete}
+              className="text-xs px-2 py-1 rounded-full border border-red-300 text-red-600 hover:bg-red-50">
+              刪除這天
+            </button>
+          )}
+        </div>
+      )}
       {onChangeWindow && (
         <div className="flex items-center gap-2 mb-2 text-xs text-gray-500">
           <span>活動</span>

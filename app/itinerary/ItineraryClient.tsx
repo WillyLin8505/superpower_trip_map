@@ -32,6 +32,11 @@ const multiContainerCollision: CollisionDetection = (args) => {
   return hits.length > 0 ? hits : rectIntersection(args)
 }
 
+// Pure helper — no component state, so defined at module level to avoid exhaustive-deps churn
+function renumberDays<T extends { day: number }>(days: T[]): T[] {
+  return days.map((d, i) => ({ ...d, day: i + 1 }))
+}
+
 interface Props {
   initial: PlanResult
 }
@@ -39,7 +44,6 @@ interface Props {
 export function ItineraryClient({ initial }: Props) {
   const [plan, setPlan] = useState<PlanResult>(initial)
   const [activeId, setActiveId] = useState<string | null>(null)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [targetDays, setTargetDays] = useState<number | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // planRef always tracks the latest committed plan (avoids stale closures in dnd-kit callbacks)
@@ -266,6 +270,32 @@ export function ItineraryClient({ initial }: Props) {
     setPlan(recalced)
   }, [])
 
+  const handleDeleteDay = useCallback((dayIdx: number) => {
+    const next = renumberDays(planRef.current.days.filter((_, i) => i !== dayIdx))
+    const recalced = recalcPlan({ ...planRef.current, days: next })
+    planRef.current = recalced
+    setPlan(recalced)
+    setTargetDays((t) => (t !== null && next.length <= t ? null : t))
+  }, [])
+
+  const handleScatterDay = useCallback((dayIdx: number) => {
+    const src = planRef.current.days[dayIdx]
+    const kept = planRef.current.days.filter((_, i) => i !== dayIdx)
+    let working = kept
+    src.places.forEach((p) => {
+      const target = findClosestDay(working, p)
+      working = working.map((d, i) => i === target ? { ...d, places: [...d.places, { ...p, travelMinToNext: null }] } : d)
+    })
+    const next = renumberDays(working)
+    const recalced = recalcPlan({ ...planRef.current, days: next })
+    planRef.current = recalced
+    setPlan(recalced)
+    setTargetDays((t) => (t !== null && next.length <= t ? null : t))
+  }, [])
+
+  const N = targetDays ?? plan.days.length
+  const overCount = Math.max(0, plan.days.length - N)
+
   const allPlaces = plan.days.flatMap((d) => d.places)
   const activePlace = activeId ? allPlaces.find(p => p.id === activeId) ?? null : null
   const activePlaceIndex = activeId ? allPlaces.findIndex(p => p.id === activeId) : -1
@@ -289,6 +319,11 @@ export function ItineraryClient({ initial }: Props) {
         </label>
         <span className="text-sm text-gray-600 pb-1.5">共 {plan.days.length} 天</span>
       </section>
+      {overCount > 0 && (
+        <div className="mb-4 px-4 py-2 rounded-lg bg-orange-50 border border-orange-200 text-sm text-orange-700">
+          行程天數（{plan.days.length}）大於設定天數（{N}），請處理超出的天。
+        </div>
+      )}
       <section className="mb-6 space-y-3">
         <h2 className="text-sm font-semibold text-gray-700">新增行程</h2>
         <CombinedInput onAdd={handleAddPlace} onAddPlaces={handleAddPlaces} />
@@ -323,6 +358,9 @@ export function ItineraryClient({ initial }: Props) {
                 onSetDayStartLock={(locked) => handleSetDayStartLock(dayIdx, locked)}
                 onSetDayDurationLock={(locked) => handleSetDayDurationLock(dayIdx, locked)}
                 onChangeWindow={(field, value) => handleChangeDayWindow(dayIdx, field, value)}
+                isOverflow={dayIdx >= N}
+                onScatter={() => handleScatterDay(dayIdx)}
+                onDelete={() => handleDeleteDay(dayIdx)}
                 draggable
               />
             </SortableContext>
