@@ -72,28 +72,44 @@ function inferNightOrder(hotels: Pt[], attractions: Pt[]): number[] {
   return twoOpt(nearestNeighbor(m, seed), m); // 夜序（hotels 索引序列）
 }
 
-/** 2) 容量感知就近分群：每個景點分到最近、未滿的夜 */
-function clusterByCapacity(attractions: Pt[], nightHotels: Pt[]): number[][] {
+/**
+ * 2) 就近 home-night + 累進填滿（優先排滿前面的天，塞不下才往後溢，不平分）
+ *
+ * - 先把每個景點歸到「最近的那一夜」(home night) → 保住地理性。
+ * - 依夜序 1→N 逐天處理：當天景點依「離當晚飯店距離」近→遠排隊，
+ *   逐一塞入；若塞下去會超過當天預算，就把該景點 cascade 到下一夜
+ *   （往後溢，不回頭平衡）。
+ * - 最後一夜承接所有剩餘（可能超預算 → 之後以 outsideHours/lateExit 警告）。
+ */
+function clusterFillForward(attractions: Pt[], nightHotels: Pt[]): number[][] {
   const K = nightHotels.length;
+  // home night = 離哪一夜飯店最近
+  const groups: number[][] = Array.from({ length: K }, () => []);
+  attractions.forEach((a, idx) => {
+    let home = 0, hd = Infinity;
+    nightHotels.forEach((h, n) => { const d = haversineSec(a, h); if (d < hd) { hd = d; home = n; } });
+    groups[home].push(idx);
+  });
+
   const buckets: number[][] = Array.from({ length: K }, () => []);
   const load = new Array(K).fill(0);
-  // 決定性順序：先按「最近飯店距離」由小到大，平手用 name
-  const order = attractions
-    .map((a, idx) => {
-      const dists = nightHotels.map((h) => haversineSec(a, h));
-      return { idx, minD: Math.min(...dists), dists };
-    })
-    .sort((p, q) => (p.minD - q.minD) || attractions[p.idx].name.localeCompare(attractions[q.idx].name));
 
-  for (const { idx, dists } of order) {
-    const dwell = attractions[idx].dwellMin ?? DEFAULT_DWELL;
-    // 依距離近→遠找第一個放得下的夜；全滿則丟給最近的夜（溢出）
-    const byNear = dists.map((d, n) => ({ d, n })).sort((x, y) => x.d - y.d);
-    let placed = -1;
-    for (const { n } of byNear) if (load[n] + dwell <= DAY_BUDGET_MIN) { placed = n; break; }
-    if (placed === -1) placed = byNear[0].n; // 溢出：放最近的夜
-    buckets[placed].push(idx);
-    load[placed] += dwell;
+  for (let k = 0; k < K; k++) {
+    // 當天隊伍（含上一夜 cascade 進來的）依「離當晚飯店」近→遠排序，平手用 name
+    const queue = groups[k]
+      .map((idx) => ({ idx, d: haversineSec(attractions[idx], nightHotels[k]) }))
+      .sort((p, q) => (p.d - q.d) || attractions[p.idx].name.localeCompare(attractions[q.idx].name));
+
+    for (const { idx } of queue) {
+      const dwell = attractions[idx].dwellMin ?? DEFAULT_DWELL;
+      const isLastNight = k === K - 1;
+      if (!isLastNight && load[k] + dwell > DAY_BUDGET_MIN) {
+        groups[k + 1].push(idx); // 塞不下 → 往後溢一天
+      } else {
+        buckets[k].push(idx);
+        load[k] += dwell;        // 最後一夜不擋，全收（可能超預算）
+      }
+    }
   }
   return buckets;
 }
@@ -186,9 +202,9 @@ function main() {
   nightOrder.forEach((h, n) => console.log(`   夜${n + 1} → ${hotels[h].name}`));
 
   const nightHotels = nightOrder.map((i) => hotels[i]);
-  const buckets = clusterByCapacity(attractions, nightHotels);
+  const buckets = clusterFillForward(attractions, nightHotels);
 
-  console.log('\n2) 容量感知分群（每天預算 8h）：');
+  console.log('\n2) 累進填滿分群（優先排滿前面、溢到隔天、不平分；每天預算 8h）：');
   buckets.forEach((b, n) => {
     const load = b.reduce((s, i) => s + (attractions[i].dwellMin ?? DEFAULT_DWELL), 0);
     console.log(`   夜${n + 1} (${nightHotels[n].name})  停留合計 ${fmtMin(load)}：`);
@@ -211,4 +227,4 @@ function main() {
 
 main();
 
-export { inferNightOrder, clusterByCapacity, routeDay, haversineSec };
+export { inferNightOrder, clusterFillForward, routeDay, haversineSec };
