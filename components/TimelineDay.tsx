@@ -98,7 +98,7 @@ export function TimelineDay({ day, dayIdx, mode, startDate, isDragging, draggabl
                       onTimeChange={onTimeChange}
                       onToggleStartLock={onToggleStartLock}
                       onToggleDurationLock={onToggleDurationLock}
-                      onChangeType={onChangeType ?? (() => {})}
+                      onChangeType={onChangeType}
                     />
                     {cl.travelMin > 0 && (
                       <div className="relative flex items-center justify-center" style={{ height: `${cl.travelGapPx}px` }} data-testid={`travel-gap-${place.id}`}>

@@ -21,15 +21,15 @@ const day: DayItinerary = {
   day: 1, aiSummary: null, dayStart: '09:00', dayEnd: '21:00',
   places: [
     sp({ id: 'a', name: '故宮', startTime: '09:00', durationMin: 60, travelMinToNext: 20 }),
-    sp({ id: 'b', name: '餐廳', type: 'restaurant', startTime: '10:20', durationMin: 90 }),
+    sp({ id: 'b', name: '好吃的店', type: 'restaurant', startTime: '10:20', durationMin: 90 }),
   ],
 }
 
 test('renders place names, a ruler hour label and the day header', () => {
   render(<TimelineDay day={day} dayIdx={0} mode="driving" startDate="2026-06-29" draggable onTimeChange={jest.fn()} />)
   expect(screen.getByText('故宮')).toBeInTheDocument()
-  expect(screen.getByText('餐廳')).toBeInTheDocument()
-  expect(screen.getAllByText('10:00')[0]).toBeInTheDocument()  // ruler tick
+  expect(screen.getByText('好吃的店')).toBeInTheDocument()
+  expect(screen.getByText('11:00')).toBeInTheDocument()  // ruler tick
   expect(screen.getByText(/第 1 天/)).toBeInTheDocument()       // header with date label
 })
 
