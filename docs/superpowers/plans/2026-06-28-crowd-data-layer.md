@@ -732,7 +732,10 @@ git commit -m "feat(crowd): getCrowdForecast orchestrator + server action (cache
 
 ## Post-implementation (gated on key — NOT part of this plan's tasks)
 
-拿到免費 `BESTTIME_PRIVATE_KEY` 後，對真實台/日/韓地點實打一次，確認 `weekly` 對映正確、覆蓋率可接受，並更新 `docs/superpowers/spikes/2026-06-28-crowd-data-findings.md`。若實際回應欄位與 Task 4 假設不同，同步調整 `besttime.ts` 解析 + mock 測試。
+拿到免費 `BESTTIME_PRIVATE_KEY` 後，對真實台/日/韓地點實打一次，確認 `weekly` 對映正確、覆蓋率可接受，並更新 `docs/superpowers/spikes/2026-06-28-crowd-data-findings.md`。
+
+**⚠ 最優先（最終 whole-branch review 標記的 Important latent 項）：BestTime `day_raw` 對映基準。**
+`besttime.ts` 目前把 `day_raw[h]` 當成時鐘小時 `h`，但 closed 覆蓋是用 `hour_analysis[].hour`（真實時鐘小時）。BestTime 的 `day_raw` 可能以「店家日 ~06:00 起算」偏移，兩個索引基準可能不一致。0–100 數值只存在於 `day_raw`，故正確對映**必須**用真實回應確認（`hour_analysis` 帶權威時鐘小時）。實打時：核對 `day_raw` 索引是否偏移，修正解析，並加一個「day_raw 帶 6 小時偏移 + 對應 hour_analysis」的 mock 測試鎖定對映。程式內已在該迴圈上方加註警告。
 
 ---
 
