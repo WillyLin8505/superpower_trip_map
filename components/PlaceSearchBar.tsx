@@ -59,7 +59,7 @@ export function PlaceSearchBar({ onAdd }: Props) {
         >
           <div className="flex items-center gap-2">
             <span className="font-medium text-gray-900 text-sm">{result.name}</span>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+            <span className={`text-xs px-2 py-0.5 rounded-full ${TYPE_META[inferType(query)].badge}`}>
               {TYPE_META[inferType(query)].label}
             </span>
           </div>

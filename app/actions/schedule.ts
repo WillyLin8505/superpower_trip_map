@@ -35,7 +35,7 @@ export async function schedulePlaces(
   return dayChunks.map((chunk, dayIdx) => {
     const placeIds = chunk.map((p) => p.placeId)
 
-    // Desserts flow freely like attractions (not pinned to meal slots)
+    // Desserts and accommodation flow freely like attractions (not pinned to meal slots)
     const attractions = chunk.filter((p) => p.type === 'attraction' || p.type === 'dessert' || p.type === 'accommodation')
     const restaurants = chunk.filter((p) => p.type === 'restaurant')
 
