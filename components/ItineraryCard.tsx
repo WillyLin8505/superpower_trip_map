@@ -2,9 +2,10 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { TimeScrollPicker } from './TimeScrollPicker'
+import { TypePicker } from './TypePicker'
 import { getTodayHours } from '@/lib/utils/hours'
 import { addMinutes } from '@/lib/utils/time'
-import type { ScheduledPlace } from '@/lib/types'
+import type { PlaceType, ScheduledPlace } from '@/lib/types'
 import { TYPE_META } from '@/lib/placeType'
 
 interface Props {
@@ -13,9 +14,10 @@ interface Props {
   draggable?: boolean
   onTimeChange?: (placeId: string, field: 'startTime' | 'durationMin', value: string | number) => void
   onToggleLock?: (placeId: string) => void
+  onChangeType?: (placeId: string, type: PlaceType) => void
 }
 
-export function ItineraryCard({ place, index, draggable, onTimeChange, onToggleLock }: Props) {
+export function ItineraryCard({ place, index, draggable, onTimeChange, onToggleLock, onChangeType }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: place.id, disabled: !draggable })
 
@@ -33,7 +35,7 @@ export function ItineraryCard({ place, index, draggable, onTimeChange, onToggleL
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-white border rounded-xl p-4 ${place.outsideHours ? 'border-orange-300' : 'border-gray-200'}`}
+      className={`border rounded-xl p-4 ${meta.cardBg} ${place.outsideHours ? 'border-orange-300' : 'border-gray-200'}`}
       data-testid={`card-${place.id}`}
     >
       <div className="flex items-start gap-3">
@@ -51,9 +53,13 @@ export function ItineraryCard({ place, index, draggable, onTimeChange, onToggleL
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="font-semibold text-gray-900">{place.name}</h3>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${meta.badge}`}>
-              {meta.label}
-            </span>
+            {onChangeType ? (
+              <TypePicker type={place.type} onChange={(t) => onChangeType(place.id, t)} />
+            ) : (
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${meta.badge}`}>
+                {meta.label}
+              </span>
+            )}
             {place.outsideHours && (
               <span className="text-xs text-orange-600 font-medium">&#x26A0; 請確認營業時間</span>
             )}

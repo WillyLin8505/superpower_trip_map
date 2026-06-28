@@ -14,7 +14,7 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import type { PlanResult, ScheduledPlace, Place } from '@/lib/types'
+import type { PlanResult, ScheduledPlace, Place, PlaceType } from '@/lib/types'
 import { recalcPlan } from '@/lib/utils/clientScheduler'
 import { ItineraryDay } from '@/components/ItineraryDay'
 import { ItineraryCard } from '@/components/ItineraryCard'
@@ -72,6 +72,21 @@ export function ItineraryClient({ initial }: Props) {
         ...d,
         places: d.places.map((p) =>
           p.id === placeId ? { ...p, timeLocked: !p.timeLocked } : p
+        ),
+      }
+    })
+    const newPlan = { ...planRef.current, days: newDays }
+    planRef.current = newPlan
+    setPlan(newPlan)
+  }, [])
+
+  const handleChangeType = useCallback((dayIdx: number, placeId: string, type: PlaceType) => {
+    const newDays = planRef.current.days.map((d, i) => {
+      if (i !== dayIdx) return d
+      return {
+        ...d,
+        places: d.places.map((p) =>
+          p.id === placeId ? { ...p, type } : p
         ),
       }
     })
@@ -222,6 +237,7 @@ export function ItineraryClient({ initial }: Props) {
                   handleTimeChange(dayIdx, placeId, field, value)
                 }
                 onToggleLock={(placeId) => handleToggleLock(dayIdx, placeId)}
+                onChangeType={(placeId, type) => handleChangeType(dayIdx, placeId, type)}
                 draggable
               />
             </SortableContext>
