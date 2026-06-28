@@ -4,13 +4,8 @@ import { CSS } from '@dnd-kit/utilities'
 import { TimeScrollPicker } from './TimeScrollPicker'
 import { getTodayHours } from '@/lib/utils/hours'
 import { addMinutes } from '@/lib/utils/time'
-import type { PlaceType, ScheduledPlace } from '@/lib/types'
-
-const TYPE_STYLE: Record<PlaceType, { bg: string; text: string; label: string }> = {
-  attraction: { bg: 'bg-blue-100', text: 'text-blue-700', label: '景點' },
-  restaurant: { bg: 'bg-orange-100', text: 'text-orange-700', label: '餐廳' },
-  dessert:    { bg: 'bg-pink-100',  text: 'text-pink-700',  label: '甜點' },
-}
+import type { ScheduledPlace } from '@/lib/types'
+import { TYPE_META } from '@/lib/placeType'
 
 interface Props {
   place: ScheduledPlace
@@ -32,7 +27,7 @@ export function ItineraryCard({ place, index, draggable, onTimeChange, onToggleL
 
   const todayHours = getTodayHours(place.openingHours)
   const descriptionText = place.description || place.aiDescription
-  const typeStyle = TYPE_STYLE[place.type]
+  const meta = TYPE_META[place.type]
 
   return (
     <div
@@ -56,8 +51,8 @@ export function ItineraryCard({ place, index, draggable, onTimeChange, onToggleL
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="font-semibold text-gray-900">{place.name}</h3>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${typeStyle.bg} ${typeStyle.text}`}>
-              {typeStyle.label}
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${meta.badge}`}>
+              {meta.label}
             </span>
             {place.outsideHours && (
               <span className="text-xs text-orange-600 font-medium">&#x26A0; 請確認營業時間</span>

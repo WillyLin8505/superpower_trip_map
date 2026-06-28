@@ -1,20 +1,8 @@
 'use client'
 import { useState } from 'react'
 import { searchPlace } from '@/app/actions/places'
-import type { Place, PlaceType } from '@/lib/types'
-
-const TYPE_LABEL: Record<PlaceType, string> = {
-  attraction: '景點',
-  restaurant: '餐廳',
-  dessert: '甜點',
-}
-
-function inferType(query: string): PlaceType {
-  const q = query.toLowerCase()
-  if (q.includes('甜點') || q.includes('dessert') || q.includes('咖啡') || q.includes('cafe') || q.includes('ice cream') || q.includes('蛋糕')) return 'dessert'
-  if (q.includes('餐') || q.includes('restaurant') || q.includes('食堂') || q.includes('bistro')) return 'restaurant'
-  return 'attraction'
-}
+import type { Place } from '@/lib/types'
+import { inferType, TYPE_META } from '@/lib/placeType'
 
 interface Props {
   onAdd: (place: Place) => void
@@ -72,7 +60,7 @@ export function PlaceSearchBar({ onAdd }: Props) {
           <div className="flex items-center gap-2">
             <span className="font-medium text-gray-900 text-sm">{result.name}</span>
             <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
-              {TYPE_LABEL[inferType(query)]}
+              {TYPE_META[inferType(query)].label}
             </span>
           </div>
           <p className="text-xs text-gray-500 mt-0.5 truncate">{result.address}</p>

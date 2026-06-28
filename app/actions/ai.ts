@@ -10,8 +10,8 @@ export interface ExtractedItinerary {
 
 export async function extractItinerary(text: string): Promise<ExtractedItinerary> {
   const prompt = `你是旅遊助理。以下是一段旅遊行程文字。請：
-1. 找出所有景點、餐廳和甜點名稱
-2. 判斷每個地點的類型：景點(attraction)、餐廳(restaurant)、甜點(dessert)
+1. 找出所有景點、餐廳、甜點和住宿名稱
+2. 判斷每個地點的類型：景點(attraction)、餐廳(restaurant)、甜點(dessert)、住宿(accommodation，例如飯店、旅館、民宿)
 3. 判斷行程的國家（例如 Taiwan、Japan、South Korea）
 
 回傳純 JSON，不要包含 markdown 或其他說明：

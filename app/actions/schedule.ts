@@ -1,8 +1,7 @@
 'use server'
 import type { Place, ScheduledPlace, DayItinerary, DistanceMatrix } from '@/lib/types'
 import { checkLateExit, checkOutsideHours } from '@/lib/utils/hours'
-
-const DWELL: Record<string, number> = { attraction: 90, restaurant: 60, dessert: 60 }
+import { DWELL } from '@/lib/placeType'
 const DAY_START = 9 * 60
 
 function minsToTime(mins: number): string {
@@ -37,7 +36,7 @@ export async function schedulePlaces(
     const placeIds = chunk.map((p) => p.placeId)
 
     // Desserts flow freely like attractions (not pinned to meal slots)
-    const attractions = chunk.filter((p) => p.type === 'attraction' || p.type === 'dessert')
+    const attractions = chunk.filter((p) => p.type === 'attraction' || p.type === 'dessert' || p.type === 'accommodation')
     const restaurants = chunk.filter((p) => p.type === 'restaurant')
 
     const lunchRestaurant = restaurants[0] ?? null
