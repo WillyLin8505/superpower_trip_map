@@ -238,3 +238,33 @@ Final fixes: complete (commit 3740fe1 — added ItineraryClient lock-toggle inva
 - All 4 final-review minors fixed in 3740fe1
 - 164 tests pass, 33 suites; build clean
 - Final commit: 3740fe1
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-06-28-calendar-dates.md
+Branch: main (Lane A)
+
+## Tasks
+- [x] Task 1: 日期工具 lib/utils/date.ts
+- [x] Task 2: 資料模型欄位 + 建立端 + 首頁日期 picker
+- [x] Task 3: 日期感知營業時間 + 排程
+- [x] Task 4: 行程頁頂部起訖列 + 每天日期/時間窗
+- [x] Task 5: 縮短行程警告 + 散到其他天/刪除
+
+Task 1: complete (commits 8236433..0d74c09, review clean — Approved; date utils pure+local-midnight; fix 0d74c09 made daysBetween DST-safe via Date.UTC, 6/6)
+Task 2: complete (commits 0d74c09..f3b0b8a, review clean — Approved; PlanResult.startDate + DayItinerary.dayStart/dayEnd, home date pickers, all fixtures migrated [+test-drag], hours untouched, 170/170 + build green)
+  Minor for final review: app/page.tsx isoToday computed each render (matches spec; cosmetic — prefer lazy useState initializer)
+Task 3: complete (commits f3b0b8a..78166b9, review clean — Approved; hours date-aware via weekdayIndex, CLOSED→outsideHours true (req 12), scheduler threads day date + dayStart, card dateIso/day startDate required + fixtures migrated, 173/173 + build green)
+  Minors for final review: (a) closed-regex tests `rest` in getHoursForDate but full `entry` in getCloseMin/checkOutsideHours (no bug, inconsistent); (b) checkOutsideHours 24h-format OUTSIDE-window path untested (only 24h inside covered)
+Task 4: complete (commits 78166b9..e36f737, review clean — Approved; top date-range bar, per-day date label + activity window editor, start-shift/extend/window handlers, targetDays scaffolded for Task 5, 176/176 + build green)
+Task 5: complete (commits e36f737..3f46e7a, review clean — Approved; overCount warning, scatter-into-kept via findClosestDay + delete, renumber + recalcPlan + targetDays clear, eslint-disable removed, 179/179 + build green)
+Final fixes: complete (commit 7cda32e — reset targetDays on extend [fixes stale-overflow after shorten→extend]; new start-date-recompute integration test [real recalcPlan: warning flips when start date lands on a closed weekday]; activity-window hours total（N.N 小時）+ dayEnd<dayStart clamp; server-cursor comment; 24h-format outside-hours test)
+
+## Final Review
+- Whole-branch review (8236433..3f46e7a): Ready to merge with fixes — no Critical
+- recalcPlan threads each day's real date + dayStart through every branch (verified); req-12 closed-day fix correct+tested; no PlanResult/DayItinerary literal left missing fields
+- 1 Important (stale targetDays on extend) + 1 Important (missing start-date recompute test) fixed in 7cda32e; 24h-outside test + window hours/clamp added
+- Accepted deviations (non-blocking): 共 N 天 shows actual container count M with banner explaining surplus (clearer); end-date input reflects M during unresolved shorten
+- 181 tests pass, 38 suites; build clean
+- Final commit: 7cda32e
