@@ -73,41 +73,47 @@ function inferNightOrder(hotels: Pt[], attractions: Pt[]): number[] {
 }
 
 /**
- * 2) 就近 home-night + 累進填滿（優先排滿前面的天，塞不下才往後溢，不平分）
+ * 2) 就近 home-night + 累進填滿（home 優先、只溢一次、不平分）
  *
- * - 先把每個景點歸到「最近的那一夜」(home night) → 保住地理性。
- * - 依夜序 1→N 逐天處理：當天景點依「離當晚飯店距離」近→遠排隊，
- *   逐一塞入；若塞下去會超過當天預算，就把該景點 cascade 到下一夜
- *   （往後溢，不回頭平衡）。
- * - 最後一夜承接所有剩餘（可能超預算 → 之後以 outsideHours/lateExit 警告）。
+ * 規則（使用者指定）：
+ * - 先把每個景點歸到「最近的那一夜」(home night) → 每天**先以飯店周圍景點為主**。
+ * - 每夜的 home 景點**優先吃自己當天的預算**；超過預算的部分**只往後溢一天**。
+ * - **溢出只延一天、不跨兩天**：被溢到隔天的景點直接「釘住」，不再往後溢
+ *   （即使讓那天超出預算也接受——它必須落在緊鄰的下一天）。
+ * - 溢來的景點地理上靠近「昨晚飯店」＝那天早上的出發點，故自然排在當天最前段。
+ * - 最後一夜承接所有剩餘。
  */
 function clusterFillForward(attractions: Pt[], nightHotels: Pt[]): number[][] {
   const K = nightHotels.length;
   // home night = 離哪一夜飯店最近
-  const groups: number[][] = Array.from({ length: K }, () => []);
+  const home: number[][] = Array.from({ length: K }, () => []);
   attractions.forEach((a, idx) => {
-    let home = 0, hd = Infinity;
-    nightHotels.forEach((h, n) => { const d = haversineSec(a, h); if (d < hd) { hd = d; home = n; } });
-    groups[home].push(idx);
+    let h = 0, hd = Infinity;
+    nightHotels.forEach((H, n) => { const d = haversineSec(a, H); if (d < hd) { hd = d; h = n; } });
+    home[h].push(idx);
   });
 
+  const received: number[][] = Array.from({ length: K }, () => []); // 上一夜溢來的（釘住，不再溢）
   const buckets: number[][] = Array.from({ length: K }, () => []);
-  const load = new Array(K).fill(0);
 
   for (let k = 0; k < K; k++) {
-    // 當天隊伍（含上一夜 cascade 進來的）依「離當晚飯店」近→遠排序，平手用 name
-    const queue = groups[k]
+    // 先收上一夜溢來的（釘住）；不佔 home 的預算配額（home 優先）
+    buckets[k].push(...received[k]);
+
+    // 自己周圍景點依「離當晚飯店」近→遠，平手用 name
+    const homeQueue = home[k]
       .map((idx) => ({ idx, d: haversineSec(attractions[idx], nightHotels[k]) }))
       .sort((p, q) => (p.d - q.d) || attractions[p.idx].name.localeCompare(attractions[q.idx].name));
 
-    for (const { idx } of queue) {
+    let homeLoad = 0;
+    for (const { idx } of homeQueue) {
       const dwell = attractions[idx].dwellMin ?? DEFAULT_DWELL;
       const isLastNight = k === K - 1;
-      if (!isLastNight && load[k] + dwell > DAY_BUDGET_MIN) {
-        groups[k + 1].push(idx); // 塞不下 → 往後溢一天
+      if (!isLastNight && homeLoad + dwell > DAY_BUDGET_MIN) {
+        received[k + 1].push(idx); // 只溢一次到隔天，之後釘住
       } else {
         buckets[k].push(idx);
-        load[k] += dwell;        // 最後一夜不擋，全收（可能超預算）
+        homeLoad += dwell;
       }
     }
   }
