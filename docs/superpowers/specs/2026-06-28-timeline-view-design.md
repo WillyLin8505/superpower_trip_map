@@ -1,8 +1,8 @@
 # 時間軸視圖（Timeline View）Design
 
 **日期：** 2026-06-28
-**狀態：** 設計已核准 → 待 writing-plans
-**歸屬：** Lane A（動到核心 `ItineraryCard` / `ItineraryClient`）
+**狀態：** 設計已核准 → Lane B 實作新檔（writing-plans）；整合點交接 Lane A（見 §12）
+**歸屬：** 拆兩半並行——**Lane B**：全新檔（零衝突）；**Lane A**：兩個熱檔的整合修改（見 §12 Lane 分工）
 
 ---
 
@@ -30,6 +30,8 @@ lib/utils/
 app/itinerary/
   ItineraryClient.tsx // 改：viewMode state + 切換鈕；依 viewMode 渲染 ItineraryDay 或 TimelineDay
 ```
+
+> **並行注意（見 §12）：** Lane B 只新增 `CardContent`、`TimelineCard`、`TimelineDay`、`timeline.ts`（全新檔，不撞 Lane A）。`ItineraryCard.tsx` 改用 `CardContent` 的重構、以及 `ItineraryClient.tsx` 的 viewMode 整合，**屬 Lane A**（那兩檔 Lane A 正在頻繁編輯）。Lane B 階段 `CardContent` 先只給 `TimelineCard` 用，`ItineraryCard` 暫不動。
 
 職責邊界：
 - `CardContent`：只負責「一張卡片要顯示/操作的內容」，不管版面與定位。清單與時間軸共用，避免重複。
@@ -128,16 +130,33 @@ export function rulerTicks(dayStartMin: number, dayEndMin: number, pxPerMin?: nu
 
 ## 11. 變更/新增檔案
 
-| 檔案 | 動作 |
-|------|------|
-| `lib/utils/timeline.ts` | 新增：版面/ resize / 刻度純函式 |
-| `components/CardContent.tsx` | 新增：共用卡片內容（自 `ItineraryCard` 抽出） |
-| `components/TimelineCard.tsx` | 新增：時間軸卡片 + 下緣 resize |
-| `components/TimelineDay.tsx` | 新增：刻度 + 等比例排列 + 地圖 |
-| `components/ItineraryCard.tsx` | 修改：改用 `CardContent`（行為不變） |
-| `app/itinerary/ItineraryClient.tsx` | 修改：`viewMode` state + 切換鈕 + 依模式渲染 |
-| `__tests__/timeline.test.ts` | 新增：純函式測試 |
-| `__tests__/timeline-card.test.tsx` | 新增：resize 手把 / 鎖 |
+| 檔案 | 動作 | Lane |
+|------|------|------|
+| `lib/utils/timeline.ts` | 新增：版面/ resize / 刻度純函式 | **B** |
+| `components/CardContent.tsx` | 新增：共用卡片內容 | **B** |
+| `components/TimelineCard.tsx` | 新增：時間軸卡片 + 下緣 resize | **B** |
+| `components/TimelineDay.tsx` | 新增：刻度 + 等比例排列 + 地圖 | **B** |
+| `__tests__/timeline.test.ts` | 新增：純函式測試 | **B** |
+| `__tests__/timeline-card.test.tsx` | 新增：resize 手把 / 鎖 | **B** |
+| `app/itinerary/ItineraryClient.tsx` | 修改：`viewMode` state + 切換鈕 + 依模式渲染 `TimelineDay` | **A**（整合點） |
+| `components/ItineraryCard.tsx` | 修改：改用 `CardContent`（行為不變、去重複） | **A**（之後重構） |
+
+## 12. Lane 分工（並行）
+
+**為何拆：** `ItineraryCard.tsx` 與 `ItineraryClient.tsx` 是 Lane A 正在頻繁編輯的熱檔（剛做完 startLocked/durationLocked 拆分、整天鎖）。直接改會衝突。其餘 ~80% 是全新檔，零衝突。
+
+**Lane B（本 spec 的 writing-plans，現在做）— 全新檔、可立即平行：**
+1. `lib/utils/timeline.ts`（純函式 + 測試）
+2. `components/CardContent.tsx`（共用內容；先只給 TimelineCard 用）
+3. `components/TimelineCard.tsx`（含下緣 resize + 測試）
+4. `components/TimelineDay.tsx`（刻度 + flow 排列 + 地圖）
+   - **介面契約**：`TimelineDay` 的 props 與既有 `ItineraryDay` **完全相同**（`day/dayIdx/mode/isDragging/draggable/onTimeChange/onToggleStartLock/onToggleDurationLock/onChangeType/onSetDayStartLock/onSetDayDurationLock`），讓 Lane A 只需依 viewMode 二選一渲染、不必改 props。
+
+**Lane A（交接、通知 A）— 兩個熱檔的整合，由 Lane A 在方便時做：**
+1. `ItineraryClient.tsx`：加 `viewMode: 'list'|'timeline'` state + 頂部切換鈕；在每天的 `SortableContext` 內依 `viewMode` 渲染 `ItineraryDay`（清單）或 `TimelineDay`（時間軸）。唯一同步點，additive 小改。
+2. `ItineraryCard.tsx`：改用 Lane B 產出的 `CardContent` 去除內容重複（純重構、行為不變）。可延後。
+
+**依賴方向：** Lane B 先產出 `CardContent` / `TimelineDay`（介面 = `ItineraryDay` props）→ Lane A 消費（渲染切換 + 重構）。Lane B 完全不卡 Lane A。交接細節見 `docs/superpowers/spikes/2026-06-28-timeline-laneA-handoff.md`。
 
 ## 附：關聯
 - 既有排程：`lib/utils/clientScheduler.ts`（`recalcPlan`，順序 reflow + 鎖錨定）
