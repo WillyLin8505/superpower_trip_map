@@ -21,3 +21,9 @@ test('>= 70 → high', () => {
 test('out-of-range indices → null', () => {
   expect(levelAt(fc(50), 9, 99)).toBeNull()
 })
+test('exactly 40 → medium (boundary)', () => {
+  expect(levelAt(fc(40), 0, 9)).toBe('medium')
+})
+test('exactly 70 → high (boundary)', () => {
+  expect(levelAt(fc(70), 0, 9)).toBe('high')
+})

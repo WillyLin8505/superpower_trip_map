@@ -35,6 +35,13 @@ export async function fetchBestTimeForecast(place: Place): Promise<CrowdForecast
   const weekly: (number | null)[][] = Array.from({ length: 7 }, () =>
     Array.from({ length: 24 }, () => null as number | null)
   )
+  // ⚠ VERIFY BEFORE ENABLING A REAL KEY (see design §7 post-implementation):
+  // BestTime's day_raw may be offset (venue "day" starts ~06:00), while the
+  // closed-override below indexes by hour_analysis[].hour (true clock hour).
+  // These two indexing bases may disagree. The 0–100 values exist only in
+  // day_raw, so the correct mapping must be confirmed against a real API
+  // response (hour_analysis carries the authoritative clock hour). Adjust the
+  // parse + add an offset mock test when the free key is available.
   for (const day of json.analysis) {
     const d = day.day_info?.day_int
     if (d === undefined || d < 0 || d > 6) continue

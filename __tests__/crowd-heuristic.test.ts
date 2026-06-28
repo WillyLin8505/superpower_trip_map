@@ -11,7 +11,7 @@ function place(over: Partial<Place> = {}): Place {
 }
 
 test('accommodation → all null', () => {
-  const f = estimateCrowd(place({ type: 'accommodation' } as Partial<Place>))
+  const f = estimateCrowd(place({ type: 'accommodation' }))
   expect(f.source).toBe('heuristic')
   expect(f.weekly.flat().every((v) => v === null)).toBe(true)
 })
