@@ -22,6 +22,7 @@ import { RecommendPanel } from '@/components/RecommendPanel'
 import { applyDragResult, findContainer } from '@/lib/utils/dragContainers'
 import { findClosestDay } from '@/lib/utils/geo'
 import { CombinedInput } from '@/components/CombinedInput'
+import { DWELL } from '@/lib/placeType'
 
 // pointerWithin is essential for multi-container: it checks where the pointer
 // physically is, not center-to-center distance (closestCenter favors the source container)
@@ -164,7 +165,7 @@ export function ItineraryClient({ initial }: Props) {
     const newPlace: ScheduledPlace = {
       ...place,
       startTime: '09:00',
-      durationMin: place.type === 'attraction' ? 90 : 60,
+      durationMin: DWELL[place.type],
       travelMinToNext: null,
       aiDescription: null,
       outsideHours: false,
@@ -184,7 +185,7 @@ export function ItineraryClient({ initial }: Props) {
       const newPlace: ScheduledPlace = {
         ...place,
         startTime: '09:00',
-        durationMin: place.type === 'attraction' ? 90 : 60,
+        durationMin: DWELL[place.type],
         travelMinToNext: null,
         aiDescription: null,
         outsideHours: false,
