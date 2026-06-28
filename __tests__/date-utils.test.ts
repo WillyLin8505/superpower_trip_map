@@ -22,4 +22,8 @@ describe('date utils', () => {
     expect(daysBetween('2026-06-28', '2026-06-28')).toBe(1)
     expect(daysBetween('2026-06-28', '2026-06-30')).toBe(3)
   })
+  it('daysBetween is exact across a DST boundary (UTC counting)', () => {
+    // US spring-forward 2026-03-08; 03-07 → 03-09 must be 3 inclusive days
+    expect(daysBetween('2026-03-07', '2026-03-09')).toBe(3)
+  })
 })

@@ -32,6 +32,8 @@ export function formatDateLabel(iso: string): string {
 }
 
 export function daysBetween(startIso: string, endIso: string): number {
-  const ms = parseLocal(endIso).getTime() - parseLocal(startIso).getTime()
+  const [y1, m1, d1] = startIso.split('-').map(Number)
+  const [y2, m2, d2] = endIso.split('-').map(Number)
+  const ms = Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)
   return Math.floor(ms / 86400000) + 1
 }
