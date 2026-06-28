@@ -2,13 +2,20 @@
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Place, PlaceType, TransportMode } from '@/lib/types'
+import { daysBetween } from '@/lib/utils/date'
 import { ItineraryPasteInput } from '@/components/ItineraryPasteInput'
 import { PlaceList } from '@/components/PlaceList'
 
 export default function InputPage() {
   const router = useRouter()
   const [places, setPlaces] = useState<Place[]>([])
-  const [days, setDays] = useState(2)
+  const today = new Date()
+  const isoToday = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
+  const [startDate, setStartDate] = useState(isoToday)
+  const [endDate, setEndDate] = useState(() => {
+    const t = new Date(); t.setDate(t.getDate()+1)
+    return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`
+  })
   const [mode, setMode] = useState<TransportMode>('driving')
 
   const handlePlacesFound = useCallback((newPlaces: Place[]) => {
@@ -29,8 +36,9 @@ export default function InputPage() {
 
   const handleSubmit = () => {
     if (places.length < 2) return
+    const days = Math.max(1, daysBetween(startDate, endDate))
     sessionStorage.setItem('pendingPlaces', JSON.stringify(places))
-    router.push(`/itinerary?days=${days}&mode=${mode}`)
+    router.push(`/itinerary?start=${startDate}&days=${days}&mode=${mode}`)
   }
 
   return (
@@ -51,16 +59,25 @@ export default function InputPage() {
 
       <section className="flex gap-6 mb-8">
         <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-gray-700">天數</span>
-          <input
-            type="number"
-            min={1}
-            max={14}
-            value={days}
-            onChange={(e) => setDays(Number(e.target.value))}
-            className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-center"
-          />
+          <span className="text-sm font-medium text-gray-700">開始日期</span>
+          <input type="date" value={startDate}
+            onChange={(e) => {
+              const v = e.target.value
+              setStartDate(v)
+              if (endDate < v) setEndDate(v)
+            }}
+            className="border border-gray-300 rounded-lg px-3 py-2" />
         </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-sm font-medium text-gray-700">結束日期</span>
+          <input type="date" value={endDate} min={startDate}
+            onChange={(e) => setEndDate(e.target.value < startDate ? startDate : e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2" />
+        </label>
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-medium text-gray-700">天數</span>
+          <span className="px-3 py-2">{Math.max(1, daysBetween(startDate, endDate))} 天</span>
+        </div>
         <label className="flex flex-col gap-1">
           <span className="text-sm font-medium text-gray-700">交通方式</span>
           <select

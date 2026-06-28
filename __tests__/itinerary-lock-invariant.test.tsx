@@ -91,6 +91,8 @@ const INITIAL: PlanResult = {
     {
       day: 1,
       aiSummary: null,
+      dayStart: '09:00',
+      dayEnd: '21:00',
       places: [
         {
           id: 'p1',
@@ -117,6 +119,7 @@ const INITIAL: PlanResult = {
     },
   ],
   transportMode: 'driving',
+  startDate: '2026-06-01',
 }
 
 afterEach(() => {

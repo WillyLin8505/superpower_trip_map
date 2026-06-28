@@ -11,7 +11,7 @@ function place(id: string, over: Partial<ScheduledPlace> = {}): ScheduledPlace {
     outsideHours: false, lateExit: false, startLocked: false, durationLocked: false, ...over,
   }
 }
-const day = (places: ScheduledPlace[]): DayItinerary => ({ day: 1, places, aiSummary: null })
+const day = (places: ScheduledPlace[]): DayItinerary => ({ day: 1, places, aiSummary: null, dayStart: '09:00', dayEnd: '21:00' })
 
 it('shows "整天鎖開始" as unlocked when not all start-locked, and locks all on click', () => {
   const onSet = jest.fn()

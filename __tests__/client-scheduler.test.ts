@@ -27,7 +27,7 @@ function makePlace(overrides: Partial<ScheduledPlace> = {}): ScheduledPlace {
 }
 
 function makePlan(places: ScheduledPlace[]): PlanResult {
-  return { days: [{ day: 1, places, aiSummary: null }], transportMode: 'driving' }
+  return { days: [{ day: 1, places, aiSummary: null, dayStart: '09:00', dayEnd: '21:00' }], transportMode: 'driving', startDate: '2026-06-01' }
 }
 
 // --- No locked cards: simple forward fill ---
@@ -124,9 +124,10 @@ test('between-segment overflow past next lock gets outsideHours true', () => {
 test('multiple days each recalculated independently', () => {
   const plan: PlanResult = {
     transportMode: 'driving',
+    startDate: '2026-06-01',
     days: [
-      { day: 1, places: [makePlace({ durationMin: 60, travelMinToNext: 0 })], aiSummary: null },
-      { day: 2, places: [makePlace({ durationMin: 90, travelMinToNext: 0 })], aiSummary: null },
+      { day: 1, places: [makePlace({ durationMin: 60, travelMinToNext: 0 })], aiSummary: null, dayStart: '09:00', dayEnd: '21:00' },
+      { day: 2, places: [makePlace({ durationMin: 90, travelMinToNext: 0 })], aiSummary: null, dayStart: '09:00', dayEnd: '21:00' },
     ],
   }
   const result = recalcPlan(plan)

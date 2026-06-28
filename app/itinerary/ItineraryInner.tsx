@@ -26,8 +26,11 @@ export default function ItineraryInner() {
 
     const days = Number(searchParams.get('days') ?? 2)
     const mode = (searchParams.get('mode') ?? 'driving') as TransportMode
+    const now = new Date()
+    const isoToday = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
+    const start = searchParams.get('start') ?? isoToday
 
-    planItinerary(places, days, mode).then(setPlan)
+    planItinerary(places, days, mode, start).then(setPlan)
   }, [router, searchParams])
 
   if (!plan) {

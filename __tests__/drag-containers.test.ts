@@ -13,11 +13,12 @@ function makePlace(id: string): ScheduledPlace {
 }
 
 function makeDay(dayNum: number, placeIds: string[]): DayItinerary {
-  return { day: dayNum, places: placeIds.map(makePlace), aiSummary: null }
+  return { day: dayNum, places: placeIds.map(makePlace), aiSummary: null, dayStart: '09:00', dayEnd: '21:00' }
 }
 
 const PLAN: PlanResult = {
   transportMode: 'driving',
+  startDate: '2026-06-01',
   days: [
     makeDay(1, ['a', 'b', 'c']),
     makeDay(2, ['d', 'e']),

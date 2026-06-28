@@ -31,6 +31,8 @@ const DAY_TWO_PLACES: DayItinerary = {
   day: 1,
   places: [makePlace('景點A'), makePlace('景點B')],
   aiSummary: null,
+  dayStart: '09:00',
+  dayEnd: '21:00',
 }
 
 test('renders iframe with embed URL when 2+ places', () => {

@@ -9,7 +9,8 @@ import { generateDaySummaries } from './ai'
 export async function planItinerary(
   places: Place[],
   days: number,
-  mode: TransportMode
+  mode: TransportMode,
+  startDate: string
 ): Promise<PlanResult> {
   // Enrich with full details (opening hours, rating, etc.)
   const enriched = await Promise.all(
@@ -28,5 +29,5 @@ export async function planItinerary(
   const dayItineraries = await schedulePlaces(ordered, matrix, days)
 
   const enrichedDays = await generateDaySummaries(dayItineraries)
-  return { days: enrichedDays, transportMode: mode }
+  return { days: enrichedDays, transportMode: mode, startDate }
 }

@@ -30,11 +30,14 @@ export interface DayItinerary {
   day: number               // 1-indexed
   places: ScheduledPlace[]
   aiSummary: string | null
+  dayStart: string          // "HH:MM" 該天活動開始，預設 '09:00'
+  dayEnd: string            // "HH:MM" 該天活動結束，預設 '21:00'
 }
 
 export interface PlanResult {
   days: DayItinerary[]
   transportMode: TransportMode
+  startDate: string         // ISO 'YYYY-MM-DD'
 }
 
 export interface Recommendation {

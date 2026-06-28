@@ -3,10 +3,13 @@ import type { PlanResult } from '@/lib/types'
 
 const FIXTURE: PlanResult = {
   transportMode: 'driving',
+  startDate: '2026-06-01',
   days: [
     {
       day: 1,
       aiSummary: null,
+      dayStart: '09:00',
+      dayEnd: '21:00',
       places: [
         {
           id: 'p1',
@@ -55,6 +58,8 @@ const FIXTURE: PlanResult = {
     {
       day: 2,
       aiSummary: null,
+      dayStart: '09:00',
+      dayEnd: '21:00',
       places: [
         {
           id: 'p3',

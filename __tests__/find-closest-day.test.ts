@@ -5,6 +5,8 @@ function makeDay(places: { lat: number; lng: number }[]): DayItinerary {
   return {
     day: 1,
     aiSummary: null,
+    dayStart: '09:00',
+    dayEnd: '21:00',
     places: places.map((p, i) => ({
       id: `id-${i}`,
       placeId: `pid-${i}`,

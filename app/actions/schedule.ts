@@ -94,6 +94,6 @@ export async function schedulePlaces(
       }
     })
 
-    return { day: dayIdx + 1, places: scheduled, aiSummary: null }
+    return { day: dayIdx + 1, places: scheduled, aiSummary: null, dayStart: '09:00', dayEnd: '21:00' }
   })
 }

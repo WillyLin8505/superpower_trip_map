@@ -7,14 +7,15 @@ const mockPush = jest.fn()
 const mockReplace = jest.fn()
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush, replace: mockReplace }),
-  useSearchParams: () => new URLSearchParams('days=2&mode=driving'),
+  useSearchParams: () => new URLSearchParams('days=2&mode=driving&start=2026-06-01'),
 }))
 
 // Mock the server action
 jest.mock('@/app/actions/plan', () => ({
   planItinerary: jest.fn().mockResolvedValue({
-    days: [{ day: 1, places: [], aiSummary: null }],
+    days: [{ day: 1, places: [], aiSummary: null, dayStart: '09:00', dayEnd: '21:00' }],
     transportMode: 'driving',
+    startDate: '2026-06-01',
   }),
 }))
 
@@ -51,6 +52,6 @@ describe('ItineraryPage', () => {
     sessionStorage.setItem('pendingPlaces', JSON.stringify(places))
     render(<ItineraryInner />)
     await waitFor(() => expect(screen.getByTestId('itinerary-client')).toBeInTheDocument())
-    expect(planItinerary).toHaveBeenCalledWith(places, 2, 'driving')
+    expect(planItinerary).toHaveBeenCalledWith(places, 2, 'driving', '2026-06-01')
   })
 })
