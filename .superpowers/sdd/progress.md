@@ -281,3 +281,32 @@ Task 2: complete (12612bd..85d5220 [initial 95ab6b8 + dateIso revise 85d5220], r
 Task 3: complete (85d5220..9907feb + fix 18895fd, review APPROVED after moving PointerEvent polyfill out of shared jest.setup.ts into the test file; Minor: nativeEvent.clientY fallback redundant, defer)
 Task 4: complete (18895fd..e5207f5 + fix 82a82ab, review APPROVED after onChangeType pass-through parity fix + test collision fix; Minor: empty-state placeholder is TimelineDay-only [spec §8], accepted)
 All 4 tasks complete. Proceeding to final whole-branch review.
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-06-28-accommodation-scheduling.md
+Branch: main (Lane A); BASE: 4f2eac4
+
+## Tasks
+- [x] Task 1: 抽出純 TSP 工具 lib/tsp.ts
+- [x] Task 2: 住宿分群 lib/accommodation/cluster.ts
+- [x] Task 3: 接上 schedule.ts cluster 路徑 + nightIndex
+- [x] Task 4: 衍生提醒（沒住宿天 / 停留低於建議）+ 夜次徽章
+
+Task 1: complete (commits 4f2eac4..edcf78b, review clean — Spec ✅ + Approved, 198/198 + build green)
+  Minor (plan-mandated, non-blocking): nearestNeighbor adds `if (best<0) break` guard absent in old optimize.ts inline code — matches brief's reference verbatim; zero behavioral diff for fully-connected matrices (only real input). Defensive improvement.
+Task 2: complete (commits edcf78b..7f04c7a, review clean — Spec ✅ verbatim match + Approved, 204/204 + build green)
+  Minor (non-blocking): clusterAttractionsToDays N=0 (zero days) would throw — plan-mandated, unreachable (cluster path only runs with ≥1 hotel & days≥1); report misreported test line count (cosmetic).
+Task 3: complete (commits 7f04c7a..9d03fb8, review clean — Spec ✅ + Approved, 207/207 + build green; schedule.ts split into mealOrder()+fillDay(), cluster branch on hotels.length>0)
+  PLAN-MANDATED behavioral change (accepted, surface to user + final review): chunk path (no-accommodation) day with 3+ restaurants — new fillDay snaps 18:00 to the 2nd restaurant ENCOUNTERED (a pm-block "extra"), not the designated dinner (last). 0/1/2-restaurant days identical to before. Brief explicitly prescribed "1st/2nd restaurant encountered" rule. No test covers 3+ case. Cluster path unaffected (uses routeDay not mealOrder).
+  Minor (pre-existing carry-forward): fillDay placeIds.indexOf(place.placeId) == loop index by construction; harmless, future cleanup.
+Task 4: complete (commits 9d03fb8..6cf63a0, review clean — Spec ✅ + Approved, 212/212 + build green; ItineraryDay missing-lodging warning + isLastDay prop, ItineraryClient wiring, ItineraryCard below-DWELL warning + 第N晚 badge; all derived, no fixture migration)
+
+## Final Review
+- Whole-branch review (4f2eac4..6cf63a0): Ready to merge except 1 Important — FIXED
+- Cross-task integration verified: cluster path (tsp→cluster→schedule) ends each non-last hotel day at its hotel card, 1-indexed nightIndex survives fillDay spread, proximity clustering + one-day overflow correct, fixed-endpoint 2-opt keeps thisHotel last & strips prevHotel. No-accommodation chunk path behavior-preserved (0/1/2-restaurant meal snaps identical).
+- Important FIXED (commit 77cdb8a): assignHotelsToDays silently dropped hotels when accommodations > days (collide on last slot, vanish from itinerary — regression vs old path). Fix surfaces overflow hotels on the last day; +1 covering test (3 hotels/2 days → all 3 render). 213/213 + build green.
+- Accepted plan-mandated (NOT a defect): chunk-path day with 3+ restaurants snaps 18:00 to 2nd-encountered restaurant not designated dinner. Surface to user.
+- Minors (non-blocking, logged above): nearestNeighbor best<0 guard; clusterAttractionsToDays N=0 unreachable; fillDay placeIds.indexOf==idx; {nightIndex&&} guard style.
+- Final commit: 77cdb8a
