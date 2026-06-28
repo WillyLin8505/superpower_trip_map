@@ -18,15 +18,16 @@ export async function fetchBestTimeForecast(place: Place): Promise<CrowdForecast
     `&venue_name=${encodeURIComponent(place.name)}` +
     `&venue_address=${encodeURIComponent(place.address)}`
 
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
   let json: BestTimeResponse
   try {
-    const ctrl = new AbortController()
-    const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
     const res = await fetch(url, { method: 'POST', signal: ctrl.signal })
-    clearTimeout(timer)
     json = (await res.json()) as BestTimeResponse
   } catch {
     return null
+  } finally {
+    clearTimeout(timer)
   }
 
   if (json.status !== 'OK' || !json.analysis) return null

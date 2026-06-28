@@ -203,3 +203,15 @@ Cleanup: removed stray agent worktree; dropped accidentally-committed final-fix-
 - Out-of-scope noted (non-blocking, pre-existing): RecommendCard/ai.ts render type as binary attraction?景點:餐廳 — recommend.ts narrows recs to restaurant|attraction so accommodation never reaches it
 - 133 tests pass, 25 suites; build clean
 - Final commit: 1f93bc5
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-06-28-crowd-data-layer.md
+Branch: lane/ai-research (Lane B); BASE: 84e271c
+
+## Tasks
+Task 1: complete (84e271c..4aa08ff, review clean — Minor: boundary 40/70 untested, plan-mandated)
+Task 2: complete (4aa08ff..b696979, review clean)
+Task 3: implemented (b696979..171566e) — review pending. NOTE: merged main into lane to bring accommodation PlaceType (子專案#1 dep); resolved tsc TS2367/2352; crowd tests 13/13 green post-merge.
+Task 3: complete (b696979..171566e, review clean — Minor: stale Partial<Place> cast in test (redundant post-merge); CURVES Record<string> vs Partial<Record<PlaceType>>; both defer to final triage)
