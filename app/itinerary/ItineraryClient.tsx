@@ -257,6 +257,7 @@ export function ItineraryClient({ initial }: Props) {
       const newPlan = { ...planRef.current, days: [...planRef.current.days, ...extra] }
       planRef.current = newPlan
       setPlan(newPlan)
+      setTargetDays(null)
     } else {
       // 縮短：不刪改，交由 §5（Task 5）的警告/解決；這裡只記錄目標 N
       setTargetDays(targetN)
@@ -264,7 +265,12 @@ export function ItineraryClient({ initial }: Props) {
   }, [])
 
   const handleChangeDayWindow = useCallback((dayIdx: number, field: 'dayStart' | 'dayEnd', value: string) => {
-    const newDays = planRef.current.days.map((d, i) => i === dayIdx ? { ...d, [field]: value } : d)
+    const newDays = planRef.current.days.map((d, i) => {
+      if (i !== dayIdx) return d
+      // dayEnd 不可早於 dayStart：若反向則夾到 dayStart
+      const next = field === 'dayEnd' && value < d.dayStart ? d.dayStart : value
+      return { ...d, [field]: next }
+    })
     const recalced = recalcPlan({ ...planRef.current, days: newDays })
     planRef.current = recalced
     setPlan(recalced)

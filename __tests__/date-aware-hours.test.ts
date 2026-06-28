@@ -28,3 +28,21 @@ it('checkLateExit uses the given date close time', () => {
   expect(checkLateExit('16:00', 90, HOURS, '2026-06-30')).toBe(true)
   expect(checkLateExit('14:00', 60, HOURS, '2026-06-30')).toBe(false)
 })
+
+// 24 小時制營業時間（無 AM/PM）
+const HRS24 = [
+  'Monday: Closed',
+  'Tuesday: 09:00 – 17:00',
+  'Wednesday: 09:00 – 17:00',
+  'Thursday: 09:00 – 17:00',
+  'Friday: 09:00 – 17:00',
+  'Saturday: 09:00 – 17:00',
+  'Sunday: 09:00 – 17:00',
+]
+
+it('checkOutsideHours handles 24-hour-format hours', () => {
+  // Tue 09:00–17:00
+  expect(checkOutsideHours('08:00', HRS24, '2026-06-30')).toBe(true)  // 開店前
+  expect(checkOutsideHours('18:00', HRS24, '2026-06-30')).toBe(true)  // 打烊後
+  expect(checkOutsideHours('14:00', HRS24, '2026-06-30')).toBe(false) // 營業中
+})

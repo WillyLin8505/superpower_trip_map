@@ -58,6 +58,7 @@ export async function schedulePlaces(
       ...(dinnerRestaurant ? [dinnerRestaurant] : []),
     ]
 
+    // 伺服器端初次排程固定以 09:00 起算（設計如此）；每天的 dayStart 活動時間窗在 client recalc 路徑（clientScheduler）才套用
     let cursor = 9 * 60
 
     const scheduled: ScheduledPlace[] = ordered.map((place, i) => {

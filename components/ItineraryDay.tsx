@@ -5,6 +5,11 @@ import { buildDayEmbedUrl } from '@/lib/utils/mapUrl'
 import { dayDate, formatDateLabel } from '@/lib/utils/date'
 import type { DayItinerary, TransportMode, PlaceType } from '@/lib/types'
 
+function toMin(t: string): number {
+  const [h, m] = t.split(':').map(Number)
+  return h * 60 + m
+}
+
 interface Props {
   day: DayItinerary
   dayIdx: number
@@ -59,6 +64,7 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
           <input type="time" value={day.dayEnd}
             onChange={(e) => onChangeWindow('dayEnd', e.target.value)}
             className="border border-gray-200 rounded px-1 py-0.5" />
+          <span>（{((toMin(day.dayEnd) - toMin(day.dayStart)) / 60).toFixed(1)} 小時）</span>
         </div>
       )}
       {(onSetDayStartLock || onSetDayDurationLock) && (() => {
