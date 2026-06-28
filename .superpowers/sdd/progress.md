@@ -174,3 +174,32 @@ Fix (post-final-review): complete (commit 8b9bb33 — preserve query on failed s
 - Follow-ups noted (non-blocking): Enter-to-submit intentionally omitted (multi-line textarea needs newline for paste); COUNTRIES/inferType/TYPE_LABEL/verify-pipeline duplicated from ItineraryPasteInput+PlaceSearchBar — extract to lib/ once home-page input is also migrated
 - 119 tests pass, 20 suites; build clean
 - Final commit: 8b9bb33
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-06-28-accommodation-type-tag.md
+Branch: main (Lane A)
+
+## Tasks
+- [x] Task 1: 共用 placeType 模組 + 擴充 PlaceType + 收斂重複定義
+- [x] Task 2: TypePicker 元件
+- [x] Task 3: 卡片底色 + TypePicker + 串接 onChangeType
+- [x] Task 4: 首頁清單四選一 + DWELL 預設停留
+
+Task 1: complete (commits 0518650..bc9a25c, review clean — Approved; fix bc9a25c wired search-preview badge color to TYPE_META + updated schedule comment)
+  Minors (none outstanding): both review minors fixed in bc9a25c
+Task 2: complete (commits bc9a25c..0702255, review clean — Approved, 3/3 tests)
+  Minors for final review: (a) inert `size` prop — both ternary branches identical, no consumer passes size → consider removing (YAGNI, plan-mandated); (b) overlay outside-click dismiss untested; (c) no aria-expanded/aria-haspopup on trigger
+Task 3: complete (commits 0702255..7a111ae, review clean — Approved, 130/130 + build green; handleChangeType faithfully mirrors handleToggleLock, no recalc/duration change)
+  Minor for final review: itinerary-card-type test named "without changing duration" has no duration assertion (invariant lives in handleChangeType; card is stateless re duration) — rename or add explicit assertion
+Task 4: complete (commits 7a111ae..2d6ae48, review clean — Approved, no issues, 131/131 + build green)
+Final fixes: complete (commit 6fb3316 — client-level handleChangeType invariant test [no recalc/no duration change], removed inert TypePicker size prop, added aria-haspopup/aria-expanded, renamed misleading card test)
+Cleanup: removed stray agent worktree; dropped accidentally-committed final-fix-report.md from 6fb3316; gitignored .claude/worktrees/ (commit 1f93bc5)
+
+## Final Review
+- Whole-branch review (0518650..2d6ae48): Ready to merge with minor fixes — no Critical/Important except the untested client-level invariant (now fixed in 6fb3316)
+- Centralization verified DRY (no duplicate inferType/TYPE_LABEL/TYPE_STYLE/DWELL anywhere); no-reschedule invariant sound by construction (recalcDay never reads place.type)
+- Out-of-scope noted (non-blocking, pre-existing): RecommendCard/ai.ts render type as binary attraction?景點:餐廳 — recommend.ts narrows recs to restaurant|attraction so accommodation never reaches it
+- 133 tests pass, 25 suites; build clean
+- Final commit: 1f93bc5
