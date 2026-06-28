@@ -26,7 +26,7 @@ export async function planItinerary(
     .map((pid) => enriched.find((p) => p.placeId === pid)!)
     .filter(Boolean)
 
-  const dayItineraries = await schedulePlaces(ordered, matrix, days)
+  const dayItineraries = await schedulePlaces(ordered, matrix, days, startDate)
 
   const enrichedDays = await generateDaySummaries(dayItineraries)
   return { days: enrichedDays, transportMode: mode, startDate }

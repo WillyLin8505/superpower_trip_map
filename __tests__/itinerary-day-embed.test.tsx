@@ -36,7 +36,7 @@ const DAY_TWO_PLACES: DayItinerary = {
 }
 
 test('renders iframe with embed URL when 2+ places', () => {
-  render(<ItineraryDay day={DAY_TWO_PLACES} dayIdx={0} mode="driving" />)
+  render(<ItineraryDay day={DAY_TWO_PLACES} dayIdx={0} mode="driving" startDate="2026-06-28" />)
   const iframe = screen.getByTitle('第 1 天路線地圖')
   expect(iframe).toBeInTheDocument()
   expect(iframe).toHaveAttribute('src', 'https://maps.google.com/embed/test')
@@ -44,12 +44,12 @@ test('renders iframe with embed URL when 2+ places', () => {
 
 test('does not render iframe when only 1 place', () => {
   const onePlace = { ...DAY_TWO_PLACES, places: [makePlace('景點A')] }
-  render(<ItineraryDay day={onePlace} dayIdx={0} mode="driving" />)
+  render(<ItineraryDay day={onePlace} dayIdx={0} mode="driving" startDate="2026-06-28" />)
   expect(screen.queryByTitle('第 1 天路線地圖')).toBeNull()
 })
 
 test('passes mode to buildDayEmbedUrl', () => {
   const { buildDayEmbedUrl } = require('@/lib/utils/mapUrl')
-  render(<ItineraryDay day={DAY_TWO_PLACES} dayIdx={0} mode="transit" />)
+  render(<ItineraryDay day={DAY_TWO_PLACES} dayIdx={0} mode="transit" startDate="2026-06-28" />)
   expect(buildDayEmbedUrl).toHaveBeenCalledWith(DAY_TWO_PLACES.places, 'transit')
 })

@@ -16,7 +16,7 @@ jest.mock('@dnd-kit/utilities', () => ({
   CSS: { Transform: { toString: () => '' } },
 }))
 jest.mock('@/lib/utils/hours', () => ({
-  getTodayHours: jest.fn(() => '9:00 AM – 5:00 PM'),
+  getHoursForDate: jest.fn(() => '9:00 AM – 5:00 PM'),
 }))
 jest.mock('@/components/TimeScrollPicker', () => ({
   TimeScrollPicker: ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
@@ -48,18 +48,18 @@ const BASE_PLACE: ScheduledPlace = {
   durationLocked: false,
 }
 
-test('shows today opening hours', () => {
-  render(<ItineraryCard place={BASE_PLACE} index={0} />)
-  expect(screen.getByText(/今日.*9:00 AM/)).toBeInTheDocument()
+test('shows opening hours', () => {
+  render(<ItineraryCard place={BASE_PLACE} index={0} dateIso="2026-06-30" />)
+  expect(screen.getByText(/營業.*9:00 AM/)).toBeInTheDocument()
 })
 
 test('shows Google description when available', () => {
-  render(<ItineraryCard place={{ ...BASE_PLACE, description: 'Google 說明' }} index={0} />)
+  render(<ItineraryCard place={{ ...BASE_PLACE, description: 'Google 說明' }} index={0} dateIso="2026-06-30" />)
   expect(screen.getByText('Google 說明')).toBeInTheDocument()
 })
 
 test('falls back to aiDescription when description is null', () => {
-  render(<ItineraryCard place={{ ...BASE_PLACE, description: null, aiDescription: 'AI 說明' }} index={0} />)
+  render(<ItineraryCard place={{ ...BASE_PLACE, description: null, aiDescription: 'AI 說明' }} index={0} dateIso="2026-06-30" />)
   expect(screen.getByText('AI 說明')).toBeInTheDocument()
 })
 
@@ -68,6 +68,7 @@ test('shows Google description over aiDescription when both exist', () => {
     <ItineraryCard
       place={{ ...BASE_PLACE, description: 'Google 說明', aiDescription: 'AI 說明' }}
       index={0}
+      dateIso="2026-06-30"
     />
   )
   expect(screen.getByText('Google 說明')).toBeInTheDocument()
@@ -75,19 +76,19 @@ test('shows Google description over aiDescription when both exist', () => {
 })
 
 test('does not render 票價 label', () => {
-  render(<ItineraryCard place={{ ...BASE_PLACE, description: '某說明' }} index={0} />)
+  render(<ItineraryCard place={{ ...BASE_PLACE, description: '某說明' }} index={0} dateIso="2026-06-30" />)
   expect(screen.queryByText(/票價/)).toBeNull()
 })
 
-test('hides opening hours row when getTodayHours returns null', () => {
-  const { getTodayHours } = require('@/lib/utils/hours')
-  ;(getTodayHours as jest.Mock).mockReturnValueOnce(null)
-  render(<ItineraryCard place={{ ...BASE_PLACE, openingHours: null }} index={0} />)
-  expect(screen.queryByText(/今日/)).toBeNull()
+test('hides opening hours row when getHoursForDate returns null', () => {
+  const { getHoursForDate } = require('@/lib/utils/hours')
+  ;(getHoursForDate as jest.Mock).mockReturnValueOnce(null)
+  render(<ItineraryCard place={{ ...BASE_PLACE, openingHours: null }} index={0} dateIso="2026-06-30" />)
+  expect(screen.queryByText(/營業/)).toBeNull()
 })
 
 test('shows 甜點 badge with pink style for dessert type', () => {
-  render(<ItineraryCard place={{ ...BASE_PLACE, type: 'dessert' }} index={0} />)
+  render(<ItineraryCard place={{ ...BASE_PLACE, type: 'dessert' }} index={0} dateIso="2026-06-30" />)
   const badge = screen.getByText('甜點')
   expect(badge).toBeInTheDocument()
   expect(badge.className).toContain('bg-pink-100')
@@ -95,7 +96,7 @@ test('shows 甜點 badge with pink style for dessert type', () => {
 })
 
 test('shows start→end time for read-only card (no onTimeChange)', () => {
-  render(<ItineraryCard place={BASE_PLACE} index={0} />)
+  render(<ItineraryCard place={BASE_PLACE} index={0} dateIso="2026-06-30" />)
   // BASE_PLACE: startTime=09:00, durationMin=90 → end=10:30
   // With split-lock design, each time is a separate static span (no picker buttons)
   expect(screen.getByText('09:00')).toBeInTheDocument()
@@ -105,11 +106,11 @@ test('shows start→end time for read-only card (no onTimeChange)', () => {
 })
 
 test('shows lateExit warning when lateExit is true', () => {
-  render(<ItineraryCard place={{ ...BASE_PLACE, lateExit: true }} index={0} />)
+  render(<ItineraryCard place={{ ...BASE_PLACE, lateExit: true }} index={0} dateIso="2026-06-30" />)
   expect(screen.getByText(/結束時間超出營業時間/)).toBeInTheDocument()
 })
 
 test('does not show lateExit warning when lateExit is false', () => {
-  render(<ItineraryCard place={{ ...BASE_PLACE, lateExit: false }} index={0} />)
+  render(<ItineraryCard place={{ ...BASE_PLACE, lateExit: false }} index={0} dateIso="2026-06-30" />)
   expect(screen.queryByText(/結束時間超出營業時間/)).toBeNull()
 })

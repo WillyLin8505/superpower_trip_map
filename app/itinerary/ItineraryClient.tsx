@@ -263,6 +263,7 @@ export function ItineraryClient({ initial }: Props) {
                 day={day}
                 dayIdx={dayIdx}
                 mode={plan.transportMode}
+                startDate={plan.startDate}
                 isDragging={activeId !== null}
                 onTimeChange={(placeId, field, value) =>
                   handleTimeChange(dayIdx, placeId, field, value)
@@ -283,6 +284,7 @@ export function ItineraryClient({ initial }: Props) {
               <ItineraryCard
                 place={activePlace}
                 index={activePlaceIndex}
+                dateIso={plan.startDate}
                 draggable={false}
               />
             </div>

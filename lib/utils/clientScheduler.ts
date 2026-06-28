@@ -1,34 +1,33 @@
 import type { PlanResult, ScheduledPlace, DayItinerary } from '@/lib/types'
 import { checkLateExit, checkOutsideHours } from '@/lib/utils/hours'
+import { dayDate } from '@/lib/utils/date'
 import { minsToTime } from '@/lib/utils/time'
-
-const DAY_START = 9 * 60
 
 function toMin(time: string): number {
   const [h, m] = time.split(':').map(Number)
   return h * 60 + m
 }
 
-function applyWarnings(p: ScheduledPlace, startTime: string, startMin: number): ScheduledPlace {
+function applyWarnings(p: ScheduledPlace, startTime: string, startMin: number, dateIso: string, dayStartMin: number): ScheduledPlace {
   return {
     ...p,
     startTime,
-    outsideHours: startMin < DAY_START || checkOutsideHours(startTime, p.openingHours),
-    lateExit: checkLateExit(startTime, p.durationMin, p.openingHours),
+    outsideHours: startMin < dayStartMin || checkOutsideHours(startTime, p.openingHours, dateIso),
+    lateExit: checkLateExit(startTime, p.durationMin, p.openingHours, dateIso),
   }
 }
 
-function scheduleForward(places: ScheduledPlace[], startMin: number): ScheduledPlace[] {
+function scheduleForward(places: ScheduledPlace[], startMin: number, dateIso: string, dayStartMin: number): ScheduledPlace[] {
   let cursor = startMin
   return places.map((p) => {
     const startTime = minsToTime(cursor)
-    const result = applyWarnings(p, startTime, cursor)
+    const result = applyWarnings(p, startTime, cursor, dateIso, dayStartMin)
     cursor += p.durationMin + (p.travelMinToNext ?? 0)
     return result
   })
 }
 
-function scheduleBackwards(places: ScheduledPlace[], nextStartMin: number): ScheduledPlace[] {
+function scheduleBackwards(places: ScheduledPlace[], nextStartMin: number, dateIso: string, dayStartMin: number): ScheduledPlace[] {
   // nextStartMin = start time of the thing that comes after this segment (e.g. a locked place's startMin)
   // For each card in reverse: startMin = cursor - durationMin - travelMinToNext; cursor = startMin
   let cursor = nextStartMin
@@ -36,16 +35,17 @@ function scheduleBackwards(places: ScheduledPlace[], nextStartMin: number): Sche
     const startMin = cursor - p.durationMin - (p.travelMinToNext ?? 0)
     const startTime = minsToTime(Math.max(0, startMin))
     cursor = startMin
-    return applyWarnings(p, startTime, startMin)
+    return applyWarnings(p, startTime, startMin, dateIso, dayStartMin)
   }).reverse()
 }
 
-function recalcDay(day: DayItinerary): DayItinerary {
+function recalcDay(day: DayItinerary, dateIso: string): DayItinerary {
   const places = day.places
+  const dayStartMin = toMin(day.dayStart)
   const lockIndices = places.reduce<number[]>((acc, p, i) => (p.startLocked ? [...acc, i] : acc), [])
 
   if (lockIndices.length === 0) {
-    return { ...day, places: scheduleForward(places, DAY_START) }
+    return { ...day, places: scheduleForward(places, dayStartMin, dateIso, dayStartMin) }
   }
 
   const result: ScheduledPlace[] = [...places]
@@ -54,7 +54,7 @@ function recalcDay(day: DayItinerary): DayItinerary {
   const firstLockIdx = lockIndices[0]
   if (firstLockIdx > 0) {
     const leading = places.slice(0, firstLockIdx)
-    const scheduled = scheduleBackwards(leading, toMin(places[firstLockIdx].startTime))
+    const scheduled = scheduleBackwards(leading, toMin(places[firstLockIdx].startTime), dateIso, dayStartMin)
     scheduled.forEach((p, i) => { result[i] = p })
   }
 
@@ -64,8 +64,8 @@ function recalcDay(day: DayItinerary): DayItinerary {
     const startTime = p.startTime
     result[idx] = {
       ...p,
-      outsideHours: toMin(startTime) < DAY_START || checkOutsideHours(startTime, p.openingHours),
-      lateExit: checkLateExit(startTime, p.durationMin, p.openingHours),
+      outsideHours: toMin(startTime) < dayStartMin || checkOutsideHours(startTime, p.openingHours, dateIso),
+      lateExit: checkLateExit(startTime, p.durationMin, p.openingHours, dateIso),
     }
   })
 
@@ -77,7 +77,7 @@ function recalcDay(day: DayItinerary): DayItinerary {
     if (segment.length === 0) return
     const lock = places[lockIdx]
     const lockEndMin = toMin(lock.startTime) + lock.durationMin + (lock.travelMinToNext ?? 0)
-    let scheduled = scheduleForward(segment, lockEndMin)
+    let scheduled = scheduleForward(segment, lockEndMin, dateIso, dayStartMin)
 
     // cap check — flag overflow if segment spills past the next lock
     if (nextLockPosInList !== undefined) {
@@ -95,5 +95,5 @@ function recalcDay(day: DayItinerary): DayItinerary {
 }
 
 export function recalcPlan(plan: PlanResult): PlanResult {
-  return { ...plan, days: plan.days.map(recalcDay) }
+  return { ...plan, days: plan.days.map((d) => recalcDay(d, dayDate(plan.startDate, d.day))) }
 }

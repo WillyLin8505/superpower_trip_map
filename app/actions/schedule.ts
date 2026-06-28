@@ -1,8 +1,8 @@
 'use server'
 import type { Place, ScheduledPlace, DayItinerary, DistanceMatrix } from '@/lib/types'
 import { checkLateExit, checkOutsideHours } from '@/lib/utils/hours'
+import { dayDate } from '@/lib/utils/date'
 import { DWELL } from '@/lib/placeType'
-const DAY_START = 9 * 60
 
 function minsToTime(mins: number): string {
   const h = Math.floor(mins / 60).toString().padStart(2, '0')
@@ -25,7 +25,8 @@ function travelSecs(
 export async function schedulePlaces(
   orderedPlaces: Place[],
   distMatrix: DistanceMatrix,
-  days: number
+  days: number,
+  startDate: string
 ): Promise<DayItinerary[]> {
   const chunkSize = Math.ceil(orderedPlaces.length / days)
   const dayChunks: Place[][] = Array.from({ length: days }, (_, d) =>
@@ -33,6 +34,7 @@ export async function schedulePlaces(
   )
 
   return dayChunks.map((chunk, dayIdx) => {
+    const dateIso = dayDate(startDate, dayIdx + 1)
     const placeIds = chunk.map((p) => p.placeId)
 
     // Desserts and accommodation flow freely like attractions (not pinned to meal slots)
@@ -56,7 +58,7 @@ export async function schedulePlaces(
       ...(dinnerRestaurant ? [dinnerRestaurant] : []),
     ]
 
-    let cursor = DAY_START
+    let cursor = 9 * 60
 
     const scheduled: ScheduledPlace[] = ordered.map((place, i) => {
       if (place === lunchRestaurant && cursor < 12 * 60) cursor = 12 * 60
@@ -77,8 +79,8 @@ export async function schedulePlaces(
             )
           : null
 
-      const outsideHours = checkOutsideHours(startTime, place.openingHours)
-      const lateExit = checkLateExit(startTime, durationMin, place.openingHours)
+      const outsideHours = checkOutsideHours(startTime, place.openingHours, dateIso)
+      const lateExit = checkLateExit(startTime, durationMin, place.openingHours, dateIso)
       cursor += durationMin + (travelMin ?? 0)
 
       return {

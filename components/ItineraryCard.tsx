@@ -3,7 +3,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { TimeScrollPicker } from './TimeScrollPicker'
 import { TypePicker } from './TypePicker'
-import { getTodayHours } from '@/lib/utils/hours'
+import { getHoursForDate } from '@/lib/utils/hours'
 import { addMinutes } from '@/lib/utils/time'
 import type { PlaceType, ScheduledPlace } from '@/lib/types'
 import { TYPE_META } from '@/lib/placeType'
@@ -11,6 +11,7 @@ import { TYPE_META } from '@/lib/placeType'
 interface Props {
   place: ScheduledPlace
   index: number
+  dateIso: string
   draggable?: boolean
   onTimeChange?: (placeId: string, field: 'startTime' | 'durationMin', value: string | number) => void
   onToggleStartLock?: (placeId: string) => void
@@ -18,7 +19,7 @@ interface Props {
   onChangeType?: (placeId: string, type: PlaceType) => void
 }
 
-export function ItineraryCard({ place, index, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType }: Props) {
+export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: place.id, disabled: !draggable || place.startLocked })
 
@@ -28,7 +29,7 @@ export function ItineraryCard({ place, index, draggable, onTimeChange, onToggleS
     opacity: isDragging ? 0.5 : 1,
   }
 
-  const todayHours = getTodayHours(place.openingHours)
+  const todayHours = getHoursForDate(place.openingHours, dateIso)
   const descriptionText = place.description || place.aiDescription
   const meta = TYPE_META[place.type]
 
@@ -91,7 +92,7 @@ export function ItineraryCard({ place, index, draggable, onTimeChange, onToggleS
             )}
           </div>
           {todayHours && (
-            <p className="text-sm text-gray-500 mt-0.5">今日 {todayHours}</p>
+            <p className="text-sm text-gray-500 mt-0.5">營業 {todayHours}</p>
           )}
           {place.rating && (
             <p className="text-sm text-gray-500 mt-0.5">評分：{place.rating} &#x2605;</p>

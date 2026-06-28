@@ -17,7 +17,7 @@ jest.mock('@dnd-kit/utilities', () => ({
   CSS: { Transform: { toString: () => '' } },
 }))
 jest.mock('@/lib/utils/hours', () => ({
-  getTodayHours: jest.fn(() => null),
+  getHoursForDate: jest.fn(() => null),
 }))
 jest.mock('@/components/TimeScrollPicker', () => ({
   TimeScrollPicker: ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
@@ -35,7 +35,7 @@ const BASE: ScheduledPlace = {
 
 it('renders two lock buttons (start + duration) when handlers provided', () => {
   render(
-    <ItineraryCard place={BASE} index={0}
+    <ItineraryCard place={BASE} index={0} dateIso="2026-06-30"
       onToggleStartLock={jest.fn()} onToggleDurationLock={jest.fn()} />
   )
   expect(screen.getByRole('button', { name: '鎖定開始時間' })).toBeInTheDocument()
@@ -44,7 +44,7 @@ it('renders two lock buttons (start + duration) when handlers provided', () => {
 
 it('clicking start lock calls onToggleStartLock; duration lock calls onToggleDurationLock', () => {
   const onStart = jest.fn(); const onDur = jest.fn()
-  render(<ItineraryCard place={BASE} index={0} onToggleStartLock={onStart} onToggleDurationLock={onDur} />)
+  render(<ItineraryCard place={BASE} index={0} dateIso="2026-06-30" onToggleStartLock={onStart} onToggleDurationLock={onDur} />)
   fireEvent.click(screen.getByRole('button', { name: '鎖定開始時間' }))
   fireEvent.click(screen.getByRole('button', { name: '鎖定停留時間' }))
   expect(onStart).toHaveBeenCalledWith('p1')
@@ -53,7 +53,7 @@ it('clicking start lock calls onToggleStartLock; duration lock calls onToggleDur
 
 it('startLocked → start time static (no start picker) and no drag handle', () => {
   render(
-    <ItineraryCard place={{ ...BASE, startLocked: true }} index={0} draggable
+    <ItineraryCard place={{ ...BASE, startLocked: true }} index={0} dateIso="2026-06-30" draggable
       onTimeChange={jest.fn()} onToggleStartLock={jest.fn()} onToggleDurationLock={jest.fn()} />
   )
   // aria-label flips to 解鎖開始時間 when locked
@@ -65,7 +65,7 @@ it('startLocked → start time static (no start picker) and no drag handle', () 
 
 it('durationLocked → end time static but start still editable; card still draggable', () => {
   render(
-    <ItineraryCard place={{ ...BASE, durationLocked: true }} index={0} draggable
+    <ItineraryCard place={{ ...BASE, durationLocked: true }} index={0} dateIso="2026-06-30" draggable
       onTimeChange={jest.fn()} onToggleStartLock={jest.fn()} onToggleDurationLock={jest.fn()} />
   )
   expect(screen.getByTestId('drag-handle')).toBeInTheDocument()

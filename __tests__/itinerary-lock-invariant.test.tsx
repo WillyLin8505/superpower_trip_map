@@ -67,7 +67,7 @@ jest.mock('@/lib/utils/mapUrl', () => ({
 }))
 
 jest.mock('@/lib/utils/hours', () => ({
-  getTodayHours: jest.fn(() => null),
+  getHoursForDate: jest.fn(() => null),
   checkOutsideHours: jest.fn(() => false),
   checkLateExit: jest.fn(() => false),
 }))

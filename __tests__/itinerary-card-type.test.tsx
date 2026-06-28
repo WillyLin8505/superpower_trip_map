@@ -16,7 +16,7 @@ jest.mock('@dnd-kit/utilities', () => ({
   CSS: { Transform: { toString: () => '' } },
 }))
 jest.mock('@/lib/utils/hours', () => ({
-  getTodayHours: jest.fn(() => null),
+  getHoursForDate: jest.fn(() => null),
 }))
 jest.mock('@/components/TimeScrollPicker', () => ({
   TimeScrollPicker: ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
@@ -35,20 +35,20 @@ const BASE: ScheduledPlace = {
 }
 
 it('renders accommodation card with purple background', () => {
-  render(<ItineraryCard place={{ ...BASE, type: 'accommodation' }} index={0} />)
+  render(<ItineraryCard place={{ ...BASE, type: 'accommodation' }} index={0} dateIso="2026-06-30" />)
   expect(screen.getByTestId('card-p1').className).toContain('bg-purple-50')
 })
 
 it('clicking the badge and picking a type calls onChangeType with the selected type', () => {
   const onChangeType = jest.fn()
-  render(<ItineraryCard place={BASE} index={0} onChangeType={onChangeType} />)
+  render(<ItineraryCard place={BASE} index={0} dateIso="2026-06-30" onChangeType={onChangeType} />)
   fireEvent.click(screen.getByRole('button', { name: /景點/ }))
   fireEvent.click(screen.getByText('🏨 住宿'))
   expect(onChangeType).toHaveBeenCalledWith('p1', 'accommodation')
 })
 
 it('shows a static badge (no picker) when onChangeType is absent', () => {
-  render(<ItineraryCard place={BASE} index={0} />)
+  render(<ItineraryCard place={BASE} index={0} dateIso="2026-06-30" />)
   // static label present, but no ▾ trigger
   expect(screen.getByText('景點')).toBeInTheDocument()
   expect(screen.queryByText(/▾/)).not.toBeInTheDocument()

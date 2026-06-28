@@ -15,7 +15,7 @@ const day = (places: ScheduledPlace[]): DayItinerary => ({ day: 1, places, aiSum
 
 it('shows "整天鎖開始" as unlocked when not all start-locked, and locks all on click', () => {
   const onSet = jest.fn()
-  render(<ItineraryDay day={day([place('a'), place('b')])} dayIdx={0} mode="driving"
+  render(<ItineraryDay day={day([place('a'), place('b')])} dayIdx={0} mode="driving" startDate="2026-06-28"
     onSetDayStartLock={onSet} onSetDayDurationLock={jest.fn()} />)
   const btn = screen.getByRole('button', { name: /整天鎖開始/ })
   expect(btn.textContent).toContain('🔓')
@@ -26,7 +26,7 @@ it('shows "整天鎖開始" as unlocked when not all start-locked, and locks all
 it('shows locked state when all places are start-locked, and unlocks all on click', () => {
   const onSet = jest.fn()
   render(<ItineraryDay day={day([place('a', { startLocked: true }), place('b', { startLocked: true })])}
-    dayIdx={0} mode="driving" onSetDayStartLock={onSet} onSetDayDurationLock={jest.fn()} />)
+    dayIdx={0} mode="driving" startDate="2026-06-28" onSetDayStartLock={onSet} onSetDayDurationLock={jest.fn()} />)
   const btn = screen.getByRole('button', { name: /整天鎖開始/ })
   expect(btn.textContent).toContain('🔒')
   fireEvent.click(btn)
@@ -35,14 +35,14 @@ it('shows locked state when all places are start-locked, and unlocks all on clic
 
 it('duration lock-all toggles durationLocked for the whole day', () => {
   const onSet = jest.fn()
-  render(<ItineraryDay day={day([place('a'), place('b')])} dayIdx={0} mode="driving"
+  render(<ItineraryDay day={day([place('a'), place('b')])} dayIdx={0} mode="driving" startDate="2026-06-28"
     onSetDayStartLock={jest.fn()} onSetDayDurationLock={onSet} />)
   fireEvent.click(screen.getByRole('button', { name: /整天鎖停留/ }))
   expect(onSet).toHaveBeenCalledWith(true)
 })
 
 it('disables lock-all buttons for an empty day', () => {
-  render(<ItineraryDay day={day([])} dayIdx={0} mode="driving"
+  render(<ItineraryDay day={day([])} dayIdx={0} mode="driving" startDate="2026-06-28"
     onSetDayStartLock={jest.fn()} onSetDayDurationLock={jest.fn()} />)
   expect(screen.getByRole('button', { name: /整天鎖開始/ })).toBeDisabled()
   expect(screen.getByRole('button', { name: /整天鎖停留/ })).toBeDisabled()
