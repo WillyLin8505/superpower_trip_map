@@ -4,6 +4,7 @@
 **狀態：** 設計已核准 → 待 writing-plans
 **Lane：** B（`lane/ai-research`）
 **前置決策：** [crowd-data findings](../spikes/2026-06-28-crowd-data-findings.md)（BestTime 主來源 + 啟發式 fallback）
+**歸屬：** **整個人潮資料層（含 BestTime 涵蓋率實測、定價/註冊、金鑰、整合）由 Lane B 全權負責**（使用者指定 2026-06-28）。Lane A 不做 BestTime 相關決策；未來只透過 `getCrowdForecast(place)` 介面消費。
 
 > 這是 Lane B **可獨立於 Lane A** 完成的工作：**全部新增檔案**，對外只給一支乾淨介面 `getCrowdForecast(place) → CrowdForecast`。**不修改 Lane A 的 6 個核心檔**（`lib/types.ts`、`lib/utils/clientScheduler.ts`、`app/actions/schedule.ts`、`app/actions/optimize.ts`、`components/ItineraryCard.tsx`、`app/itinerary/ItineraryClient.tsx`）；僅 `import type { Place }`（唯讀引用，不算修改）。
 
