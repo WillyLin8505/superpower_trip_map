@@ -31,7 +31,7 @@ const BASE: ScheduledPlace = {
   lat: 0, lng: 0, address: '地址', openingHours: null, rating: null,
   photoUrl: null, description: null, startTime: '09:00', durationMin: 90,
   travelMinToNext: null, aiDescription: null, outsideHours: false,
-  lateExit: false, timeLocked: false,
+  lateExit: false, startLocked: false, durationLocked: false,
 }
 
 it('renders accommodation card with purple background', () => {

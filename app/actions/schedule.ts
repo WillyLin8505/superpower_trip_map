@@ -89,7 +89,8 @@ export async function schedulePlaces(
         aiDescription: null,
         outsideHours,
         lateExit,
-        timeLocked: false,
+        startLocked: false,
+        durationLocked: false,
       }
     })
 

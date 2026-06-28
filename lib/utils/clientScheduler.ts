@@ -42,7 +42,7 @@ function scheduleBackwards(places: ScheduledPlace[], nextStartMin: number): Sche
 
 function recalcDay(day: DayItinerary): DayItinerary {
   const places = day.places
-  const lockIndices = places.reduce<number[]>((acc, p, i) => (p.timeLocked ? [...acc, i] : acc), [])
+  const lockIndices = places.reduce<number[]>((acc, p, i) => (p.startLocked ? [...acc, i] : acc), [])
 
   if (lockIndices.length === 0) {
     return { ...day, places: scheduleForward(places, DAY_START) }

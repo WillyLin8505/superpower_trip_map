@@ -13,13 +13,14 @@ interface Props {
   index: number
   draggable?: boolean
   onTimeChange?: (placeId: string, field: 'startTime' | 'durationMin', value: string | number) => void
-  onToggleLock?: (placeId: string) => void
+  onToggleStartLock?: (placeId: string) => void
+  onToggleDurationLock?: (placeId: string) => void
   onChangeType?: (placeId: string, type: PlaceType) => void
 }
 
-export function ItineraryCard({ place, index, draggable, onTimeChange, onToggleLock, onChangeType }: Props) {
+export function ItineraryCard({ place, index, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: place.id, disabled: !draggable })
+    useSortable({ id: place.id, disabled: !draggable || place.startLocked })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -39,7 +40,7 @@ export function ItineraryCard({ place, index, draggable, onTimeChange, onToggleL
       data-testid={`card-${place.id}`}
     >
       <div className="flex items-start gap-3">
-        {draggable && (
+        {draggable && !place.startLocked && (
           <span
             {...attributes}
             {...listeners}
@@ -65,32 +66,28 @@ export function ItineraryCard({ place, index, draggable, onTimeChange, onToggleL
             )}
           </div>
           <div className="flex items-center gap-1 mt-1 flex-wrap">
-            {place.timeLocked ? (
-              <p className="text-sm text-gray-500">
-                {place.startTime} → {addMinutes(place.startTime, place.durationMin)}
-              </p>
-            ) : onTimeChange ? (
-              <>
-                <TimeScrollPicker
-                  value={place.startTime}
-                  onChange={(v) => onTimeChange(place.id, 'startTime', v)}
-                />
-                <span className="text-gray-400 text-sm">→</span>
-                <TimeScrollPicker
-                  value={addMinutes(place.startTime, place.durationMin)}
-                  onChange={(v) => {
-                    const [eh, em] = v.split(':').map(Number)
-                    const [sh, sm] = place.startTime.split(':').map(Number)
-                    const rawDur = (eh * 60 + em) - (sh * 60 + sm)
-                    const dur = rawDur > 0 ? rawDur : rawDur + 1440
-                    if (dur > 0) onTimeChange(place.id, 'durationMin', dur)
-                  }}
-                />
-              </>
+            {place.startLocked || !onTimeChange ? (
+              <span className="text-sm text-gray-500">{place.startTime}</span>
             ) : (
-              <p className="text-sm text-gray-500">
-                {place.startTime} → {addMinutes(place.startTime, place.durationMin)}
-              </p>
+              <TimeScrollPicker
+                value={place.startTime}
+                onChange={(v) => onTimeChange(place.id, 'startTime', v)}
+              />
+            )}
+            <span className="text-gray-400 text-sm">→</span>
+            {place.durationLocked || !onTimeChange ? (
+              <span className="text-sm text-gray-500">{addMinutes(place.startTime, place.durationMin)}</span>
+            ) : (
+              <TimeScrollPicker
+                value={addMinutes(place.startTime, place.durationMin)}
+                onChange={(v) => {
+                  const [eh, em] = v.split(':').map(Number)
+                  const [sh, sm] = place.startTime.split(':').map(Number)
+                  const rawDur = (eh * 60 + em) - (sh * 60 + sm)
+                  const dur = rawDur > 0 ? rawDur : rawDur + 1440
+                  if (dur > 0) onTimeChange(place.id, 'durationMin', dur)
+                }}
+              />
             )}
           </div>
           {todayHours && (
@@ -106,15 +103,29 @@ export function ItineraryCard({ place, index, draggable, onTimeChange, onToggleL
             <p className="text-xs text-orange-600 font-medium mt-1">&#x26A0; 結束時間超出營業時間</p>
           )}
         </div>
-        {onToggleLock && (
-          <button
-            type="button"
-            onClick={() => onToggleLock(place.id)}
-            className="text-xl leading-none mt-0.5 opacity-50 hover:opacity-100 transition-opacity shrink-0"
-            aria-label={place.timeLocked ? '解鎖時間' : '鎖定時間'}
-          >
-            {place.timeLocked ? '🔒' : '🔓'}
-          </button>
+        {(onToggleStartLock || onToggleDurationLock) && (
+          <div className="flex flex-col gap-1 shrink-0 mt-0.5">
+            {onToggleStartLock && (
+              <button
+                type="button"
+                onClick={() => onToggleStartLock(place.id)}
+                className="text-xs leading-none opacity-60 hover:opacity-100 transition-opacity whitespace-nowrap"
+                aria-label={place.startLocked ? '解鎖開始時間' : '鎖定開始時間'}
+              >
+                {place.startLocked ? '🔒' : '🔓'} 開始
+              </button>
+            )}
+            {onToggleDurationLock && (
+              <button
+                type="button"
+                onClick={() => onToggleDurationLock(place.id)}
+                className="text-xs leading-none opacity-60 hover:opacity-100 transition-opacity whitespace-nowrap"
+                aria-label={place.durationLocked ? '解鎖停留時間' : '鎖定停留時間'}
+              >
+                {place.durationLocked ? '🔒' : '🔓'} 停留
+              </button>
+            )}
+          </div>
         )}
       </div>
       {place.travelMinToNext !== null && place.travelMinToNext > 0 && (

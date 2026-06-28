@@ -65,7 +65,8 @@ export function RecommendPanel({ currentPlaces, onAddPlaces }: Props) {
         aiDescription: r.reason,
         outsideHours: false,
         lateExit: false,
-        timeLocked: false,
+        startLocked: false,
+        durationLocked: false,
       }))
     onAddPlaces(toAdd)
     setSelected(new Set())

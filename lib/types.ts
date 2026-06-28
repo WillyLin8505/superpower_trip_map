@@ -22,7 +22,8 @@ export interface ScheduledPlace extends Place {
   aiDescription: string | null
   outsideHours: boolean     // true → show orange warning
   lateExit: boolean         // startTime + durationMin exceeds today's closing time
-  timeLocked: boolean       // recalc skips this place's startTime and durationMin
+  startLocked: boolean      // 鎖開始時間：排程錨點 + 不可拖
+  durationLocked: boolean   // 鎖停留時間
 }
 
 export interface DayItinerary {

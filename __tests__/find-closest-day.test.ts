@@ -23,7 +23,8 @@ function makeDay(places: { lat: number; lng: number }[]): DayItinerary {
       aiDescription: null,
       outsideHours: false,
       lateExit: false,
-      timeLocked: false,
+      startLocked: false,
+      durationLocked: false,
     })),
   }
 }

@@ -23,7 +23,7 @@ function makePlace(name: string): ScheduledPlace {
     photoUrl: null, description: null,
     startTime: '09:00', durationMin: 90, travelMinToNext: null,
     aiDescription: null, outsideHours: false,
-    lateExit: false, timeLocked: false,
+    lateExit: false, startLocked: false, durationLocked: false,
   }
 }
 

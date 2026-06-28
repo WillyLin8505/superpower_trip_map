@@ -44,7 +44,8 @@ const BASE_PLACE: ScheduledPlace = {
   aiDescription: null,
   outsideHours: false,
   lateExit: false,
-  timeLocked: false,
+  startLocked: false,
+  durationLocked: false,
 }
 
 test('shows today opening hours', () => {
@@ -93,49 +94,14 @@ test('shows 甜點 badge with pink style for dessert type', () => {
   expect(badge.className).toContain('text-pink-700')
 })
 
-test('renders lock button when onToggleLock is provided', () => {
-  const mockToggle = jest.fn()
-  render(<ItineraryCard place={BASE_PLACE} index={0} onToggleLock={mockToggle} />)
-  expect(screen.getByRole('button', { name: '鎖定時間' })).toBeInTheDocument()
-})
-
-test('clicking lock button calls onToggleLock with place id', () => {
-  const mockToggle = jest.fn()
-  render(<ItineraryCard place={BASE_PLACE} index={0} onToggleLock={mockToggle} />)
-  fireEvent.click(screen.getByRole('button', { name: '鎖定時間' }))
-  expect(mockToggle).toHaveBeenCalledWith('id-1')
-})
-
-test('shows 解鎖時間 aria-label when timeLocked is true', () => {
-  render(
-    <ItineraryCard
-      place={{ ...BASE_PLACE, timeLocked: true }}
-      index={0}
-      onToggleLock={jest.fn()}
-    />
-  )
-  expect(screen.getByRole('button', { name: '解鎖時間' })).toBeInTheDocument()
-})
-
-test('hides TimeScrollPickers and shows static start→end when timeLocked', () => {
-  render(
-    <ItineraryCard
-      place={{ ...BASE_PLACE, timeLocked: true }}
-      index={0}
-      onTimeChange={jest.fn()}
-      onToggleLock={jest.fn()}
-    />
-  )
-  // Static text: 09:00 → 10:30 (09:00 + 90 min)
-  expect(screen.getByText('09:00 → 10:30')).toBeInTheDocument()
-  // No pickers (TimeScrollPicker mock renders as a button with the time value)
-  expect(screen.queryByRole('button', { name: '09:00' })).toBeNull()
-})
-
 test('shows start→end time for read-only card (no onTimeChange)', () => {
   render(<ItineraryCard place={BASE_PLACE} index={0} />)
   // BASE_PLACE: startTime=09:00, durationMin=90 → end=10:30
-  expect(screen.getByText('09:00 → 10:30')).toBeInTheDocument()
+  // With split-lock design, each time is a separate static span (no picker buttons)
+  expect(screen.getByText('09:00')).toBeInTheDocument()
+  expect(screen.getByText('10:30')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '09:00' })).toBeNull()
+  expect(screen.queryByRole('button', { name: '10:30' })).toBeNull()
 })
 
 test('shows lateExit warning when lateExit is true', () => {

@@ -66,13 +66,13 @@ export function ItineraryClient({ initial }: Props) {
     }, 2000)
   }, [])
 
-  const handleToggleLock = useCallback((dayIdx: number, placeId: string) => {
+  const toggleLockField = useCallback((dayIdx: number, placeId: string, field: 'startLocked' | 'durationLocked') => {
     const newDays = planRef.current.days.map((d, i) => {
       if (i !== dayIdx) return d
       return {
         ...d,
         places: d.places.map((p) =>
-          p.id === placeId ? { ...p, timeLocked: !p.timeLocked } : p
+          p.id === placeId ? { ...p, [field]: !p[field] } : p
         ),
       }
     })
@@ -80,6 +80,15 @@ export function ItineraryClient({ initial }: Props) {
     planRef.current = newPlan
     setPlan(newPlan)
   }, [])
+
+  const handleToggleStartLock = useCallback(
+    (dayIdx: number, placeId: string) => toggleLockField(dayIdx, placeId, 'startLocked'),
+    [toggleLockField]
+  )
+  const handleToggleDurationLock = useCallback(
+    (dayIdx: number, placeId: string) => toggleLockField(dayIdx, placeId, 'durationLocked'),
+    [toggleLockField]
+  )
 
   const handleChangeType = useCallback((dayIdx: number, placeId: string, type: PlaceType) => {
     const newDays = planRef.current.days.map((d, i) => {
@@ -170,7 +179,8 @@ export function ItineraryClient({ initial }: Props) {
       aiDescription: null,
       outsideHours: false,
       lateExit: false,
-      timeLocked: false,
+      startLocked: false,
+      durationLocked: false,
     }
     const targetDayIdx = findClosestDay(planRef.current.days, place)
     const newDays = planRef.current.days.map((d, i) =>
@@ -190,7 +200,8 @@ export function ItineraryClient({ initial }: Props) {
         aiDescription: null,
         outsideHours: false,
         lateExit: false,
-        timeLocked: false,
+        startLocked: false,
+      durationLocked: false,
       }
       const targetDayIdx = findClosestDay(next.days, place)
       next = {
@@ -237,7 +248,8 @@ export function ItineraryClient({ initial }: Props) {
                 onTimeChange={(placeId, field, value) =>
                   handleTimeChange(dayIdx, placeId, field, value)
                 }
-                onToggleLock={(placeId) => handleToggleLock(dayIdx, placeId)}
+                onToggleStartLock={(placeId) => handleToggleStartLock(dayIdx, placeId)}
+                onToggleDurationLock={(placeId) => handleToggleDurationLock(dayIdx, placeId)}
                 onChangeType={(placeId, type) => handleChangeType(dayIdx, placeId, type)}
                 draggable
               />
