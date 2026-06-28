@@ -2,7 +2,7 @@
 import { useDroppable } from '@dnd-kit/core'
 import { ItineraryCard } from './ItineraryCard'
 import { buildDayEmbedUrl } from '@/lib/utils/mapUrl'
-import { dayDate } from '@/lib/utils/date'
+import { dayDate, formatDateLabel } from '@/lib/utils/date'
 import type { DayItinerary, TransportMode, PlaceType } from '@/lib/types'
 
 interface Props {
@@ -18,15 +18,30 @@ interface Props {
   onChangeType?: (placeId: string, type: PlaceType) => void
   onSetDayStartLock?: (locked: boolean) => void
   onSetDayDurationLock?: (locked: boolean) => void
+  onChangeWindow?: (field: 'dayStart' | 'dayEnd', value: string) => void
 }
 
-export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock }: Props) {
+export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
 
   return (
     <section className="mb-12" data-testid={`day-${dayIdx}`}>
-      <h2 className="text-xl font-bold text-gray-800 mb-1">第 {day.day} 天</h2>
+      <h2 className="text-xl font-bold text-gray-800 mb-1">
+        第 {day.day} 天 · {formatDateLabel(dayDate(startDate, day.day))}
+      </h2>
+      {onChangeWindow && (
+        <div className="flex items-center gap-2 mb-2 text-xs text-gray-500">
+          <span>活動</span>
+          <input type="time" value={day.dayStart}
+            onChange={(e) => onChangeWindow('dayStart', e.target.value)}
+            className="border border-gray-200 rounded px-1 py-0.5" />
+          <span>–</span>
+          <input type="time" value={day.dayEnd}
+            onChange={(e) => onChangeWindow('dayEnd', e.target.value)}
+            className="border border-gray-200 rounded px-1 py-0.5" />
+        </div>
+      )}
       {(onSetDayStartLock || onSetDayDurationLock) && (() => {
         const has = day.places.length > 0
         const allStart = has && day.places.every((p) => p.startLocked)

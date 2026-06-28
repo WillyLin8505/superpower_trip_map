@@ -16,6 +16,7 @@ import {
 } from '@dnd-kit/sortable'
 import type { PlanResult, ScheduledPlace, Place, PlaceType } from '@/lib/types'
 import { recalcPlan } from '@/lib/utils/clientScheduler'
+import { daysBetween, dayDate } from '@/lib/utils/date'
 import { ItineraryDay } from '@/components/ItineraryDay'
 import { ItineraryCard } from '@/components/ItineraryCard'
 import { RecommendPanel } from '@/components/RecommendPanel'
@@ -38,6 +39,8 @@ interface Props {
 export function ItineraryClient({ initial }: Props) {
   const [plan, setPlan] = useState<PlanResult>(initial)
   const [activeId, setActiveId] = useState<string | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [targetDays, setTargetDays] = useState<number | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // planRef always tracks the latest committed plan (avoids stale closures in dnd-kit callbacks)
   const planRef = useRef<PlanResult>(initial)
@@ -233,6 +236,36 @@ export function ItineraryClient({ initial }: Props) {
     scheduleRecalc(next)
   }, [scheduleRecalc])
 
+  const handleChangeStartDate = useCallback((iso: string) => {
+    const recalced = recalcPlan({ ...planRef.current, startDate: iso })
+    planRef.current = recalced
+    setPlan(recalced)
+  }, [])
+
+  const handleChangeEndDate = useCallback((iso: string) => {
+    const start = planRef.current.startDate
+    const targetN = Math.max(1, daysBetween(start, iso < start ? start : iso))
+    const M = planRef.current.days.length
+    if (targetN > M) {
+      const extra = Array.from({ length: targetN - M }, (_, k) => ({
+        day: M + k + 1, places: [], aiSummary: null, dayStart: '09:00', dayEnd: '21:00',
+      }))
+      const newPlan = { ...planRef.current, days: [...planRef.current.days, ...extra] }
+      planRef.current = newPlan
+      setPlan(newPlan)
+    } else {
+      // 縮短：不刪改，交由 §5（Task 5）的警告/解決；這裡只記錄目標 N
+      setTargetDays(targetN)
+    }
+  }, [])
+
+  const handleChangeDayWindow = useCallback((dayIdx: number, field: 'dayStart' | 'dayEnd', value: string) => {
+    const newDays = planRef.current.days.map((d, i) => i === dayIdx ? { ...d, [field]: value } : d)
+    const recalced = recalcPlan({ ...planRef.current, days: newDays })
+    planRef.current = recalced
+    setPlan(recalced)
+  }, [])
+
   const allPlaces = plan.days.flatMap((d) => d.places)
   const activePlace = activeId ? allPlaces.find(p => p.id === activeId) ?? null : null
   const activePlaceIndex = activeId ? allPlaces.findIndex(p => p.id === activeId) : -1
@@ -240,6 +273,22 @@ export function ItineraryClient({ initial }: Props) {
   return (
     <main className="max-w-5xl mx-auto px-4 py-10">
       <a href="/" className="text-blue-600 text-sm mb-6 inline-block">&#x2190; 重新規劃</a>
+      <section className="mb-6 flex flex-wrap items-end gap-4">
+        <label className="flex flex-col gap-1">
+          <span className="text-xs text-gray-500">開始日期</span>
+          <input type="date" data-testid="trip-start-date" value={plan.startDate}
+            onChange={(e) => handleChangeStartDate(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs text-gray-500">結束日期</span>
+          <input type="date" data-testid="trip-end-date" min={plan.startDate}
+            value={dayDate(plan.startDate, plan.days.length)}
+            onChange={(e) => handleChangeEndDate(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+        </label>
+        <span className="text-sm text-gray-600 pb-1.5">共 {plan.days.length} 天</span>
+      </section>
       <section className="mb-6 space-y-3">
         <h2 className="text-sm font-semibold text-gray-700">新增行程</h2>
         <CombinedInput onAdd={handleAddPlace} onAddPlaces={handleAddPlaces} />
@@ -273,6 +322,7 @@ export function ItineraryClient({ initial }: Props) {
                 onChangeType={(placeId, type) => handleChangeType(dayIdx, placeId, type)}
                 onSetDayStartLock={(locked) => handleSetDayStartLock(dayIdx, locked)}
                 onSetDayDurationLock={(locked) => handleSetDayDurationLock(dayIdx, locked)}
+                onChangeWindow={(field, value) => handleChangeDayWindow(dayIdx, field, value)}
                 draggable
               />
             </SortableContext>
