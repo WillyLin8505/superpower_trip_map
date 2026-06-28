@@ -27,9 +27,10 @@ interface Props {
   onSetDayStartLock?: (locked: boolean) => void
   onSetDayDurationLock?: (locked: boolean) => void
   onChangeWindow?: (field: 'dayStart' | 'dayEnd', value: string) => void
+  isLastDay?: boolean
 }
 
-export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow }: Props) {
+export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, isLastDay }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
 
@@ -38,6 +39,9 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
       <h2 className="text-xl font-bold text-gray-800 mb-1">
         第 {day.day} 天 · {isOverflow ? '超出行程' : formatDateLabel(dayDate(startDate, day.day))}
       </h2>
+      {!isLastDay && day.places.length > 0 && !day.places.some((p) => p.type === 'accommodation') && (
+        <p className="text-xs text-orange-600 mb-2">&#x26A0; 這天沒有住宿</p>
+      )}
       {isOverflow && (onScatter || onDelete) && (
         <div className="flex gap-2 mb-2">
           {onScatter && (

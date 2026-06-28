@@ -6,7 +6,7 @@ import { TypePicker } from './TypePicker'
 import { getHoursForDate } from '@/lib/utils/hours'
 import { addMinutes } from '@/lib/utils/time'
 import type { PlaceType, ScheduledPlace } from '@/lib/types'
-import { TYPE_META } from '@/lib/placeType'
+import { DWELL, TYPE_META } from '@/lib/placeType'
 
 interface Props {
   place: ScheduledPlace
@@ -62,6 +62,7 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
                 {meta.label}
               </span>
             )}
+            {place.nightIndex && <span className="text-xs text-purple-700">第 {place.nightIndex} 晚</span>}
             {place.outsideHours && (
               <span className="text-xs text-orange-600 font-medium">&#x26A0; 請確認營業時間</span>
             )}
@@ -102,6 +103,9 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
           )}
           {place.lateExit && (
             <p className="text-xs text-orange-600 font-medium mt-1">&#x26A0; 結束時間超出營業時間</p>
+          )}
+          {place.durationMin < DWELL[place.type] && (
+            <p className="text-xs text-orange-600 font-medium mt-1">&#x26A0; 停留少於建議（建議 {DWELL[place.type]} 分）</p>
           )}
         </div>
         {(onToggleStartLock || onToggleDurationLock) && (

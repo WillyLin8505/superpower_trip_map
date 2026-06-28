@@ -365,6 +365,7 @@ export function ItineraryClient({ initial }: Props) {
                 onSetDayDurationLock={(locked) => handleSetDayDurationLock(dayIdx, locked)}
                 onChangeWindow={(field, value) => handleChangeDayWindow(dayIdx, field, value)}
                 isOverflow={dayIdx >= N}
+                isLastDay={dayIdx === plan.days.length - 1}
                 onScatter={() => handleScatterDay(dayIdx)}
                 onDelete={() => handleDeleteDay(dayIdx)}
                 draggable
