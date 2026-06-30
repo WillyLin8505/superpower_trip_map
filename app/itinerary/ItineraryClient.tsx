@@ -24,6 +24,8 @@ import { applyDragResult, findContainer } from '@/lib/utils/dragContainers'
 import { findClosestDay } from '@/lib/utils/geo'
 import { CombinedInput } from '@/components/CombinedInput'
 import { DWELL } from '@/lib/placeType'
+import { fetchDayArrangeInputs } from '@/app/actions/arrange'
+import { arrangeDayOrder } from '@/lib/utils/arrangeDay'
 
 // pointerWithin is essential for multi-container: it checks where the pointer
 // physically is, not center-to-center distance (closestCenter favors the source container)
@@ -45,6 +47,8 @@ export function ItineraryClient({ initial }: Props) {
   const [plan, setPlan] = useState<PlanResult>(initial)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [targetDays, setTargetDays] = useState<number | null>(null)
+  const [arrangingDay, setArrangingDay] = useState<number | null>(null)
+  const [arrangeError, setArrangeError] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // planRef always tracks the latest committed plan (avoids stale closures in dnd-kit callbacks)
   const planRef = useRef<PlanResult>(initial)
@@ -299,6 +303,42 @@ export function ItineraryClient({ initial }: Props) {
     setTargetDays((t) => (t !== null && next.length <= t ? null : t))
   }, [])
 
+  const handleSetAvoid = useCallback(
+    (dayIdx: number, field: 'avoidTraffic' | 'avoidCrowds', value: boolean) => {
+      const newDays = planRef.current.days.map((d, i) => (i === dayIdx ? { ...d, [field]: value } : d))
+      const newPlan = { ...planRef.current, days: newDays }
+      planRef.current = newPlan
+      setPlan(newPlan)
+    },
+    []
+  )
+
+  const handleSmartArrange = useCallback(async (dayIdx: number) => {
+    const current = planRef.current
+    const day = current.days[dayIdx]
+    setArrangeError(null)
+    setArrangingDay(dayIdx)
+    try {
+      const inputs = await fetchDayArrangeInputs(
+        day.places, current.transportMode, day.avoidCrowds ?? true
+      )
+      const reordered = arrangeDayOrder(
+        day,
+        dayDate(current.startDate, day.day),
+        inputs,
+        { avoidTraffic: day.avoidTraffic ?? true, avoidCrowds: day.avoidCrowds ?? true }
+      )
+      const newDays = planRef.current.days.map((d, i) => (i === dayIdx ? { ...d, places: reordered } : d))
+      const recalced = recalcPlan({ ...planRef.current, days: newDays })
+      planRef.current = recalced
+      setPlan(recalced)
+    } catch {
+      setArrangeError('排程失敗，請稍後再試')
+    } finally {
+      setArrangingDay(null)
+    }
+  }, [])
+
   const N = targetDays ?? plan.days.length
   const overCount = Math.max(0, plan.days.length - N)
 
@@ -342,6 +382,9 @@ export function ItineraryClient({ initial }: Props) {
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
+        {arrangeError && (
+          <p className="text-sm text-red-600 mb-4" role="alert">{arrangeError}</p>
+        )}
         <div>
           {plan.days.map((day, dayIdx) => (
             <SortableContext
@@ -368,6 +411,9 @@ export function ItineraryClient({ initial }: Props) {
                 isLastDay={dayIdx === plan.days.length - 1}
                 onScatter={() => handleScatterDay(dayIdx)}
                 onDelete={() => handleDeleteDay(dayIdx)}
+                onSmartArrange={() => handleSmartArrange(dayIdx)}
+                onSetAvoid={(field, value) => handleSetAvoid(dayIdx, field, value)}
+                arranging={arrangingDay === dayIdx}
                 draggable
               />
             </SortableContext>
