@@ -310,3 +310,29 @@ Task 4: complete (commits 9d03fb8..6cf63a0, review clean — Spec ✅ + Approved
 - Accepted plan-mandated (NOT a defect): chunk-path day with 3+ restaurants snaps 18:00 to 2nd-encountered restaurant not designated dinner. Surface to user.
 - Minors (non-blocking, logged above): nearestNeighbor best<0 guard; clusterAttractionsToDays N=0 unreachable; fillDay placeIds.indexOf==idx; {nightIndex&&} guard style.
 - Final commit: 77cdb8a
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-06-30-smart-arrange.md
+Branch: main (Lane A); BASE: 7dbc16a
+
+## Tasks
+- [x] Task 1: 資料模型 + arrangeDay.ts 純核心（成本模型 + 決定性 2-opt，重用 recalcDay）
+- [x] Task 2: fetchDayArrangeInputs 伺服器動作
+- [x] Task 3: ItineraryDay 控制項（兩 checkbox + 智慧排程按鈕）
+- [x] Task 4: ItineraryClient 串接（handler + loading + 錯誤）
+
+Task 1: complete (commits 7dbc16a..03f744f, review clean — Spec ✅ verbatim + Approved, 220/220 + build green; recalcDay export verified body-unchanged, deterministic 2-opt, locked-fixed, zero-migration optional fields)
+  Minor (non-blocking): code comment says "2-opt" but it's a continuous-greedy no-break scan variant (still deterministic + terminating); brief prose said 8 tests, actually 7 (all pass).
+Task 2: complete (commits 03f744f..bd726bf, review clean — Spec ✅ verbatim + Approved no issues, 222/222 + build green; thin server action, needCrowd gates crowd fetch)
+Task 3: complete (commits bd726bf..794b5fd, review clean — Spec ✅ + Approved no issues, 228/228 + build green; ItineraryDay checkboxes+button, verbatim 繁中 copy, additive/gated, disabled logic correct)
+Task 4: complete (commits 794b5fd..789f5b7, review clean — Spec ✅ + Approved, 231/231 + build green; handleSmartArrange reads fresh planRef post-await [no stale closure], handleSetAvoid no-recalc, error role=alert, 3 integration tests run REAL arrangeDayOrder/ItineraryDay)
+  Reviewer ⚠️ all resolved: day-0/card-id testids exist (verified); weekday mapping correct (Mon-first → Sat 2026-07-04 = idx 5; [B,A,C] only reachable w/ crowd applied → test proves physics).
+
+## Final Review
+- Whole-branch review (7dbc16a..789f5b7): Ready to merge — no Critical/Important/Minor blocking
+- Verified end-to-end: units consistent (matrix secs + crowd penalty secs, additive); weekdayIndex(Mon-first)↔levelAt(Mon-first) match; recalcDay body unchanged (only `export`) → existing scheduling preserved; reuse-recalcDay achieves spec's single-timing-source intent (approved deviation from simulateTimes); deterministic (strict-improvement, no rand/Date); locked anchors fixed + travelMinToNext refreshed to new adjacency; optional fields zero-migration; no any/no new deps; 繁中 copy.
+- Non-blocking observations (no action): server action gets full ScheduledPlace[] (extra fields serialized, harmless); O(n²·n) recalc per candidate (fine for day sizes); crowd penalty also scores locked anchors (harmless/arguably correct).
+- 231 tests green, build clean
+- Final commit: 789f5b7
