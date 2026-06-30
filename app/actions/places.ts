@@ -53,3 +53,46 @@ export async function verifyPlace(
   if (!place) return null
   return { placeId: place.placeId, lat: place.lat, lng: place.lng }
 }
+
+const NEARBY_QUERY: Record<'attraction' | 'restaurant' | 'dessert', { type?: string; keyword?: string }> = {
+  attraction: { type: 'tourist_attraction' },
+  restaurant: { type: 'restaurant' },
+  dessert: { keyword: '甜點 dessert cafe' },
+}
+
+export async function nearbySearch(
+  lat: number,
+  lng: number,
+  placeType: 'attraction' | 'restaurant' | 'dessert'
+): Promise<Place[]> {
+  const q = NEARBY_QUERY[placeType]
+  const params = new URLSearchParams({
+    location: `${lat},${lng}`,
+    radius: '4000',
+    key: KEY,
+    language: 'zh-TW',
+  })
+  if (q.type) params.set('type', q.type)
+  if (q.keyword) params.set('keyword', q.keyword)
+
+  const url = `${BASE}/nearbysearch/json?${params.toString()}`
+  const res = await fetch(url, { next: { revalidate: 3600 } })
+  const data = await res.json()
+  if (data.status !== 'OK' || !Array.isArray(data.results)) return []
+
+  return data.results.map(
+    (r: any): Place => ({
+      id: randomUUID(),
+      placeId: r.place_id,
+      name: r.name,
+      type: placeType,
+      lat: r.geometry?.location?.lat ?? lat,
+      lng: r.geometry?.location?.lng ?? lng,
+      address: r.vicinity ?? '',
+      openingHours: null,
+      rating: r.rating ?? null,
+      photoUrl: r.photos?.[0] ? `/api/photo?ref=${r.photos[0].photo_reference}` : null,
+      description: null,
+    })
+  )
+}
