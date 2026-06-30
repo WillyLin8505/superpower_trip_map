@@ -28,9 +28,12 @@ interface Props {
   onSetDayDurationLock?: (locked: boolean) => void
   onChangeWindow?: (field: 'dayStart' | 'dayEnd', value: string) => void
   isLastDay?: boolean
+  onSmartArrange?: () => void
+  onSetAvoid?: (field: 'avoidTraffic' | 'avoidCrowds', value: boolean) => void
+  arranging?: boolean
 }
 
-export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, isLastDay }: Props) {
+export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, isLastDay, onSmartArrange, onSetAvoid, arranging }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
 
@@ -97,6 +100,31 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
                 {allDur ? '🔒' : '🔓'} 整天鎖停留
               </button>
             )}
+          </div>
+        )
+      })()}
+      {(onSmartArrange || onSetAvoid) && (() => {
+        const avoidTraffic = day.avoidTraffic ?? true
+        const avoidCrowds = day.avoidCrowds ?? true
+        const unlockedCount = day.places.filter((p) => !p.startLocked).length
+        const disabled = !!arranging || unlockedCount < 2 || (!avoidTraffic && !avoidCrowds)
+        return (
+          <div className="flex items-center gap-3 mb-2 text-xs">
+            <label className="flex items-center gap-1">
+              <input type="checkbox" checked={avoidTraffic}
+                onChange={(e) => onSetAvoid?.('avoidTraffic', e.target.checked)} />
+              避開壅塞
+            </label>
+            <label className="flex items-center gap-1">
+              <input type="checkbox" checked={avoidCrowds}
+                onChange={(e) => onSetAvoid?.('avoidCrowds', e.target.checked)} />
+              避開人潮
+            </label>
+            <button type="button" disabled={disabled} onClick={() => onSmartArrange?.()}
+              title={(!avoidTraffic && !avoidCrowds) ? '請至少勾一項' : undefined}
+              className="px-2 py-1 rounded-full border border-blue-300 text-blue-700 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed">
+              {arranging ? '排程中…' : '智慧排程'}
+            </button>
           </div>
         )
       })()}
