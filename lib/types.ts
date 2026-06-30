@@ -1,3 +1,5 @@
+import type { CrowdForecast } from '@/lib/crowd/types'
+
 export type PlaceType = 'attraction' | 'restaurant' | 'dessert' | 'accommodation'
 export type TransportMode = 'driving' | 'walking' | 'transit'
 
@@ -33,6 +35,8 @@ export interface DayItinerary {
   aiSummary: string | null
   dayStart: string          // "HH:MM" 該天活動開始，預設 '09:00'
   dayEnd: string            // "HH:MM" 該天活動結束，預設 '21:00'
+  avoidTraffic?: boolean    // 智慧排程：避開壅塞，讀取時 ?? true
+  avoidCrowds?: boolean     // 智慧排程：避開人潮，讀取時 ?? true
 }
 
 export interface PlanResult {
@@ -63,4 +67,15 @@ export interface Source {
 export interface DistanceMatrix {
   indices: string[]         // place IDs in order
   matrix: number[][]        // matrix[i][j] = seconds from i to j
+}
+
+export interface DayArrangeInputs {
+  indices: string[]                              // placeId → 矩陣列
+  matrix: number[][]                             // 秒
+  crowdByPlaceId: Record<string, CrowdForecast>  // 僅含成功取得者
+}
+
+export interface ArrangeOpts {
+  avoidTraffic: boolean
+  avoidCrowds: boolean
 }

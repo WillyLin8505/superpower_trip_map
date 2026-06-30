@@ -39,7 +39,7 @@ function scheduleBackwards(places: ScheduledPlace[], nextStartMin: number, dateI
   }).reverse()
 }
 
-function recalcDay(day: DayItinerary, dateIso: string): DayItinerary {
+export function recalcDay(day: DayItinerary, dateIso: string): DayItinerary {
   const places = day.places
   const dayStartMin = toMin(day.dayStart)
   const lockIndices = places.reduce<number[]>((acc, p, i) => (p.startLocked ? [...acc, i] : acc), [])
