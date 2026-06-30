@@ -5,7 +5,7 @@ import { TimeScrollPicker } from './TimeScrollPicker'
 import { TypePicker } from './TypePicker'
 import { getHoursForDate } from '@/lib/utils/hours'
 import { addMinutes } from '@/lib/utils/time'
-import type { PlaceType, ScheduledPlace } from '@/lib/types'
+import type { PlaceType, ScheduledPlace, TransportMode } from '@/lib/types'
 import { DWELL, TYPE_META } from '@/lib/placeType'
 
 interface Props {
@@ -17,9 +17,11 @@ interface Props {
   onToggleStartLock?: (placeId: string) => void
   onToggleDurationLock?: (placeId: string) => void
   onChangeType?: (placeId: string, type: PlaceType) => void
+  onChangeLegMode?: (placeId: string, mode: TransportMode) => void
+  legBusy?: boolean
 }
 
-export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType }: Props) {
+export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onChangeLegMode, legBusy }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: place.id, disabled: !draggable || place.startLocked })
 
@@ -27,6 +29,12 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
+  }
+
+  const LEG_META: Record<TransportMode, { icon: string; label: string }> = {
+    driving: { icon: '🚗', label: '開車' },
+    walking: { icon: '🚶', label: '步行' },
+    transit: { icon: '🚇', label: '大眾運輸' },
   }
 
   const todayHours = getHoursForDate(place.openingHours, dateIso)
@@ -133,8 +141,28 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
           </div>
         )}
       </div>
-      {place.travelMinToNext !== null && place.travelMinToNext > 0 && (
-        <p className="text-xs text-gray-400 mt-3 pl-10">&#x2192; 前往下一站約 {place.travelMinToNext} 分鐘</p>
+      {place.travelMinToNext !== null && (
+        <div className="text-xs text-gray-400 mt-3 pl-10 flex items-center gap-2 flex-wrap">
+          <span>
+            &#x2192; {LEG_META[place.legMode ?? 'driving'].icon} {LEG_META[place.legMode ?? 'driving'].label} {place.travelMinToNext} 分
+          </span>
+          {onChangeLegMode && (
+            legBusy ? (
+              <span className="text-gray-400">計算中…</span>
+            ) : (
+              <select
+                aria-label="交通工具"
+                value={place.legMode ?? 'driving'}
+                onChange={(e) => onChangeLegMode(place.id, e.target.value as TransportMode)}
+                className="border border-gray-200 rounded px-1 py-0.5 text-xs"
+              >
+                <option value="driving">開車</option>
+                <option value="walking">步行</option>
+                <option value="transit">大眾運輸</option>
+              </select>
+            )
+          )}
+        </div>
       )}
     </div>
   )
