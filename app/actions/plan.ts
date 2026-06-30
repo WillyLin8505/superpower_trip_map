@@ -4,6 +4,7 @@ import { getPlaceDetails } from './places'
 import { buildDistanceMatrix } from './directions'
 import { optimizeRoute } from './optimize'
 import { schedulePlaces } from './schedule'
+import { applyLegDefaults } from './legs'
 import { generateDaySummaries } from './ai'
 
 export async function planItinerary(
@@ -27,7 +28,7 @@ export async function planItinerary(
     .filter(Boolean)
 
   const dayItineraries = await schedulePlaces(ordered, matrix, days, startDate)
-
-  const enrichedDays = await generateDaySummaries(dayItineraries)
+  const withLegs = await applyLegDefaults(dayItineraries, startDate)
+  const enrichedDays = await generateDaySummaries(withLegs)
   return { days: enrichedDays, transportMode: mode, startDate }
 }
