@@ -27,6 +27,8 @@ export interface ScheduledPlace extends Place {
   lateExit: boolean         // startTime + durationMin exceeds today's closing time
   startLocked: boolean      // 鎖開始時間：排程錨點 + 不可拖
   durationLocked: boolean   // 鎖停留時間
+  legMode?: TransportMode    // 到下一站的交通工具（最後一站 undefined）
+  legManualNext?: string     // 有值＝手動指定段，值為當時下一站的 place.id
 }
 
 export interface DayItinerary {
@@ -67,6 +69,11 @@ export interface Source {
 export interface DistanceMatrix {
   indices: string[]         // place IDs in order
   matrix: number[][]        // matrix[i][j] = seconds from i to j
+}
+
+export interface LegDefault {
+  legMode: TransportMode
+  travelMin: number
 }
 
 export interface DayArrangeInputs {
