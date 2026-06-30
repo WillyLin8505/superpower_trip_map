@@ -51,6 +51,19 @@ export interface Recommendation {
   verified: boolean
 }
 
+export interface DayRecommendation extends Place {
+  reason: string            // Claude's 1-sentence rationale, or generic text for Places fills
+  sourceLabel: string       // website label, or 'Google 推薦' for Places fills
+}
+
+export interface CategoryBuckets {
+  dessert: DayRecommendation[]      // up to 5
+  attraction: DayRecommendation[]   // up to 5
+  restaurant: DayRecommendation[]   // up to 5
+}
+
+export type RecommendationsByDay = CategoryBuckets[]  // index 0 = day 1
+
 export interface Source {
   id: string
   url: string
