@@ -14,9 +14,11 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import type { PlanResult, ScheduledPlace, Place, PlaceType } from '@/lib/types'
+import type { PlanResult, ScheduledPlace, Place, PlaceType, TransportMode } from '@/lib/types'
 import { recalcPlan } from '@/lib/utils/clientScheduler'
 import { daysBetween, dayDate } from '@/lib/utils/date'
+import { legDuration, computeLegPlan } from '@/app/actions/legs'
+import { legMerge } from '@/lib/utils/legMerge'
 import { ItineraryDay } from '@/components/ItineraryDay'
 import { ItineraryCard } from '@/components/ItineraryCard'
 import { RecommendPanel } from '@/components/RecommendPanel'
@@ -49,6 +51,8 @@ export function ItineraryClient({ initial }: Props) {
   const [targetDays, setTargetDays] = useState<number | null>(null)
   const [arrangingDay, setArrangingDay] = useState<number | null>(null)
   const [arrangeError, setArrangeError] = useState<string | null>(null)
+  const [legBusy, setLegBusy] = useState<{ dayIdx: number; placeId: string } | null>(null)
+  const [legError, setLegError] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // planRef always tracks the latest committed plan (avoids stale closures in dnd-kit callbacks)
   const planRef = useRef<PlanResult>(initial)
@@ -66,12 +70,23 @@ export function ItineraryClient({ initial }: Props) {
     }
   }, [])
 
-  const scheduleRecalc = useCallback((nextPlan: PlanResult) => {
+  const scheduleRecalc = useCallback((nextPlan: PlanResult, structural = false) => {
     planRef.current = nextPlan
     setPlan(nextPlan)
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
-      const recalced = recalcPlan(planRef.current)
+    debounceRef.current = setTimeout(async () => {
+      let p = planRef.current
+      if (structural) {
+        try {
+          const days = await Promise.all(
+            p.days.map(async (d) => ({ ...d, places: legMerge(d.places, await computeLegPlan(d.places)) }))
+          )
+          p = { ...p, days }
+        } catch {
+          setLegError('交通時間計算失敗')
+        }
+      }
+      const recalced = recalcPlan(p)
       planRef.current = recalced
       setPlan(recalced)
     }, 2000)
@@ -135,6 +150,33 @@ export function ItineraryClient({ initial }: Props) {
     setPlan(newPlan)
   }, [])
 
+  const handleChangeLegMode = useCallback(async (dayIdx: number, placeId: string, mode: TransportMode) => {
+    const day = planRef.current.days[dayIdx]
+    const idx = day.places.findIndex((p) => p.id === placeId)
+    const next = day.places[idx + 1]
+    if (!next) return
+    setLegError(null)
+    setLegBusy({ dayIdx, placeId })
+    try {
+      const min = await legDuration(day.places[idx], next, mode)
+      const newDays = planRef.current.days.map((d, i) =>
+        i !== dayIdx ? d : {
+          ...d,
+          places: d.places.map((p) =>
+            p.id === placeId ? { ...p, legMode: mode, travelMinToNext: min, legManualNext: next.id } : p
+          ),
+        }
+      )
+      const recalced = recalcPlan({ ...planRef.current, days: newDays })
+      planRef.current = recalced
+      setPlan(recalced)
+    } catch {
+      setLegError('交通時間計算失敗')
+    } finally {
+      setLegBusy(null)
+    }
+  }, [])
+
   const handleDragStart = useCallback((event: DragStartEvent) => {
     setActiveId(String(event.active.id))
     savedPlanRef.current = planRef.current
@@ -163,16 +205,16 @@ export function ItineraryClient({ initial }: Props) {
     didCrossRef.current = false
 
     if (!over || active.id === over.id) {
-      if (didCross) scheduleRecalc(planRef.current)
+      if (didCross) scheduleRecalc(planRef.current, true)
       return
     }
 
     if (didCross) {
-      scheduleRecalc(planRef.current)
+      scheduleRecalc(planRef.current, true)
     } else {
       const current = planRef.current
       const nextPlan = applyDragResult(current, String(active.id), String(over.id))
-      scheduleRecalc(nextPlan !== current ? nextPlan : current)
+      scheduleRecalc(nextPlan !== current ? nextPlan : current, true)
     }
   }, [scheduleRecalc])
 
@@ -216,7 +258,7 @@ export function ItineraryClient({ initial }: Props) {
     const newDays = planRef.current.days.map((d, i) =>
       i === targetDayIdx ? { ...d, places: [...d.places, newPlace] } : d
     )
-    scheduleRecalc({ ...planRef.current, days: newDays })
+    scheduleRecalc({ ...planRef.current, days: newDays }, true)
   }, [scheduleRecalc])
 
   const handleAddPlaces = useCallback((places: Place[]) => {
@@ -241,7 +283,7 @@ export function ItineraryClient({ initial }: Props) {
         ),
       }
     })
-    scheduleRecalc(next)
+    scheduleRecalc(next, true)
   }, [scheduleRecalc])
 
   const handleChangeStartDate = useCallback((iso: string) => {
@@ -286,7 +328,8 @@ export function ItineraryClient({ initial }: Props) {
     planRef.current = recalced
     setPlan(recalced)
     setTargetDays((t) => (t !== null && next.length <= t ? null : t))
-  }, [])
+    scheduleRecalc(recalced, true)
+  }, [scheduleRecalc])
 
   const handleScatterDay = useCallback((dayIdx: number) => {
     const src = planRef.current.days[dayIdx]
@@ -301,7 +344,8 @@ export function ItineraryClient({ initial }: Props) {
     planRef.current = recalced
     setPlan(recalced)
     setTargetDays((t) => (t !== null && next.length <= t ? null : t))
-  }, [])
+    scheduleRecalc(recalced, true)
+  }, [scheduleRecalc])
 
   const handleSetAvoid = useCallback(
     (dayIdx: number, field: 'avoidTraffic' | 'avoidCrowds', value: boolean) => {
@@ -332,12 +376,13 @@ export function ItineraryClient({ initial }: Props) {
       const recalced = recalcPlan({ ...planRef.current, days: newDays })
       planRef.current = recalced
       setPlan(recalced)
+      scheduleRecalc(recalced, true)
     } catch {
       setArrangeError('排程失敗，請稍後再試')
     } finally {
       setArrangingDay(null)
     }
-  }, [])
+  }, [scheduleRecalc])
 
   const N = targetDays ?? plan.days.length
   const overCount = Math.max(0, plan.days.length - N)
@@ -385,6 +430,7 @@ export function ItineraryClient({ initial }: Props) {
         {arrangeError && (
           <p className="text-sm text-red-600 mb-4" role="alert">{arrangeError}</p>
         )}
+        {legError && <p className="text-sm text-red-600 mb-4" role="alert">{legError}</p>}
         <div>
           {plan.days.map((day, dayIdx) => (
             <SortableContext
@@ -415,6 +461,8 @@ export function ItineraryClient({ initial }: Props) {
                 onSetAvoid={(field, value) => handleSetAvoid(dayIdx, field, value)}
                 arranging={arrangingDay === dayIdx}
                 draggable
+                onChangeLegMode={(placeId, mode) => handleChangeLegMode(dayIdx, placeId, mode)}
+                legBusyPlaceId={legBusy?.dayIdx === dayIdx ? legBusy.placeId : null}
               />
             </SortableContext>
           ))}
@@ -441,7 +489,7 @@ export function ItineraryClient({ initial }: Props) {
               ? { ...d, places: [...d.places, ...newPlaces] }
               : d
           )
-          scheduleRecalc({ ...planRef.current, days: newDays })
+          scheduleRecalc({ ...planRef.current, days: newDays }, true)
         }}
       />
     </main>

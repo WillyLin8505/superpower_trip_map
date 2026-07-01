@@ -31,9 +31,11 @@ interface Props {
   onSmartArrange?: () => void
   onSetAvoid?: (field: 'avoidTraffic' | 'avoidCrowds', value: boolean) => void
   arranging?: boolean
+  onChangeLegMode?: (placeId: string, mode: TransportMode) => void
+  legBusyPlaceId?: string | null
 }
 
-export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, isLastDay, onSmartArrange, onSetAvoid, arranging }: Props) {
+export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
 
@@ -145,6 +147,8 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
               onToggleStartLock={onToggleStartLock}
               onToggleDurationLock={onToggleDurationLock}
               onChangeType={onChangeType}
+              onChangeLegMode={onChangeLegMode}
+              legBusy={legBusyPlaceId === place.id}
             />
           ))}
         </div>
