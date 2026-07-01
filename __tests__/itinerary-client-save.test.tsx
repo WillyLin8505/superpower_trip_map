@@ -177,6 +177,8 @@ it('persistent mode: shows 儲存中… immediately after a plan change', async 
   // Should immediately show 儲存中… before debounce fires
   expect(screen.getByText('儲存中…')).toBeInTheDocument()
 
+  // Flush the pending 1500ms debounce before switching back to real timers
+  await act(async () => { jest.advanceTimersByTime(2000) })
   jest.useRealTimers()
 })
 
@@ -192,5 +194,37 @@ it('persistent mode: autosave is NOT triggered when plan has not changed', async
 
   expect(saveTrip).not.toHaveBeenCalled()
 
+  jest.useRealTimers()
+})
+
+it('persistent mode: retry button calls saveTrip and shows 已儲存 on success', async () => {
+  jest.useFakeTimers()
+  // First autosave fails, retry resolves
+  saveTrip.mockRejectedValueOnce(new Error('network')).mockResolvedValue(undefined)
+  render(<ItineraryClient initial={plan()} tripId="t1" />)
+
+  // Trigger a plan change to kick off autosave
+  const lockBtns = screen.getAllByRole('button', { name: '鎖定開始時間' })
+  fireEvent.click(lockBtns[0])
+
+  // Advance past debounce → autosave fires and fails
+  await act(async () => { jest.advanceTimersByTime(2000) })
+
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: '儲存失敗，點此重試' })).toBeInTheDocument()
+  )
+
+  const callsBefore = saveTrip.mock.calls.length
+
+  // Click the retry button
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: '儲存失敗，點此重試' }))
+  })
+
+  // saveTrip must have been called again and 已儲存 must appear
+  await waitFor(() => expect(saveTrip.mock.calls.length).toBeGreaterThan(callsBefore))
+  await waitFor(() => expect(screen.getByText('已儲存')).toBeInTheDocument())
+
+  await act(async () => { jest.advanceTimersByTime(2000) })
   jest.useRealTimers()
 })

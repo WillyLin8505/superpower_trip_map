@@ -108,6 +108,19 @@ export function ItineraryClient({ initial, tripId }: Props) {
     return () => { if (autosaveRef.current) clearTimeout(autosaveRef.current) }
   }, [plan, tripId])
 
+  // 持久化：重試按鈕直接呼叫 saveTrip（ref sentinel 方式無法重新觸發 effect）
+  const onRetry = useCallback(async () => {
+    if (!tripId) return
+    setSaveState('saving')
+    try {
+      await saveTrip(tripId, planRef.current)
+      savedPlanRef.current = planRef.current
+      setSaveState('saved')
+    } catch {
+      setSaveState('error')
+    }
+  }, [tripId])
+
   const scheduleRecalc = useCallback((nextPlan: PlanResult, structural = false) => {
     planRef.current = nextPlan
     setPlan(nextPlan)
@@ -440,7 +453,7 @@ export function ItineraryClient({ initial, tripId }: Props) {
             {saveState === 'saved' && '已儲存'}
             {saveState === 'error' && (
               <button
-                onClick={() => { setSaveState('saving'); savedPlanRef.current = {} as PlanResult }}
+                onClick={onRetry}
                 className="text-red-600 underline"
               >
                 儲存失敗，點此重試
