@@ -8,6 +8,10 @@ jest.mock('@/lib/utils/clientScheduler', () => ({
   recalcPlan: jest.fn((p: PlanResult) => p),
 }))
 
+jest.mock('@/app/actions/recommend', () => ({
+  getDayRecommendations: jest.fn().mockResolvedValue([]),
+}))
+
 // ── Next.js navigation (transitive deps of sub-components) ──────────────────
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
@@ -44,10 +48,6 @@ jest.mock('@dnd-kit/utilities', () => ({
 }))
 
 // ── Heavy / unrelated sub-components stubbed out ────────────────────────────
-jest.mock('@/components/RecommendPanel', () => ({
-  RecommendPanel: () => null,
-}))
-
 jest.mock('@/components/CombinedInput', () => ({
   CombinedInput: () => null,
 }))

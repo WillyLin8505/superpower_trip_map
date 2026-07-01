@@ -14,12 +14,12 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import type { PlanResult, ScheduledPlace, Place, PlaceType } from '@/lib/types'
+import type { PlanResult, ScheduledPlace, Place, PlaceType, RecommendationsByDay, DayRecommendation } from '@/lib/types'
 import { recalcPlan } from '@/lib/utils/clientScheduler'
 import { daysBetween, dayDate } from '@/lib/utils/date'
 import { ItineraryDay } from '@/components/ItineraryDay'
 import { ItineraryCard } from '@/components/ItineraryCard'
-import { RecommendPanel } from '@/components/RecommendPanel'
+import { getDayRecommendations } from '@/app/actions/recommend'
 import { applyDragResult, findContainer } from '@/lib/utils/dragContainers'
 import { findClosestDay } from '@/lib/utils/geo'
 import { CombinedInput } from '@/components/CombinedInput'
@@ -45,6 +45,7 @@ export function ItineraryClient({ initial }: Props) {
   const [plan, setPlan] = useState<PlanResult>(initial)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [targetDays, setTargetDays] = useState<number | null>(null)
+  const [recsByDay, setRecsByDay] = useState<RecommendationsByDay | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // planRef always tracks the latest committed plan (avoids stale closures in dnd-kit callbacks)
   const planRef = useRef<PlanResult>(initial)
@@ -60,6 +61,16 @@ export function ItineraryClient({ initial }: Props) {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    getDayRecommendations(planRef.current.days)
+      .then((r) => { if (active) setRecsByDay(r) })
+      .catch(() => { if (active) setRecsByDay(null) })
+    return () => { active = false }
+  // run once on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const scheduleRecalc = useCallback((nextPlan: PlanResult) => {
@@ -240,6 +251,46 @@ export function ItineraryClient({ initial }: Props) {
     scheduleRecalc(next)
   }, [scheduleRecalc])
 
+  const handleAddRecommendation = useCallback((dayIdx: number, rec: DayRecommendation) => {
+    const newPlace: ScheduledPlace = {
+      id: crypto.randomUUID(),
+      placeId: rec.placeId,
+      name: rec.name,
+      type: rec.type,
+      lat: rec.lat,
+      lng: rec.lng,
+      address: rec.address,
+      openingHours: rec.openingHours,
+      rating: rec.rating,
+      photoUrl: rec.photoUrl,
+      description: rec.description,
+      startTime: '09:00',
+      durationMin: DWELL[rec.type],
+      travelMinToNext: null,
+      aiDescription: rec.reason,
+      outsideHours: false,
+      lateExit: false,
+      startLocked: false,
+      durationLocked: false,
+    }
+    const newDays = planRef.current.days.map((d, i) =>
+      i === dayIdx ? { ...d, places: [...d.places, newPlace] } : d
+    )
+    scheduleRecalc({ ...planRef.current, days: newDays })
+    setRecsByDay((prev) => {
+      if (!prev) return prev
+      return prev.map((buckets, i) =>
+        i === dayIdx
+          ? {
+              dessert: buckets.dessert.filter((r) => r.placeId !== rec.placeId),
+              attraction: buckets.attraction.filter((r) => r.placeId !== rec.placeId),
+              restaurant: buckets.restaurant.filter((r) => r.placeId !== rec.placeId),
+            }
+          : buckets
+      )
+    })
+  }, [scheduleRecalc])
+
   const handleChangeStartDate = useCallback((iso: string) => {
     const recalced = recalcPlan({ ...planRef.current, startDate: iso })
     planRef.current = recalced
@@ -368,6 +419,8 @@ export function ItineraryClient({ initial }: Props) {
                 onScatter={() => handleScatterDay(dayIdx)}
                 onDelete={() => handleDeleteDay(dayIdx)}
                 draggable
+                recommendations={recsByDay?.[dayIdx]}
+                onAddRecommendation={(rec) => handleAddRecommendation(dayIdx, rec)}
               />
             </SortableContext>
           ))}
@@ -385,18 +438,6 @@ export function ItineraryClient({ initial }: Props) {
           ) : null}
         </DragOverlay>
       </DndContext>
-      <RecommendPanel
-        currentPlaces={allPlaces}
-        onAddPlaces={(newPlaces) => {
-          const lastDayIdx = planRef.current.days.length - 1
-          const newDays = planRef.current.days.map((d, i) =>
-            i === lastDayIdx
-              ? { ...d, places: [...d.places, ...newPlaces] }
-              : d
-          )
-          scheduleRecalc({ ...planRef.current, days: newDays })
-        }}
-      />
     </main>
   )
 }
