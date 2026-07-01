@@ -78,6 +78,7 @@ export function ItineraryClient({ initial }: Props) {
       let p = planRef.current
       if (structural) {
         try {
+          setLegError(null)
           const days = await Promise.all(
             p.days.map(async (d) => ({ ...d, places: legMerge(d.places, await computeLegPlan(d.places)) }))
           )
