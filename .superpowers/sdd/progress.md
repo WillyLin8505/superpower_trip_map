@@ -336,3 +336,31 @@ Task 4: complete (commits 794b5fd..789f5b7, review clean — Spec ✅ + Approved
 - Non-blocking observations (no action): server action gets full ScheduledPlace[] (extra fields serialized, harmless); O(n²·n) recalc per candidate (fine for day sizes); crowd penalty also scores locked anchors (harmless/arguably correct).
 - 231 tests green, build clean
 - Final commit: 789f5b7
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-06-30-per-segment-transport.md
+Branch: main (Lane A); BASE: 4ab711d
+
+## Tasks
+- [x] Task 1: 純基礎 haversineMeters + pickLegDefault + 型別
+- [x] Task 2: 伺服器動作 computeLegPlan + legDuration
+- [x] Task 3: legMerge 純函式（保留手動）
+- [x] Task 4: applyLegDefaults 後置步驟 + 接上 plan.ts
+- [x] Task 5: ItineraryCard 每段工具+時間+下拉
+- [x] Task 6: ItineraryClient 串接 + ItineraryDay 透傳
+
+Task 1: complete (commits 4ab711d..666e35e, review clean — Spec ✅ + Approved, 243/243 + build green; haversineMeters extract [haversineSeconds byte-identical], pickLegDefault rule, optional leg types zero-migration)
+Task 2: complete (commits 666e35e..fd75907, review clean — Spec ✅ + Approved, 242/242 + build green; computeLegPlan arg order verified (dist,driving,transit,walking), legDuration single leg)
+  Minor (non-blocking, final-review cleanup): unused `SECS` const in legs-actions.test.ts (dead — mock re-inlines literals).
+Task 3: complete (commits fd75907..d492029, review clean — Spec ✅ + Approved no issues, 246/246 + build green; legMerge preserve-manual-on-unchanged-adjacency, pure spreads)
+Task 4: complete (commits d492029..6c3df9a, review clean — Spec ✅ + Approved, 248/248 + build green; applyLegDefaults post-step assigns per-leg modes + recalcDay re-times w/ per-segment travel, plan.ts passes withLegs, schedule.ts untouched)
+  Minor (cosmetic): apply-leg-defaults test has no describe wrapper.
+Task 5: complete (commits 6c3df9a..9c3b01f, review clean — Spec ✅ char-for-char + Approved, 252/252 + build green; per-segment row icon+label+min+dropdown+計算中…, no existing test disturbed)
+  Minor (plan-mandated, non-blocking): LEG_META allocated inside component per-render (could be module-level).
+Task 6: complete (commits 9c3b01f..7c0f2f7 + fix a124118, review clean after fix — Spec ✅ + Approved, 254/254 + build green; scheduleRecalc structural flag [2s leg recompute via computeLegPlan+legMerge], handleChangeLegMode fresh-planRef no-stale-closure, all structural call sites wired [drag/add/delete/scatter/smart-arrange/onAddPlaces], time/lock stay non-structural, ItineraryDay passthrough)
+  NOTE: first attempt (session-limit interrupted, uncommitted) reverted clean; re-dispatched fresh.
+  Important FIXED (commit a124118): structural branch never cleared legError → banner persisted through later successful recalcs; added setLegError(null) at try entry. 254/254 green.
+  Minor (accepted): async 2s debounce callback can setState after unmount (benign React 18; window now ~2s+RTT). LEG_META per-render (Task 5).
+  Final-review ⚠️ to check: ItineraryCard aria-label/labels exist (Task 5 ✓); no standalone handleDeletePlace with non-structural scheduleRecalc.
