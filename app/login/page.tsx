@@ -7,7 +7,8 @@ const LINE_PROVIDER = 'line' as const
 
 export default function LoginPage() {
   const searchParams = useSearchParams()
-  const next = searchParams.get('next') ?? '/trips'
+  const rawNext = searchParams.get('next') ?? '/trips'
+  const next = /^\/(?!\/)/.test(rawNext) ? rawNext : '/trips'
   const supabase = createClient()
 
   function signIn(provider: 'google' | typeof LINE_PROVIDER) {
