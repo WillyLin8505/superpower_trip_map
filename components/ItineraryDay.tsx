@@ -1,8 +1,10 @@
 'use client'
+import { Fragment } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { ItineraryCard } from './ItineraryCard'
 import { buildDayEmbedUrl } from '@/lib/utils/mapUrl'
 import { dayDate, formatDateLabel } from '@/lib/utils/date'
+import { freeBlocks, formatGap } from '@/lib/utils/freeTime'
 import type { DayItinerary, TransportMode, PlaceType } from '@/lib/types'
 
 function toMin(t: string): number {
@@ -136,21 +138,38 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
           ref={setNodeRef}
           className={`flex-1 space-y-3 rounded-lg transition-colors min-h-[60px] ${isOver ? 'ring-2 ring-blue-400 bg-blue-50' : ''}`}
         >
-          {day.places.map((place, i) => (
-            <ItineraryCard
-              key={place.id}
-              place={place}
-              index={i}
-              dateIso={dayDate(startDate, day.day)}
-              draggable={draggable}
-              onTimeChange={onTimeChange}
-              onToggleStartLock={onToggleStartLock}
-              onToggleDurationLock={onToggleDurationLock}
-              onChangeType={onChangeType}
-              onChangeLegMode={onChangeLegMode}
-              legBusy={legBusyPlaceId === place.id}
-            />
-          ))}
+          {(() => {
+            const byAfter = new Map(
+              freeBlocks(day.places, toMin(day.dayEnd)).map((b) => [b.afterId, b] as const)
+            )
+            return day.places.map((place, i) => {
+              const fb = byAfter.get(place.id)
+              return (
+                <Fragment key={place.id}>
+                  <ItineraryCard
+                    place={place}
+                    index={i}
+                    dateIso={dayDate(startDate, day.day)}
+                    draggable={draggable}
+                    onTimeChange={onTimeChange}
+                    onToggleStartLock={onToggleStartLock}
+                    onToggleDurationLock={onToggleDurationLock}
+                    onChangeType={onChangeType}
+                    onChangeLegMode={onChangeLegMode}
+                    legBusy={legBusyPlaceId === place.id}
+                  />
+                  {fb && (
+                    <div
+                      data-testid={`free-block-${fb.afterId}`}
+                      className="text-xs text-gray-500 bg-gray-100 rounded-lg px-3 py-1.5 flex items-center gap-1"
+                    >
+                      &#x23F1; 空閒 {formatGap(fb.minutes)}{fb.untilTime ? `（到 ${fb.untilTime}）` : ''}
+                    </div>
+                  )}
+                </Fragment>
+              )
+            })
+          })()}
         </div>
         {embedUrl && (
           <div className="w-96 shrink-0 sticky top-4 rounded-xl overflow-hidden border border-gray-200">
