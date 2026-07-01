@@ -364,3 +364,31 @@ Task 6: complete (commits 9c3b01f..7c0f2f7 + fix a124118, review clean after fix
   Important FIXED (commit a124118): structural branch never cleared legError → banner persisted through later successful recalcs; added setLegError(null) at try entry. 254/254 green.
   Minor (accepted): async 2s debounce callback can setState after unmount (benign React 18; window now ~2s+RTT). LEG_META per-render (Task 5).
   Final-review ⚠️ to check: ItineraryCard aria-label/labels exist (Task 5 ✓); no standalone handleDeletePlace with non-structural scheduleRecalc.
+
+## Final Review (#4)
+- Whole-branch review (4ab711d..a124118): Ready to merge — no Critical/Important/Minor
+- Verified: units consistent (matrix secs/threshold meters), haversineSeconds byte-identical, every structural mutation flags leg recompute, no single-place-delete handler skips it, applyLegDefaults-not-schedule.ts deviation sound, aria-label renders
+- 254/254 green + build clean; pushed 14c35a5..dfb58dd
+- NOTE: range also contains 2 non-#4 commits (Lane C auth+persistence docs: 9a54e0c design, 8b5d56c plan) committed to main during the cross-day gap — docs-only, no dependency change; not mine, left as-is
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-07-01-free-time-blocks.md
+Branch: main (Lane A); BASE: eaee19b
+
+## Tasks
+- [x] Task 1: 純函式 freeTime.ts（freeBlocks + formatGap）
+- [x] Task 2: ItineraryDay 穿插空閒 pill
+
+Task 1: complete (commits eaee19b..f8a3838, review clean — Spec ✅ + Approved no issues, 262/262 + build green; freeBlocks card-gap+day-end ≥15, formatGap 分/小時, pure)
+  NOTE: implementer subagent interrupted (session limit) after transcribing both files but before commit; controller verified content matches brief exactly + ran free-time/full-suite/build green, then committed. 8 it() blocks (brief Step 4 label "7" was a typo).
+Task 2: complete (commits f8a3838..b2ab21d, review clean — Spec ✅ + Approved, 265/265 + build green; ItineraryDay Fragment-wrapped card + conditional 空閒 pill; CRITICAL regression check PASS — all 10 card props intact, key moved to Fragment; pill is non-sortable sibling, no drag interference)
+  Minor (non-blocking): ⏱ as HTML entity vs literal (plan-mandated style match).
+
+## Final Review (#6)
+- Whole-branch review (eaee19b..b2ab21d): Ready to merge — no Critical/Important
+- Verified: idle math subtracts travel (genuine idle only), 15-min threshold both card-gap+day-end, all edge cases hold (overflow/single/empty/accommodation-last), drag SortableContext unaffected (pills non-sortable siblings, items by id list), map layout untouched, all 10 card props intact + key on Fragment, derived-only zero-migration, only ItineraryDay+freeTime touched (Lane C low-conflict honored)
+- Product nit (non-blocking, spec-conformant, user's call): day-end pill also shows after an accommodation last-card — could read oddly; possible follow-up to suppress
+- 265/265 green + build clean
+- Final commit: b2ab21d
