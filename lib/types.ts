@@ -86,3 +86,9 @@ export interface ArrangeOpts {
   avoidTraffic: boolean
   avoidCrowds: boolean
 }
+
+export interface TripSummary {
+  id: string
+  title: string
+  updatedAt: string   // ISO
+}
