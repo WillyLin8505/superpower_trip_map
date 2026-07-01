@@ -3,7 +3,8 @@ import { useDroppable } from '@dnd-kit/core'
 import { ItineraryCard } from './ItineraryCard'
 import { buildDayEmbedUrl } from '@/lib/utils/mapUrl'
 import { dayDate, formatDateLabel } from '@/lib/utils/date'
-import type { DayItinerary, TransportMode, PlaceType } from '@/lib/types'
+import { DayRecommendations } from './DayRecommendations'
+import type { DayItinerary, TransportMode, PlaceType, CategoryBuckets, DayRecommendation } from '@/lib/types'
 
 function toMin(t: string): number {
   const [h, m] = t.split(':').map(Number)
@@ -27,9 +28,11 @@ interface Props {
   onSetDayStartLock?: (locked: boolean) => void
   onSetDayDurationLock?: (locked: boolean) => void
   onChangeWindow?: (field: 'dayStart' | 'dayEnd', value: string) => void
+  recommendations?: CategoryBuckets
+  onAddRecommendation?: (rec: DayRecommendation) => void
 }
 
-export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow }: Props) {
+export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
 
@@ -116,18 +119,29 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
             />
           ))}
         </div>
-        {embedUrl && (
-          <div className="w-96 shrink-0 sticky top-4 rounded-xl overflow-hidden border border-gray-200">
-            <iframe
-              src={embedUrl}
-              width="100%"
-              height="500"
-              style={{ border: 0, pointerEvents: isDragging ? 'none' : 'auto' }}
-              loading="lazy"
-              allowFullScreen
-              referrerPolicy="no-referrer-when-downgrade"
-              title={`第 ${day.day} 天路線地圖`}
-            />
+        {(embedUrl || (recommendations && onAddRecommendation)) && (
+          <div className="w-96 shrink-0 sticky top-4">
+            {embedUrl && (
+              <div className="rounded-xl overflow-hidden border border-gray-200">
+                <iframe
+                  src={embedUrl}
+                  width="100%"
+                  height="500"
+                  style={{ border: 0, pointerEvents: isDragging ? 'none' : 'auto' }}
+                  loading="lazy"
+                  allowFullScreen
+                  referrerPolicy="no-referrer-when-downgrade"
+                  title={`第 ${day.day} 天路線地圖`}
+                />
+              </div>
+            )}
+            {recommendations && onAddRecommendation && (
+              <DayRecommendations
+                recommendations={recommendations}
+                dateIso={dayDate(startDate, day.day)}
+                onAdd={onAddRecommendation}
+              />
+            )}
           </div>
         )}
       </div>
