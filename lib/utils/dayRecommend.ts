@@ -30,6 +30,7 @@ export function assignToDays(
   recs: DayRecommendation[],
   days: DayItinerary[]
 ): DayRecommendation[][] {
+  if (days.length === 0) return []
   const buckets: DayRecommendation[][] = days.map(() => [])
   for (const r of recs) {
     const idx = findClosestDay(days, r)

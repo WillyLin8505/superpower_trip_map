@@ -28,12 +28,12 @@ test('centroidOf returns null for empty and the mean otherwise', () => {
   expect(centroidOf([{ lat: 0, lng: 0 }, { lat: 2, lng: 4 }])).toEqual({ lat: 1, lng: 2 })
 })
 
-test('dedupeAndExclude drops excluded ids and duplicate placeIds', () => {
+test('dedupeAndExclude drops excluded ids and duplicate placeIds, preserving order', () => {
   const out = dedupeAndExclude(
-    [rec('a', 'restaurant'), rec('a', 'restaurant'), rec('b', 'restaurant')],
-    new Set(['b'])
+    [rec('a', 'restaurant'), rec('b', 'restaurant'), rec('a', 'restaurant')],
+    new Set()
   )
-  expect(out.map((r) => r.placeId)).toEqual(['a'])
+  expect(out.map((r) => r.placeId)).toEqual(['a', 'b'])
 })
 
 test('assignToDays sends each rec to the geographically closest day', () => {
@@ -46,6 +46,11 @@ test('assignToDays sends each rec to the geographically closest day', () => {
   expect(out[1].map((r) => r.placeId)).toEqual(['kao'])
 })
 
+test('assignToDays returns empty array when days is empty', () => {
+  const out = assignToDays([rec('a', 'restaurant')], [])
+  expect(out).toEqual([])
+})
+
 test('bucketByCategory splits by type and ignores accommodation', () => {
   const b = bucketByCategory([
     rec('d', 'dessert'), rec('a', 'attraction'), rec('r', 'restaurant'), rec('h', 'accommodation'),
@@ -56,7 +61,11 @@ test('bucketByCategory splits by type and ignores accommodation', () => {
 })
 
 test('capBuckets limits each category', () => {
-  const many = Array.from({ length: 7 }, (_, i) => rec(`d${i}`, 'dessert'))
-  const capped = capBuckets({ dessert: many, attraction: [], restaurant: [] }, 5)
+  const manyD = Array.from({ length: 7 }, (_, i) => rec(`d${i}`, 'dessert'))
+  const manyA = Array.from({ length: 7 }, (_, i) => rec(`a${i}`, 'attraction'))
+  const manyR = Array.from({ length: 7 }, (_, i) => rec(`r${i}`, 'restaurant'))
+  const capped = capBuckets({ dessert: manyD, attraction: manyA, restaurant: manyR }, 5)
   expect(capped.dessert).toHaveLength(5)
+  expect(capped.attraction).toHaveLength(5)
+  expect(capped.restaurant).toHaveLength(5)
 })
