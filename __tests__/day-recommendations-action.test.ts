@@ -82,3 +82,51 @@ it('uses website extractions first, then fills the remainder', async () => {
   expect(dessert[0].sourceLabel).toBe('部落格')
   expect(dessert[0].type).toBe('dessert')
 })
+
+it('deduplicates fill candidates across days so no placeId appears in more than one day', async () => {
+  function scheduledPlace(id: string, t: Place['type']) {
+    return {
+      ...place(id, t),
+      startTime: '09:00', durationMin: 90, travelMinToNext: null as null, aiDescription: null as null,
+      outsideHours: false, lateExit: false, startLocked: false, durationLocked: false,
+    }
+  }
+
+  const day0: DayItinerary = {
+    day: 1, aiSummary: null, dayStart: '09:00', dayEnd: '21:00',
+    places: [scheduledPlace('existing-0', 'attraction')],
+  }
+  const day1: DayItinerary = {
+    day: 2, aiSummary: null, dayStart: '09:00', dayEnd: '21:00',
+    places: [scheduledPlace('existing-1', 'attraction')],
+  }
+
+  r.mockResolvedValue('[]')   // no sources → no extractions
+  // Every nearbySearch call returns 'shared-1' as its first result, plus unique fillers
+  ns.mockImplementation(async (_lat: number, _lng: number, type: string) =>
+    [
+      place('shared-1', type as Place['type']),
+      ...Array.from({ length: 6 }, (_, i) => place(`${type}-d-${i}`, type as Place['type']))
+    ]
+  )
+  gd.mockImplementation(async (id: string) => place(id, 'attraction'))
+
+  const result = await getDayRecommendations([day0, day1])
+
+  expect(result).toHaveLength(2)
+
+  // Collect every recommended placeId across both days and all categories
+  const allIds: string[] = []
+  for (const dayResult of result) {
+    for (const cat of ['dessert', 'attraction', 'restaurant'] as const) {
+      allIds.push(...dayResult[cat].map((x) => x.placeId))
+    }
+  }
+
+  // No placeId should appear more than once across the entire trip result
+  const unique = new Set(allIds)
+  expect(allIds.length).toBe(unique.size)
+
+  // Specifically, 'shared-1' must appear at most once total across both days
+  expect(allIds.filter((id) => id === 'shared-1').length).toBeLessThanOrEqual(1)
+})

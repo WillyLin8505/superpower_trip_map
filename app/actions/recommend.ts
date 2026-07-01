@@ -67,27 +67,36 @@ export async function getDayRecommendations(
   const perDay = assignToDays(cleaned, days)
 
   // --- 3. Per day: bucket, fill each category to REC_LIMIT, cap ---
+  // Trip-wide dedup: seed with every extracted placeId so fills never duplicate extractions from other days
+  const recommendedIds = new Set<string>(cleaned.map((r) => r.placeId))
+
   const result: RecommendationsByDay = []
   for (let i = 0; i < days.length; i++) {
     const buckets = bucketByCategory(perDay[i])
     const centroid = centroidOf(days[i].places) ?? centroidOf(days.flatMap((d) => d.places))
 
     if (centroid) {
-      for (const cat of REC_CATEGORIES) {
-        if (buckets[cat].length >= REC_LIMIT) continue
-        const have = new Set<string>([
-          ...existingIds,
-          ...REC_CATEGORIES.flatMap((c) => buckets[c].map((x) => x.placeId)),
-        ])
-        const candidates = await nearbySearch(centroid.lat, centroid.lng, cat)
-        for (const c of candidates) {
-          if (buckets[cat].length >= REC_LIMIT) break
-          if (have.has(c.placeId)) continue
-          const detailed = await getPlaceDetails(c.placeId)
-          const filled = detailed ? { ...detailed, type: cat } : c
-          buckets[cat].push({ ...filled, reason: 'Google 高評分推薦', sourceLabel: 'Google 推薦' })
-          have.add(c.placeId)
+      try {
+        for (const cat of REC_CATEGORIES) {
+          if (buckets[cat].length >= REC_LIMIT) continue
+          const have = new Set<string>([
+            ...existingIds,
+            ...recommendedIds,
+            ...REC_CATEGORIES.flatMap((c) => buckets[c].map((x) => x.placeId)),
+          ])
+          const candidates = await nearbySearch(centroid.lat, centroid.lng, cat)
+          for (const c of candidates) {
+            if (buckets[cat].length >= REC_LIMIT) break
+            if (have.has(c.placeId)) continue
+            const detailed = await getPlaceDetails(c.placeId)
+            const filled = detailed ? { ...detailed, type: cat } : c
+            buckets[cat].push({ ...filled, reason: 'Google 高評分推薦', sourceLabel: 'Google 推薦' })
+            have.add(c.placeId)
+            recommendedIds.add(c.placeId)
+          }
         }
+      } catch {
+        // best-effort fill: leave this day's buckets as-is and continue
       }
     }
 
