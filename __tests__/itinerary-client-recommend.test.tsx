@@ -4,6 +4,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 
 jest.mock('@/app/actions/recommend', () => ({
   getDayRecommendations: jest.fn(),
+  fetchReplacementRecommendation: jest.fn(),
 }))
 
 // Required mocks to prevent transitive import failures (same pattern as itinerary-date-controls.test.tsx)
@@ -68,8 +69,15 @@ jest.mock('@/lib/utils/hours', () => ({
 }))
 
 import { ItineraryClient } from '@/app/itinerary/ItineraryClient'
-import { getDayRecommendations } from '@/app/actions/recommend'
-import type { PlanResult, RecommendationsByDay } from '@/lib/types'
+import { getDayRecommendations, fetchReplacementRecommendation } from '@/app/actions/recommend'
+import type { PlanResult, RecommendationsByDay, DayRecommendation } from '@/lib/types'
+
+function drec(placeId: string): DayRecommendation {
+  return {
+    id: placeId, placeId, name: placeId, type: 'dessert', lat: 25, lng: 121, address: '',
+    openingHours: null, rating: null, photoUrl: null, description: null, reason: '好吃', sourceLabel: '部落格',
+  }
+}
 
 const plan: PlanResult = {
   transportMode: 'driving', startDate: '2026-07-01',
@@ -84,28 +92,57 @@ const plan: PlanResult = {
   }],
 }
 
-const recs: RecommendationsByDay = [{
-  dessert: [{
-    id: 'd1', placeId: 'd1', name: '推薦甜點', type: 'dessert', lat: 25, lng: 121, address: '',
-    openingHours: null, rating: null, photoUrl: null, description: null, reason: '好吃', sourceLabel: '部落格',
-  }],
-  attraction: [], restaurant: [],
+const recsWithReserve: RecommendationsByDay = [{
+  dessert: { shown: [drec('d1')], reserve: [drec('d2')] },
+  attraction: { shown: [], reserve: [] },
+  restaurant: { shown: [], reserve: [] },
+}]
+
+const recsNoReserve: RecommendationsByDay = [{
+  dessert: { shown: [drec('d1')], reserve: [] },
+  attraction: { shown: [], reserve: [] },
+  restaurant: { shown: [], reserve: [] },
 }]
 
 beforeEach(() => {
   jest.clearAllMocks()
-  ;(getDayRecommendations as jest.Mock).mockResolvedValue(recs)
 })
 
-it('loads day recommendations on mount and adds to that day on arrow click', async () => {
+it('promotes a reserve item when a card is added', async () => {
+  ;(getDayRecommendations as jest.Mock).mockResolvedValue(recsWithReserve)
   render(<ItineraryClient initial={plan} />)
   await waitFor(() => expect(getDayRecommendations).toHaveBeenCalledTimes(1))
 
-  const addBtn = await screen.findByTestId('rec-add-d1')
-  fireEvent.click(addBtn)
+  fireEvent.click(await screen.findByTestId('rec-add-d1'))
 
-  // card disappears after add
+  // d1 removed, reserve d2 slid in; no Google fetch needed
   await waitFor(() => expect(screen.queryByTestId('rec-add-d1')).not.toBeInTheDocument())
-  // added place now shows in the itinerary
-  expect(screen.getByText('推薦甜點')).toBeInTheDocument()
+  expect(screen.getByTestId('rec-add-d2')).toBeInTheDocument()
+  expect(fetchReplacementRecommendation).not.toHaveBeenCalled()
+  expect(screen.getByText('d1')).toBeInTheDocument()   // added place shows in itinerary
+})
+
+it('fetches a Google replacement when the reserve is empty', async () => {
+  ;(getDayRecommendations as jest.Mock).mockResolvedValue(recsNoReserve)
+  ;(fetchReplacementRecommendation as jest.Mock).mockResolvedValue(drec('g1'))
+  render(<ItineraryClient initial={plan} />)
+  await waitFor(() => expect(getDayRecommendations).toHaveBeenCalledTimes(1))
+
+  fireEvent.click(await screen.findByTestId('rec-add-d1'))
+
+  await waitFor(() => expect(fetchReplacementRecommendation).toHaveBeenCalledTimes(1))
+  expect(await screen.findByTestId('rec-add-g1')).toBeInTheDocument()
+})
+
+it('leaves the slot empty when Google returns nothing (no crash)', async () => {
+  ;(getDayRecommendations as jest.Mock).mockResolvedValue(recsNoReserve)
+  ;(fetchReplacementRecommendation as jest.Mock).mockResolvedValue(null)
+  render(<ItineraryClient initial={plan} />)
+  await waitFor(() => expect(getDayRecommendations).toHaveBeenCalledTimes(1))
+
+  fireEvent.click(await screen.findByTestId('rec-add-d1'))
+
+  await waitFor(() => expect(fetchReplacementRecommendation).toHaveBeenCalledTimes(1))
+  expect(screen.queryByTestId('rec-add-d1')).not.toBeInTheDocument()
+  expect(screen.getByText('d1')).toBeInTheDocument()   // added place still in itinerary
 })
