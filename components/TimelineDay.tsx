@@ -31,9 +31,10 @@ interface Props {
   onChangeWindow?: (field: 'dayStart' | 'dayEnd', value: string) => void
   recommendations?: CategoryBuckets
   onAddRecommendation?: (rec: DayRecommendation) => void
+  backfilling?: Partial<Record<'dessert' | 'attraction' | 'restaurant', boolean>>
 }
 
-export function TimelineDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation }: Props) {
+export function TimelineDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, backfilling }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
   const dateIso = dayDate(startDate, day.day)
@@ -139,6 +140,7 @@ export function TimelineDay({ day, dayIdx, mode, startDate, isDragging, draggabl
                 recommendations={recommendations}
                 dateIso={dateIso}
                 onAdd={onAddRecommendation}
+                backfilling={backfilling}
               />
             )}
           </div>

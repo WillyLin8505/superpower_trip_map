@@ -32,6 +32,7 @@ interface Props {
   onChangeWindow?: (field: 'dayStart' | 'dayEnd', value: string) => void
   recommendations?: CategoryBuckets
   onAddRecommendation?: (rec: DayRecommendation) => void
+  backfilling?: Partial<Record<'dessert' | 'attraction' | 'restaurant', boolean>>
   isLastDay?: boolean
   onSmartArrange?: () => void
   onSetAvoid?: (field: 'avoidTraffic' | 'avoidCrowds', value: boolean) => void
@@ -40,7 +41,7 @@ interface Props {
   legBusyPlaceId?: string | null
 }
 
-export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId }: Props) {
+export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, backfilling, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
 
@@ -195,6 +196,7 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
                 recommendations={recommendations}
                 dateIso={dayDate(startDate, day.day)}
                 onAdd={onAddRecommendation}
+                backfilling={backfilling}
               />
             )}
           </div>

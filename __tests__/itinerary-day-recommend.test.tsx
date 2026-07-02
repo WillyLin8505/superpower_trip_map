@@ -14,7 +14,9 @@ function rec(placeId: string, type: DayRecommendation['type']): DayRecommendatio
 }
 
 const recs: CategoryBuckets = {
-  dessert: [rec('d1', 'dessert')], attraction: [], restaurant: [],
+  dessert: { shown: [rec('d1', 'dessert')], reserve: [] },
+  attraction: { shown: [], reserve: [] },
+  restaurant: { shown: [], reserve: [] },
 }
 
 const day: DayItinerary = {
@@ -39,5 +41,5 @@ it('renders DayRecommendations and forwards adds', () => {
   )
   expect(screen.getByTestId('day-recommendations')).toBeInTheDocument()
   fireEvent.click(screen.getByTestId('rec-add-d1'))
-  expect(onAddRecommendation).toHaveBeenCalledWith(recs.dessert[0])
+  expect(onAddRecommendation).toHaveBeenCalledWith(recs.dessert.shown[0])
 })
