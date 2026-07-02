@@ -1,6 +1,6 @@
 const WALKING_SPEED_MPS = 1.4   // 5 km/h
 
-export function haversineSeconds(
+export function haversineMeters(
   a: { lat: number; lng: number },
   b: { lat: number; lng: number }
 ): number {
@@ -12,6 +12,12 @@ export function haversineSeconds(
   const x =
     Math.sin(Δφ / 2) ** 2 +
     Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2
-  const metres = R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x))
-  return Math.round(metres / WALKING_SPEED_MPS)
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x))
+}
+
+export function haversineSeconds(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number }
+): number {
+  return Math.round(haversineMeters(a, b) / WALKING_SPEED_MPS)
 }

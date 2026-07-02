@@ -158,6 +158,13 @@ export function rulerTicks(dayStartMin: number, dayEndMin: number, pxPerMin?: nu
 
 **依賴方向：** Lane B 先產出 `CardContent` / `TimelineDay`（介面 = `ItineraryDay` props）→ Lane A 消費（渲染切換 + 重構）。Lane B 完全不卡 Lane A。交接細節見 `docs/superpowers/spikes/2026-06-28-timeline-laneA-handoff.md`。
 
+### 介面同步修訂（2026-06-28，合併 main 後）
+
+合併 main 帶入 Lane A 的並行進度（calendar-dates、活動時間窗、scatter/delete），整合面已變動。依使用者指定採**完整對齊**：
+- 營業時間 API 改為 `getHoursForDate(openingHours, dateIso)`（`getTodayHours` 已移除）。`CardContent`、`TimelineCard` 都接收 `dateIso: string` 並下傳。
+- `TimelineDay` 的 props **與當前 `ItineraryDay` 逐一相同**（新增 `startDate`、`isOverflow?`、`onScatter?`、`onDelete?`、`onChangeWindow?`），且**完整對齊**其日期標籤、`isOverflow` scatter/delete、活動時間窗編輯（`day.dayStart`/`day.dayEnd`）、整天鎖、aiSummary、地圖；每天 `dateIso = dayDate(startDate, day.day)`。
+- 詳見 plan：`docs/superpowers/plans/2026-06-28-timeline-view-laneB.md`（Tasks 2–4 已依此重寫）。
+
 ## 附：關聯
 - 既有排程：`lib/utils/clientScheduler.ts`（`recalcPlan`，順序 reflow + 鎖錨定）
 - 既有卡片/視圖：`components/ItineraryCard.tsx`、`components/ItineraryDay.tsx`、`app/itinerary/ItineraryClient.tsx`

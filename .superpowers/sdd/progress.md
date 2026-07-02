@@ -316,3 +316,113 @@ All 7 tasks complete. Proceeding to final whole-branch review.
   2) app/actions/recommend.ts fill-loop `have` set spread `...existingIds`/`...recommendedIds` → Set spread needs downlevelIteration under project tsconfig target. Fixed with Array.from().
 - Both were masked because ts-jest compiles looser than `next build`. Lesson: run `next build` in verification, not just `npm test`.
 - Fix commit 97dc9a7 (pushed). Local: `next build` clean, 210 tests pass.
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-06-28-accommodation-scheduling.md
+Branch: main (Lane A); BASE: 4f2eac4
+
+## Tasks
+- [x] Task 1: 抽出純 TSP 工具 lib/tsp.ts
+- [x] Task 2: 住宿分群 lib/accommodation/cluster.ts
+- [x] Task 3: 接上 schedule.ts cluster 路徑 + nightIndex
+- [x] Task 4: 衍生提醒（沒住宿天 / 停留低於建議）+ 夜次徽章
+
+Task 1: complete (commits 4f2eac4..edcf78b, review clean — Spec ✅ + Approved, 198/198 + build green)
+  Minor (plan-mandated, non-blocking): nearestNeighbor adds `if (best<0) break` guard absent in old optimize.ts inline code — matches brief's reference verbatim; zero behavioral diff for fully-connected matrices (only real input). Defensive improvement.
+Task 2: complete (commits edcf78b..7f04c7a, review clean — Spec ✅ verbatim match + Approved, 204/204 + build green)
+  Minor (non-blocking): clusterAttractionsToDays N=0 (zero days) would throw — plan-mandated, unreachable (cluster path only runs with ≥1 hotel & days≥1); report misreported test line count (cosmetic).
+Task 3: complete (commits 7f04c7a..9d03fb8, review clean — Spec ✅ + Approved, 207/207 + build green; schedule.ts split into mealOrder()+fillDay(), cluster branch on hotels.length>0)
+  PLAN-MANDATED behavioral change (accepted, surface to user + final review): chunk path (no-accommodation) day with 3+ restaurants — new fillDay snaps 18:00 to the 2nd restaurant ENCOUNTERED (a pm-block "extra"), not the designated dinner (last). 0/1/2-restaurant days identical to before. Brief explicitly prescribed "1st/2nd restaurant encountered" rule. No test covers 3+ case. Cluster path unaffected (uses routeDay not mealOrder).
+  Minor (pre-existing carry-forward): fillDay placeIds.indexOf(place.placeId) == loop index by construction; harmless, future cleanup.
+Task 4: complete (commits 9d03fb8..6cf63a0, review clean — Spec ✅ + Approved, 212/212 + build green; ItineraryDay missing-lodging warning + isLastDay prop, ItineraryClient wiring, ItineraryCard below-DWELL warning + 第N晚 badge; all derived, no fixture migration)
+
+## Final Review
+- Whole-branch review (4f2eac4..6cf63a0): Ready to merge except 1 Important — FIXED
+- Cross-task integration verified: cluster path (tsp→cluster→schedule) ends each non-last hotel day at its hotel card, 1-indexed nightIndex survives fillDay spread, proximity clustering + one-day overflow correct, fixed-endpoint 2-opt keeps thisHotel last & strips prevHotel. No-accommodation chunk path behavior-preserved (0/1/2-restaurant meal snaps identical).
+- Important FIXED (commit 77cdb8a): assignHotelsToDays silently dropped hotels when accommodations > days (collide on last slot, vanish from itinerary — regression vs old path). Fix surfaces overflow hotels on the last day; +1 covering test (3 hotels/2 days → all 3 render). 213/213 + build green.
+- Accepted plan-mandated (NOT a defect): chunk-path day with 3+ restaurants snaps 18:00 to 2nd-encountered restaurant not designated dinner. Surface to user.
+- Minors (non-blocking, logged above): nearestNeighbor best<0 guard; clusterAttractionsToDays N=0 unreachable; fillDay placeIds.indexOf==idx; {nightIndex&&} guard style.
+- Final commit: 77cdb8a
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-06-30-smart-arrange.md
+Branch: main (Lane A); BASE: 7dbc16a
+
+## Tasks
+- [x] Task 1: 資料模型 + arrangeDay.ts 純核心（成本模型 + 決定性 2-opt，重用 recalcDay）
+- [x] Task 2: fetchDayArrangeInputs 伺服器動作
+- [x] Task 3: ItineraryDay 控制項（兩 checkbox + 智慧排程按鈕）
+- [x] Task 4: ItineraryClient 串接（handler + loading + 錯誤）
+
+Task 1: complete (commits 7dbc16a..03f744f, review clean — Spec ✅ verbatim + Approved, 220/220 + build green; recalcDay export verified body-unchanged, deterministic 2-opt, locked-fixed, zero-migration optional fields)
+  Minor (non-blocking): code comment says "2-opt" but it's a continuous-greedy no-break scan variant (still deterministic + terminating); brief prose said 8 tests, actually 7 (all pass).
+Task 2: complete (commits 03f744f..bd726bf, review clean — Spec ✅ verbatim + Approved no issues, 222/222 + build green; thin server action, needCrowd gates crowd fetch)
+Task 3: complete (commits bd726bf..794b5fd, review clean — Spec ✅ + Approved no issues, 228/228 + build green; ItineraryDay checkboxes+button, verbatim 繁中 copy, additive/gated, disabled logic correct)
+Task 4: complete (commits 794b5fd..789f5b7, review clean — Spec ✅ + Approved, 231/231 + build green; handleSmartArrange reads fresh planRef post-await [no stale closure], handleSetAvoid no-recalc, error role=alert, 3 integration tests run REAL arrangeDayOrder/ItineraryDay)
+  Reviewer ⚠️ all resolved: day-0/card-id testids exist (verified); weekday mapping correct (Mon-first → Sat 2026-07-04 = idx 5; [B,A,C] only reachable w/ crowd applied → test proves physics).
+
+## Final Review
+- Whole-branch review (7dbc16a..789f5b7): Ready to merge — no Critical/Important/Minor blocking
+- Verified end-to-end: units consistent (matrix secs + crowd penalty secs, additive); weekdayIndex(Mon-first)↔levelAt(Mon-first) match; recalcDay body unchanged (only `export`) → existing scheduling preserved; reuse-recalcDay achieves spec's single-timing-source intent (approved deviation from simulateTimes); deterministic (strict-improvement, no rand/Date); locked anchors fixed + travelMinToNext refreshed to new adjacency; optional fields zero-migration; no any/no new deps; 繁中 copy.
+- Non-blocking observations (no action): server action gets full ScheduledPlace[] (extra fields serialized, harmless); O(n²·n) recalc per candidate (fine for day sizes); crowd penalty also scores locked anchors (harmless/arguably correct).
+- 231 tests green, build clean
+- Final commit: 789f5b7
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-06-30-per-segment-transport.md
+Branch: main (Lane A); BASE: 4ab711d
+
+## Tasks
+- [x] Task 1: 純基礎 haversineMeters + pickLegDefault + 型別
+- [x] Task 2: 伺服器動作 computeLegPlan + legDuration
+- [x] Task 3: legMerge 純函式（保留手動）
+- [x] Task 4: applyLegDefaults 後置步驟 + 接上 plan.ts
+- [x] Task 5: ItineraryCard 每段工具+時間+下拉
+- [x] Task 6: ItineraryClient 串接 + ItineraryDay 透傳
+
+Task 1: complete (commits 4ab711d..666e35e, review clean — Spec ✅ + Approved, 243/243 + build green; haversineMeters extract [haversineSeconds byte-identical], pickLegDefault rule, optional leg types zero-migration)
+Task 2: complete (commits 666e35e..fd75907, review clean — Spec ✅ + Approved, 242/242 + build green; computeLegPlan arg order verified (dist,driving,transit,walking), legDuration single leg)
+  Minor (non-blocking, final-review cleanup): unused `SECS` const in legs-actions.test.ts (dead — mock re-inlines literals).
+Task 3: complete (commits fd75907..d492029, review clean — Spec ✅ + Approved no issues, 246/246 + build green; legMerge preserve-manual-on-unchanged-adjacency, pure spreads)
+Task 4: complete (commits d492029..6c3df9a, review clean — Spec ✅ + Approved, 248/248 + build green; applyLegDefaults post-step assigns per-leg modes + recalcDay re-times w/ per-segment travel, plan.ts passes withLegs, schedule.ts untouched)
+  Minor (cosmetic): apply-leg-defaults test has no describe wrapper.
+Task 5: complete (commits 6c3df9a..9c3b01f, review clean — Spec ✅ char-for-char + Approved, 252/252 + build green; per-segment row icon+label+min+dropdown+計算中…, no existing test disturbed)
+  Minor (plan-mandated, non-blocking): LEG_META allocated inside component per-render (could be module-level).
+Task 6: complete (commits 9c3b01f..7c0f2f7 + fix a124118, review clean after fix — Spec ✅ + Approved, 254/254 + build green; scheduleRecalc structural flag [2s leg recompute via computeLegPlan+legMerge], handleChangeLegMode fresh-planRef no-stale-closure, all structural call sites wired [drag/add/delete/scatter/smart-arrange/onAddPlaces], time/lock stay non-structural, ItineraryDay passthrough)
+  NOTE: first attempt (session-limit interrupted, uncommitted) reverted clean; re-dispatched fresh.
+  Important FIXED (commit a124118): structural branch never cleared legError → banner persisted through later successful recalcs; added setLegError(null) at try entry. 254/254 green.
+  Minor (accepted): async 2s debounce callback can setState after unmount (benign React 18; window now ~2s+RTT). LEG_META per-render (Task 5).
+  Final-review ⚠️ to check: ItineraryCard aria-label/labels exist (Task 5 ✓); no standalone handleDeletePlace with non-structural scheduleRecalc.
+
+## Final Review (#4)
+- Whole-branch review (4ab711d..a124118): Ready to merge — no Critical/Important/Minor
+- Verified: units consistent (matrix secs/threshold meters), haversineSeconds byte-identical, every structural mutation flags leg recompute, no single-place-delete handler skips it, applyLegDefaults-not-schedule.ts deviation sound, aria-label renders
+- 254/254 green + build clean; pushed 14c35a5..dfb58dd
+- NOTE: range also contains 2 non-#4 commits (Lane C auth+persistence docs: 9a54e0c design, 8b5d56c plan) committed to main during the cross-day gap — docs-only, no dependency change; not mine, left as-is
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-07-01-free-time-blocks.md
+Branch: main (Lane A); BASE: eaee19b
+
+## Tasks
+- [x] Task 1: 純函式 freeTime.ts（freeBlocks + formatGap）
+- [x] Task 2: ItineraryDay 穿插空閒 pill
+
+Task 1: complete (commits eaee19b..f8a3838, review clean — Spec ✅ + Approved no issues, 262/262 + build green; freeBlocks card-gap+day-end ≥15, formatGap 分/小時, pure)
+  NOTE: implementer subagent interrupted (session limit) after transcribing both files but before commit; controller verified content matches brief exactly + ran free-time/full-suite/build green, then committed. 8 it() blocks (brief Step 4 label "7" was a typo).
+Task 2: complete (commits f8a3838..b2ab21d, review clean — Spec ✅ + Approved, 265/265 + build green; ItineraryDay Fragment-wrapped card + conditional 空閒 pill; CRITICAL regression check PASS — all 10 card props intact, key moved to Fragment; pill is non-sortable sibling, no drag interference)
+  Minor (non-blocking): ⏱ as HTML entity vs literal (plan-mandated style match).
+
+## Final Review (#6)
+- Whole-branch review (eaee19b..b2ab21d): Ready to merge — no Critical/Important
+- Verified: idle math subtracts travel (genuine idle only), 15-min threshold both card-gap+day-end, all edge cases hold (overflow/single/empty/accommodation-last), drag SortableContext unaffected (pills non-sortable siblings, items by id list), map layout untouched, all 10 card props intact + key on Fragment, derived-only zero-migration, only ItineraryDay+freeTime touched (Lane C low-conflict honored)
+- Product nit (non-blocking, spec-conformant, user's call): day-end pill also shows after an accommodation last-card — could read oddly; possible follow-up to suppress
+- 265/265 green + build clean
+- Final commit: b2ab21d
