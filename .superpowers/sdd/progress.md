@@ -309,3 +309,10 @@ All 7 tasks complete. Proceeding to final whole-branch review.
 - Fix-now applied (commit ecb5af8, re-reviewed clean): (1) IMPORTANT cross-day dedup — trip-wide recommendedIds set so no placeId repeats across days/categories + new test; (2) per-day fill try/catch preserves partial results; (3) removed dead Recommendation interface. Full suite 210 pass, lint clean.
 - Deferred follow-ups (non-blocking): parallelize the serial fill loop (perf/quota); type nearbySearch `(r: any)` at places.ts:84 (warning-level, pre-existing); RecommendationCard test omits hours/reason assertions; itinerary-day-recommend test trailing newline. TimelineDay has recommendations parity wired but is not rendered in production yet (only ItineraryDay is).
 - Final commit: ecb5af8
+
+## Post-PR CI fix (Vercel build failure)
+- PR #1 Vercel deploy failed. Root cause reproduced locally via `next build` (which npm test / npm run lint did NOT surface):
+  1) app/actions/places.ts `(r: any)` → @typescript-eslint/no-explicit-any is a BUILD error under `next build`. Fixed with a NearbyPlaceResult interface.
+  2) app/actions/recommend.ts fill-loop `have` set spread `...existingIds`/`...recommendedIds` → Set spread needs downlevelIteration under project tsconfig target. Fixed with Array.from().
+- Both were masked because ts-jest compiles looser than `next build`. Lesson: run `next build` in verification, not just `npm test`.
+- Fix commit 97dc9a7 (pushed). Local: `next build` clean, 210 tests pass.
