@@ -29,11 +29,12 @@ export async function getTrip(tripId: string): Promise<{ plan: PlanResult; title
 
 export async function saveTrip(tripId: string, plan: PlanResult): Promise<void> {
   const supabase = createClient()
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('trips')
     .update({ plan, updated_at: new Date().toISOString() })
     .eq('id', tripId)
-  if (error) throw new Error('儲存失敗，請稍後再試')
+    .select('id')
+  if (error || !data?.length) throw new Error('儲存失敗，請稍後再試')
 }
 
 export async function listTrips(): Promise<TripSummary[]> {
@@ -50,12 +51,12 @@ export async function listTrips(): Promise<TripSummary[]> {
 
 export async function renameTrip(tripId: string, title: string): Promise<void> {
   const supabase = createClient()
-  const { error } = await supabase.from('trips').update({ title }).eq('id', tripId)
-  if (error) throw new Error('改名失敗，請稍後再試')
+  const { data, error } = await supabase.from('trips').update({ title }).eq('id', tripId).select('id')
+  if (error || !data?.length) throw new Error('改名失敗，請稍後再試')
 }
 
 export async function deleteTrip(tripId: string): Promise<void> {
   const supabase = createClient()
-  const { error } = await supabase.from('trips').delete().eq('id', tripId)
-  if (error) throw new Error('刪除失敗，請稍後再試')
+  const { data, error } = await supabase.from('trips').delete().eq('id', tripId).select('id')
+  if (error || !data?.length) throw new Error('刪除失敗，請稍後再試')
 }

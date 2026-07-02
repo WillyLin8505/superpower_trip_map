@@ -142,6 +142,14 @@ it('anon mode: other error sets saveState to error (no redirect)', async () => {
   expect(push).not.toHaveBeenCalled()
 })
 
+it('anon mode: non-auth server error shows visible 儲存失敗 feedback', async () => {
+  createTrip.mockRejectedValue(new Error('server error'))
+  render(<ItineraryClient initial={plan()} />)
+  fireEvent.click(screen.getByRole('button', { name: '儲存行程' }))
+  await waitFor(() => expect(screen.getByText('儲存失敗，請稍後再試')).toBeInTheDocument())
+  expect(push).not.toHaveBeenCalled()
+})
+
 // ─── persistent mode (autosave) ───────────────────────────────────────────────
 
 it('persistent mode: shows 已儲存 after an autosave succeeds', async () => {

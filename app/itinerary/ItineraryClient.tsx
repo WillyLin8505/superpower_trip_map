@@ -461,9 +461,14 @@ export function ItineraryClient({ initial, tripId }: Props) {
             )}
           </span>
         ) : (
-          <button onClick={onSave} className="text-sm border rounded px-3 py-1 hover:bg-gray-50">
-            儲存行程
-          </button>
+          <span className="flex flex-col items-end gap-1">
+            <button onClick={onSave} className="text-sm border rounded px-3 py-1 hover:bg-gray-50">
+              儲存行程
+            </button>
+            {saveState === 'error' && (
+              <span className="text-xs text-red-600">儲存失敗，請稍後再試</span>
+            )}
+          </span>
         )}
       </div>
       <section className="mb-6 flex flex-wrap items-end gap-4">

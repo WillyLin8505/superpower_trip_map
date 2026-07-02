@@ -1,33 +1,42 @@
 import type { PlanResult } from '@/lib/types'
 
-// 可鏈式呼叫的 Supabase mock builder
+// Chainable Supabase mock builder.
+// Mutation chain shape (after fix): .from().update/delete().eq().select('id') → { data, error }
+// Read chain shape: .from().select().eq().single() → { data, error }
+//                  .from().select().order() → { data, error }
 function makeSupabase(overrides: {
   user?: { id: string } | null
   single?: { data: unknown; error: unknown }
   list?: { data: unknown; error: unknown }
-  mutate?: { error: unknown }
+  mutate?: { data?: unknown; error: unknown }
 } = {}) {
   const single = jest.fn(async () => overrides.single ?? { data: { id: 't1' }, error: null })
   const order = jest.fn(async () => overrides.list ?? { data: [], error: null })
-  const eqMutate = jest.fn(async () => overrides.mutate ?? { error: null })
+  // Terminal step for mutation chains: .eq().select('id')
+  const selectMutate = jest.fn(async () =>
+    overrides.mutate !== undefined
+      ? overrides.mutate
+      : { data: [{ id: 't1' }], error: null }
+  )
+
+  // afterEq supports both read (.single) and mutation (.select) continuations
+  const afterEq = { single, select: selectMutate }
 
   const builder: any = {
     insert: jest.fn(() => builder),
     select: jest.fn(() => builder),
     update: jest.fn(() => builder),
     delete: jest.fn(() => builder),
-    eq: jest.fn(() => ({ ...builder, single, then: (r: any) => eqMutate().then(r) })),
+    eq: jest.fn(() => afterEq),
     order,
     single,
   }
-  // delete().eq() 與 update().eq() 需 await 回 { error }
-  builder.eq = jest.fn(() => Object.assign(eqMutate(), { single }))
   return {
     client: {
       from: jest.fn(() => builder),
       auth: { getUser: jest.fn(async () => ({ data: { user: 'user' in overrides ? overrides.user : { id: 'u1' } } })) },
     },
-    spies: { single, order, eqMutate, builder },
+    spies: { single, order, selectMutate, builder },
   }
 }
 
@@ -72,6 +81,12 @@ it('listTrips maps rows to TripSummary', async () => {
 
 it('saveTrip throws a zh error when update fails', async () => {
   current = makeSupabase({ mutate: { error: { message: 'boom' } } })
+  const { saveTrip } = require('@/app/actions/trips')
+  await expect(saveTrip('t1', plan)).rejects.toThrow('儲存失敗，請稍後再試')
+})
+
+it('saveTrip throws 儲存失敗 when RLS blocks the write (0 rows affected, no error)', async () => {
+  current = makeSupabase({ mutate: { data: [], error: null } })
   const { saveTrip } = require('@/app/actions/trips')
   await expect(saveTrip('t1', plan)).rejects.toThrow('儲存失敗，請稍後再試')
 })

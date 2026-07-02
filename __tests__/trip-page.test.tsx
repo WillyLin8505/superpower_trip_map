@@ -3,7 +3,7 @@ jest.mock('@/app/actions/trips', () => ({ getTrip: (...a: unknown[]) => getTrip(
 const notFound = jest.fn(() => { throw new Error('NEXT_NOT_FOUND') })
 jest.mock('next/navigation', () => ({ notFound: () => notFound() }))
 jest.mock('@/app/itinerary/ItineraryClient', () => ({
-  ItineraryClient: (props: { tripId?: string }) => null && props,
+  ItineraryClient: (props: { tripId?: string; initial?: unknown }) => null && props,
 }))
 
 const plan = { days: [], transportMode: 'driving', startDate: '2026-07-04' }
