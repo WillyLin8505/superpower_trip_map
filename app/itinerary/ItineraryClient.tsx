@@ -1,5 +1,6 @@
 'use client'
 import { useState, useCallback, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   DndContext,
   DragOverlay,
@@ -28,6 +29,7 @@ import { CombinedInput } from '@/components/CombinedInput'
 import { DWELL } from '@/lib/placeType'
 import { fetchDayArrangeInputs } from '@/app/actions/arrange'
 import { arrangeDayOrder } from '@/lib/utils/arrangeDay'
+import { createTrip, saveTrip } from '@/app/actions/trips'
 
 // pointerWithin is essential for multi-container: it checks where the pointer
 // physically is, not center-to-center distance (closestCenter favors the source container)
@@ -43,9 +45,11 @@ function renumberDays<T extends { day: number }>(days: T[]): T[] {
 
 interface Props {
   initial: PlanResult
+  tripId?: string
 }
 
-export function ItineraryClient({ initial }: Props) {
+export function ItineraryClient({ initial, tripId }: Props) {
+  const router = useRouter()
   const [plan, setPlan] = useState<PlanResult>(initial)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [targetDays, setTargetDays] = useState<number | null>(null)
@@ -53,7 +57,9 @@ export function ItineraryClient({ initial }: Props) {
   const [arrangeError, setArrangeError] = useState<string | null>(null)
   const [legBusy, setLegBusy] = useState<{ dayIdx: number; placeId: string } | null>(null)
   const [legError, setLegError] = useState<string | null>(null)
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const autosaveRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // planRef always tracks the latest committed plan (avoids stale closures in dnd-kit callbacks)
   const planRef = useRef<PlanResult>(initial)
   const savedPlanRef = useRef<PlanResult>(initial)
@@ -69,6 +75,51 @@ export function ItineraryClient({ initial }: Props) {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
   }, [])
+
+  // 匿名：建立 trip
+  const onSave = useCallback(async () => {
+    try {
+      const { tripId: newId } = await createTrip(planRef.current, '未命名行程')
+      router.push(`/itinerary/${newId}`)
+    } catch (e) {
+      if (e instanceof Error && e.message === 'NOT_AUTHENTICATED') {
+        router.push(`/login?next=${encodeURIComponent('/itinerary')}`)
+      } else {
+        setSaveState('error')
+      }
+    }
+  }, [router])
+
+  // 持久化：plan 變動 → debounced autosave（last-write-wins）
+  useEffect(() => {
+    if (!tripId) return
+    if (plan === savedPlanRef.current) return
+    setSaveState('saving')
+    if (autosaveRef.current) clearTimeout(autosaveRef.current)
+    autosaveRef.current = setTimeout(async () => {
+      try {
+        await saveTrip(tripId, planRef.current)
+        savedPlanRef.current = planRef.current
+        setSaveState('saved')
+      } catch {
+        setSaveState('error')
+      }
+    }, 1500)
+    return () => { if (autosaveRef.current) clearTimeout(autosaveRef.current) }
+  }, [plan, tripId])
+
+  // 持久化：重試按鈕直接呼叫 saveTrip（ref sentinel 方式無法重新觸發 effect）
+  const onRetry = useCallback(async () => {
+    if (!tripId) return
+    setSaveState('saving')
+    try {
+      await saveTrip(tripId, planRef.current)
+      savedPlanRef.current = planRef.current
+      setSaveState('saved')
+    } catch {
+      setSaveState('error')
+    }
+  }, [tripId])
 
   const scheduleRecalc = useCallback((nextPlan: PlanResult, structural = false) => {
     planRef.current = nextPlan
@@ -394,7 +445,32 @@ export function ItineraryClient({ initial }: Props) {
 
   return (
     <main className="max-w-5xl mx-auto px-4 py-10">
-      <a href="/" className="text-blue-600 text-sm mb-6 inline-block">&#x2190; 重新規劃</a>
+      <div className="flex items-center justify-between mb-6">
+        <a href="/" className="text-blue-600 text-sm inline-block">&#x2190; 重新規劃</a>
+        {tripId ? (
+          <span className="text-sm text-gray-500">
+            {saveState === 'saving' && '儲存中…'}
+            {saveState === 'saved' && '已儲存'}
+            {saveState === 'error' && (
+              <button
+                onClick={onRetry}
+                className="text-red-600 underline"
+              >
+                儲存失敗，點此重試
+              </button>
+            )}
+          </span>
+        ) : (
+          <span className="flex flex-col items-end gap-1">
+            <button onClick={onSave} className="text-sm border rounded px-3 py-1 hover:bg-gray-50">
+              儲存行程
+            </button>
+            {saveState === 'error' && (
+              <span className="text-xs text-red-600">儲存失敗，請稍後再試</span>
+            )}
+          </span>
+        )}
+      </div>
       <section className="mb-6 flex flex-wrap items-end gap-4">
         <label className="flex flex-col gap-1">
           <span className="text-xs text-gray-500">開始日期</span>
