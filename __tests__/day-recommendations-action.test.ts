@@ -52,13 +52,14 @@ it('fills each category to 5 with nearby results, excluding existing places', as
   const result = await getDayRecommendations([oneDay('attraction-0')])
 
   expect(result).toHaveLength(1)
-  expect(result[0].dessert).toHaveLength(5)
-  expect(result[0].attraction).toHaveLength(5)
-  expect(result[0].restaurant).toHaveLength(5)
+  expect(result[0].dessert.shown).toHaveLength(5)
+  expect(result[0].attraction.shown).toHaveLength(5)
+  expect(result[0].restaurant.shown).toHaveLength(5)
   // existing itinerary place must not be recommended
-  expect(result[0].attraction.map((x) => x.placeId)).not.toContain('attraction-0')
-  // fill items are labelled as Google
-  expect(result[0].dessert[0].sourceLabel).toBe('Google 推薦')
+  expect(result[0].attraction.shown.map((x) => x.placeId)).not.toContain('attraction-0')
+  // fill items are labelled as Google and go to shown, never reserve
+  expect(result[0].dessert.shown[0].sourceLabel).toBe('Google 推薦')
+  expect(result[0].dessert.reserve).toEqual([])
 })
 
 it('uses website extractions first, then fills the remainder', async () => {
@@ -75,9 +76,8 @@ it('uses website extractions first, then fills the remainder', async () => {
 
   const result = await getDayRecommendations([oneDay('attraction-0')])
 
-  const dessert = result[0].dessert
+  const dessert = result[0].dessert.shown
   expect(dessert).toHaveLength(5)
-  // first item is the website extraction, kept ahead of Google fills
   expect(dessert[0].placeId).toBe('blog-dessert')
   expect(dessert[0].sourceLabel).toBe('部落格')
   expect(dessert[0].type).toBe('dessert')
@@ -119,7 +119,7 @@ it('deduplicates fill candidates across days so no placeId appears in more than 
   const allIds: string[] = []
   for (const dayResult of result) {
     for (const cat of ['dessert', 'attraction', 'restaurant'] as const) {
-      allIds.push(...dayResult[cat].map((x) => x.placeId))
+      allIds.push(...dayResult[cat].shown.map((x) => x.placeId))
     }
   }
 
@@ -129,4 +129,27 @@ it('deduplicates fill candidates across days so no placeId appears in more than 
 
   // Specifically, 'shared-1' must appear at most once total across both days
   expect(allIds.filter((id) => id === 'shared-1').length).toBeLessThanOrEqual(1)
+})
+
+it('keeps website extractions beyond 5 in reserve', async () => {
+  r.mockResolvedValue(JSON.stringify([{ id: 's1', url: 'http://x', label: '部落格', lastFetchedAt: null, lastFetchStatus: null }]))
+  const { scrapeText } = await import('@/app/actions/scrape')
+  ;(scrapeText as jest.Mock).mockResolvedValue('a b c d e f g')
+  const { callClaude } = await import('@/lib/claude')
+  ;(callClaude as jest.Mock).mockResolvedValue(
+    JSON.stringify(
+      Array.from({ length: 7 }, (_, i) => ({ name: `甜點${i}`, type: 'dessert', reason: 'r', sourceLabel: '部落格' }))
+    )
+  )
+  // each website name resolves to a distinct dessert place
+  sp.mockImplementation(async (name: string) => place(`blog-${name}`, 'dessert'))
+  ns.mockResolvedValue([])   // no Google needed
+  gd.mockImplementation(async (id: string) => place(id, 'attraction'))
+
+  const result = await getDayRecommendations([oneDay('attraction-0')])
+
+  expect(result[0].dessert.shown).toHaveLength(5)
+  expect(result[0].dessert.reserve).toHaveLength(2)
+  // reserve items are website-sourced, not Google
+  expect(result[0].dessert.reserve.every((x) => x.sourceLabel === '部落格')).toBe(true)
 })

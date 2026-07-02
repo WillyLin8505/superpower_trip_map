@@ -5,9 +5,7 @@ import type { Source } from '@/lib/types'
 import { scrapeText } from './scrape'
 import { searchPlace, getPlaceDetails, nearbySearch } from './places'
 import { validateType } from '@/lib/placeType'
-import {
-  REC_CATEGORIES, centroidOf, dedupeAndExclude, assignToDays, bucketByCategory, capBuckets,
-} from '@/lib/utils/dayRecommend'
+import { REC_CATEGORIES, centroidOf, dedupeAndExclude, assignToDays, bucketByCategory, splitShownReserve } from '@/lib/utils/dayRecommend'
 import type { DayItinerary, DayRecommendation, RecommendationsByDay, CategoryBuckets } from '@/lib/types'
 import { callClaude } from '@/lib/claude'
 
@@ -72,25 +70,33 @@ export async function getDayRecommendations(
 
   const result: RecommendationsByDay = []
   for (let i = 0; i < days.length; i++) {
-    const buckets = bucketByCategory(perDay[i])
+    const websiteBuckets = bucketByCategory(perDay[i])   // CategoryArrays (website-only)
+    const dayResult: CategoryBuckets = {
+      dessert: splitShownReserve(websiteBuckets.dessert, REC_LIMIT),
+      attraction: splitShownReserve(websiteBuckets.attraction, REC_LIMIT),
+      restaurant: splitShownReserve(websiteBuckets.restaurant, REC_LIMIT),
+    }
     const centroid = centroidOf(days[i].places) ?? centroidOf(days.flatMap((d) => d.places))
 
     if (centroid) {
       try {
         for (const cat of REC_CATEGORIES) {
-          if (buckets[cat].length >= REC_LIMIT) continue
+          if (dayResult[cat].shown.length >= REC_LIMIT) continue
           const have = new Set<string>([
             ...Array.from(existingIds),
             ...Array.from(recommendedIds),
-            ...REC_CATEGORIES.flatMap((c) => buckets[c].map((x) => x.placeId)),
+            ...REC_CATEGORIES.flatMap((c) => [
+              ...dayResult[c].shown.map((x) => x.placeId),
+              ...dayResult[c].reserve.map((x) => x.placeId),
+            ]),
           ])
           const candidates = await nearbySearch(centroid.lat, centroid.lng, cat)
           for (const c of candidates) {
-            if (buckets[cat].length >= REC_LIMIT) break
+            if (dayResult[cat].shown.length >= REC_LIMIT) break
             if (have.has(c.placeId)) continue
             const detailed = await getPlaceDetails(c.placeId)
             const filled = detailed ? { ...detailed, type: cat } : c
-            buckets[cat].push({ ...filled, reason: 'Google 高評分推薦', sourceLabel: 'Google 推薦' })
+            dayResult[cat].shown.push({ ...filled, reason: 'Google 高評分推薦', sourceLabel: 'Google 推薦' })
             have.add(c.placeId)
             recommendedIds.add(c.placeId)
           }
@@ -100,7 +106,7 @@ export async function getDayRecommendations(
       }
     }
 
-    result.push(capBuckets(buckets, REC_LIMIT) as CategoryBuckets)
+    result.push(dayResult)
   }
 
   return result

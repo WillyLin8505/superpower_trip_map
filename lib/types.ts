@@ -52,10 +52,21 @@ export interface DayRecommendation extends Place {
   sourceLabel: string       // website label, or 'Google 推薦' for Places fills
 }
 
+export interface CategoryArrays {
+  dessert: DayRecommendation[]
+  attraction: DayRecommendation[]
+  restaurant: DayRecommendation[]
+}
+
+export interface CategoryList {
+  shown: DayRecommendation[]      // up to 5 — displayed
+  reserve: DayRecommendation[]    // leftover website picks, already enriched (may be empty)
+}
+
 export interface CategoryBuckets {
-  dessert: DayRecommendation[]      // up to 5
-  attraction: DayRecommendation[]   // up to 5
-  restaurant: DayRecommendation[]   // up to 5
+  dessert: CategoryList
+  attraction: CategoryList
+  restaurant: CategoryList
 }
 
 export type RecommendationsByDay = CategoryBuckets[]  // index 0 = day 1

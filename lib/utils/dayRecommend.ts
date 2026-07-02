@@ -1,4 +1,4 @@
-import type { CategoryBuckets, DayItinerary, DayRecommendation } from '@/lib/types'
+import type { CategoryArrays, CategoryList, DayItinerary, DayRecommendation } from '@/lib/types'
 import { findClosestDay } from './geo'
 
 export const REC_CATEGORIES = ['dessert', 'attraction', 'restaurant'] as const
@@ -39,8 +39,8 @@ export function assignToDays(
   return buckets
 }
 
-export function bucketByCategory(recs: DayRecommendation[]): CategoryBuckets {
-  const buckets: CategoryBuckets = { dessert: [], attraction: [], restaurant: [] }
+export function bucketByCategory(recs: DayRecommendation[]): CategoryArrays {
+  const buckets: CategoryArrays = { dessert: [], attraction: [], restaurant: [] }
   for (const r of recs) {
     if (r.type === 'dessert') buckets.dessert.push(r)
     else if (r.type === 'restaurant') buckets.restaurant.push(r)
@@ -50,10 +50,6 @@ export function bucketByCategory(recs: DayRecommendation[]): CategoryBuckets {
   return buckets
 }
 
-export function capBuckets(buckets: CategoryBuckets, limit: number): CategoryBuckets {
-  return {
-    dessert: buckets.dessert.slice(0, limit),
-    attraction: buckets.attraction.slice(0, limit),
-    restaurant: buckets.restaurant.slice(0, limit),
-  }
+export function splitShownReserve(arr: DayRecommendation[], limit: number): CategoryList {
+  return { shown: arr.slice(0, limit), reserve: arr.slice(limit) }
 }

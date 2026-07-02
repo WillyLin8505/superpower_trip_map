@@ -1,5 +1,5 @@
 import {
-  centroidOf, dedupeAndExclude, assignToDays, bucketByCategory, capBuckets,
+  centroidOf, dedupeAndExclude, assignToDays, bucketByCategory, splitShownReserve,
 } from '@/lib/utils/dayRecommend'
 import type { DayItinerary, DayRecommendation, PlaceType } from '@/lib/types'
 
@@ -60,12 +60,16 @@ test('bucketByCategory splits by type and ignores accommodation', () => {
   expect(b.restaurant.map((r) => r.placeId)).toEqual(['r'])
 })
 
-test('capBuckets limits each category', () => {
-  const manyD = Array.from({ length: 7 }, (_, i) => rec(`d${i}`, 'dessert'))
-  const manyA = Array.from({ length: 7 }, (_, i) => rec(`a${i}`, 'attraction'))
-  const manyR = Array.from({ length: 7 }, (_, i) => rec(`r${i}`, 'restaurant'))
-  const capped = capBuckets({ dessert: manyD, attraction: manyA, restaurant: manyR }, 5)
-  expect(capped.dessert).toHaveLength(5)
-  expect(capped.attraction).toHaveLength(5)
-  expect(capped.restaurant).toHaveLength(5)
+test('splitShownReserve puts the first `limit` in shown and the rest in reserve', () => {
+  const items = Array.from({ length: 7 }, (_, i) => rec(`d${i}`, 'dessert'))
+  const { shown, reserve } = splitShownReserve(items, 5)
+  expect(shown.map((r) => r.placeId)).toEqual(['d0', 'd1', 'd2', 'd3', 'd4'])
+  expect(reserve.map((r) => r.placeId)).toEqual(['d5', 'd6'])
+})
+
+test('splitShownReserve reserve is empty when items <= limit', () => {
+  const items = [rec('a', 'dessert'), rec('b', 'dessert')]
+  const { shown, reserve } = splitShownReserve(items, 5)
+  expect(shown).toHaveLength(2)
+  expect(reserve).toEqual([])
 })
