@@ -426,3 +426,24 @@ Task 2: complete (commits f8a3838..b2ab21d, review clean — Spec ✅ + Approved
 - Product nit (non-blocking, spec-conformant, user's call): day-end pill also shows after an accommodation last-card — could read oddly; possible follow-up to suppress
 - 265/265 green + build clean
 - Final commit: b2ab21d
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-07-02-recommendation-backfill.md
+Branch: lane/ai-research; BASE: 8ba73c9
+
+## Tasks
+Task 1: complete (8ba73c9..9740a35, review clean — Spec ✅, Approved. reserve=website-only verified, Google fills→shown, cross-day dedup preserved (recommendedIds seeded from all extractions incl reserve). No any/Set-spread. day-recommend 8/8, action 12/12. Minors→triage: stale "cap" comment in recommend.ts loop header; action dedup test scans .shown only (reserve dedup structurally guaranteed). NOTE: next build type-checking deferred — component reads old shape until Task 3/4.)
+Task 2: complete (9740a35..3236bd7, review clean — Spec ✅, Approved, no findings. fetchReplacementRecommendation: null-on-no-centroid without calling nearbySearch, exclude filter, enrich+fallback, try/catch→null. 4/4 pass.)
+Task 3: complete (3236bd7..fc15e4d [impl 8e58446 + fix fc15e4d], review clean after fix — Spec ✅. DayRecommendations reads .shown, backfill placeholder; ItineraryDay/TimelineDay forward backfilling. Important fixed: guard was `total===0 return null` before placeholder check → now `total===0 && !anyBackfilling` so placeholder shows when all-empty+backfilling (+ test). Minor deferred: day-component backfilling prop uses literal union not derived type (structurally equal). 5/5 pass.)
+Task 4: complete (fc15e4d..09a66dc, review clean — Spec ✅, Approved. handleAddRecommendation: immutable reserve-promote / Google-fetch with recsRef sync, buildExcludeIds from freshest planRef+recsRef, race/dup guard, finally clears backfillKey; no crash on null/reject; added place excluded from future backfills; backfillKeys copy-on-write. focused 3/3, full suite 290/290, npm run build CLEAN. Minors→triage: backfilling object literal new per render (negligible); no concurrency test.)
+
+All 4 tasks complete. Proceeding to final whole-branch review.
+
+## Final whole-branch review (backfill)
+- Verdict: MERGE WITH FOLLOW-UPS (opus). No Critical/blocking. E2E sound: commitRecs is single writer keeping recsRef+recsByDay in lockstep; planRef updated before buildExcludeIds; trip-wide dedup holds for initial fill AND on-demand backfill; reserve website-only; placeholder never wedges (finally clears key); Google key server-side.
+- Fix-now applied (commit pending): stale "cap" comment in recommend.ts:67 corrected.
+- Deferred follow-ups: (Minor) dedup test scans .shown only; day-comp backfilling literal-union type; backfilling object literal per render; setState-after-unmount in backfill resolver (harmless in React 18); backfillKeys boolean not count (cosmetic); TimelineDay backfilling prop is dead wiring (parity only). 
+- TRACKED FOLLOW-UP (Important, pre-existing — NOT this feature): handleDeleteDay/handleScatterDay renumber plan.days but do NOT reindex recsRef/recsByDay; a backfill fetch resolving after a delete can commit under a shifted day (existence guard checks presence not identity). Broader per-day-recs architectural gap; fix separately.
+- Suite 290/290, npm run build clean.

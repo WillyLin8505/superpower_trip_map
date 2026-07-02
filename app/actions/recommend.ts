@@ -64,7 +64,7 @@ export async function getDayRecommendations(
   const cleaned = dedupeAndExclude(extracted, existingIds)
   const perDay = assignToDays(cleaned, days)
 
-  // --- 3. Per day: bucket, fill each category to REC_LIMIT, cap ---
+  // --- 3. Per day: split website picks into shown/reserve, fill shown to REC_LIMIT ---
   // Trip-wide dedup: seed with every extracted placeId so fills never duplicate extractions from other days
   const recommendedIds = new Set<string>(cleaned.map((r) => r.placeId))
 
