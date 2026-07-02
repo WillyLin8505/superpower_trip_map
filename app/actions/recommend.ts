@@ -111,3 +111,25 @@ export async function getDayRecommendations(
 
   return result
 }
+
+export async function fetchReplacementRecommendation(
+  day: DayItinerary,
+  category: 'dessert' | 'attraction' | 'restaurant',
+  excludeIds: string[]
+): Promise<DayRecommendation | null> {
+  const centroid = centroidOf(day.places)
+  if (!centroid) return null
+  const exclude = new Set(excludeIds)
+  try {
+    const candidates = await nearbySearch(centroid.lat, centroid.lng, category)
+    for (const c of candidates) {
+      if (exclude.has(c.placeId)) continue
+      const detailed = await getPlaceDetails(c.placeId)
+      const place = detailed ? { ...detailed, type: category } : c
+      return { ...place, reason: 'Google 高評分推薦', sourceLabel: 'Google 推薦' }
+    }
+  } catch {
+    return null
+  }
+  return null
+}
