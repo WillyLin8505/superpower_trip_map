@@ -80,8 +80,8 @@ export async function getDayRecommendations(
         for (const cat of REC_CATEGORIES) {
           if (buckets[cat].length >= REC_LIMIT) continue
           const have = new Set<string>([
-            ...existingIds,
-            ...recommendedIds,
+            ...Array.from(existingIds),
+            ...Array.from(recommendedIds),
             ...REC_CATEGORIES.flatMap((c) => buckets[c].map((x) => x.placeId)),
           ])
           const candidates = await nearbySearch(centroid.lat, centroid.lng, cat)

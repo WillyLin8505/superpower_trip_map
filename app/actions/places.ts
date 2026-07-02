@@ -60,6 +60,15 @@ const NEARBY_QUERY: Record<'attraction' | 'restaurant' | 'dessert', { type?: str
   dessert: { keyword: '甜點 dessert cafe' },
 }
 
+interface NearbyPlaceResult {
+  place_id: string
+  name: string
+  geometry?: { location?: { lat: number; lng: number } }
+  vicinity?: string
+  rating?: number
+  photos?: Array<{ photo_reference: string }>
+}
+
 export async function nearbySearch(
   lat: number,
   lng: number,
@@ -80,8 +89,8 @@ export async function nearbySearch(
   const data = await res.json()
   if (data.status !== 'OK' || !Array.isArray(data.results)) return []
 
-  return data.results.map(
-    (r: any): Place => ({
+  return (data.results as NearbyPlaceResult[]).map(
+    (r): Place => ({
       id: randomUUID(),
       placeId: r.place_id,
       name: r.name,
