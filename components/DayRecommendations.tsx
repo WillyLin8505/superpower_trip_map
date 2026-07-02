@@ -16,7 +16,8 @@ export function DayRecommendations({ recommendations, dateIso, onAdd, backfillin
   const [tab, setTab] = useState<(typeof REC_CATEGORIES)[number]>(REC_CATEGORIES[0])
 
   const total = REC_CATEGORIES.reduce((n, c) => n + recommendations[c].shown.length, 0)
-  if (total === 0) return null
+  const anyBackfilling = REC_CATEGORIES.some((c) => !!backfilling?.[c])
+  if (total === 0 && !anyBackfilling) return null
 
   const list = recommendations[tab].shown
   const isBackfilling = !!backfilling?.[tab]

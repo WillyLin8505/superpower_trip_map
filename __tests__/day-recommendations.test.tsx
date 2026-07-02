@@ -47,3 +47,9 @@ it('renders a placeholder for a category that is backfilling', () => {
   )
   expect(screen.getByTestId('rec-backfilling')).toBeInTheDocument()
 })
+
+it('shows the backfilling placeholder even when all categories are empty', () => {
+  render(<DayRecommendations recommendations={empty} dateIso="2026-07-01" onAdd={() => {}} backfilling={{ dessert: true }} />)
+  expect(screen.getByTestId('rec-backfilling')).toBeInTheDocument()
+  expect(screen.queryByText('這個類別暫無推薦')).not.toBeInTheDocument()
+})
