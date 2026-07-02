@@ -16,6 +16,11 @@ jest.mock('@/lib/utils/clientScheduler', () => ({
   recalcPlan: jest.fn((p: unknown) => p),
 }))
 
+// ItineraryClient fetches per-day recommendations on mount (pulls in the Anthropic SDK); stub it out
+jest.mock('@/app/actions/recommend', () => ({
+  getDayRecommendations: jest.fn().mockResolvedValue([]),
+}))
+
 // dnd-kit: pass children straight through
 jest.mock('@dnd-kit/core', () => ({
   DndContext: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -43,10 +48,6 @@ jest.mock('@dnd-kit/sortable', () => ({
 
 jest.mock('@dnd-kit/utilities', () => ({
   CSS: { Transform: { toString: () => '' } },
-}))
-
-jest.mock('@/components/RecommendPanel', () => ({
-  RecommendPanel: () => null,
 }))
 
 jest.mock('@/components/CombinedInput', () => ({

@@ -47,16 +47,18 @@ export interface PlanResult {
   startDate: string         // ISO 'YYYY-MM-DD'
 }
 
-export interface Recommendation {
-  name: string
-  type: PlaceType
-  reason: string            // Claude's 1-sentence explanation (Traditional Chinese)
-  sourceLabel: string       // label from sources.json
-  placeId: string | null    // null if Google couldn't verify
-  lat: number | null
-  lng: number | null
-  verified: boolean
+export interface DayRecommendation extends Place {
+  reason: string            // Claude's 1-sentence rationale, or generic text for Places fills
+  sourceLabel: string       // website label, or 'Google 推薦' for Places fills
 }
+
+export interface CategoryBuckets {
+  dessert: DayRecommendation[]      // up to 5
+  attraction: DayRecommendation[]   // up to 5
+  restaurant: DayRecommendation[]   // up to 5
+}
+
+export type RecommendationsByDay = CategoryBuckets[]  // index 0 = day 1
 
 export interface Source {
   id: string

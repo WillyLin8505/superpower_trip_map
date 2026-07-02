@@ -282,6 +282,40 @@ Task 3: complete (85d5220..9907feb + fix 18895fd, review APPROVED after moving P
 Task 4: complete (18895fd..e5207f5 + fix 82a82ab, review APPROVED after onChangeType pass-through parity fix + test collision fix; Minor: empty-state placeholder is TimelineDay-only [spec §8], accepted)
 All 4 tasks complete. Proceeding to final whole-branch review.
 
+## Final whole-branch review
+- Verdict: MERGE WITH MINOR FOLLOW-UPS (opus). No blocking; parity faithful; Lane A can swap ItineraryDay<->TimelineDay with no prop changes.
+- Fix-now applied (commit 2aa7846): CardContent hours label 今日->營業 to match current ItineraryCard (keeps Lane A adoption a clean no-op).
+- Deferred Minors: toMin NaN guard; end-picker rawDur==0→1440 (verbatim from ItineraryCard); nativeEvent.clientY redundant; cardHeight math duplication (justified by live preview); empty-state placeholder (spec §8, intentional).
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-06-30-per-day-recommendations.md
+Branch: lane/ai-research; BASE: c14984e
+
+## Tasks
+Task 1: complete (c14984e..1f91a18, review clean — Spec ✅. ⚠️ resolved: Place.address is `string` so `?? ''` correct; places.ts:1 is 'use server'. Minors → final triage: no try/catch around fetch (consistent w/ existing searchPlace/getPlaceDetails), dessert keyword URL not asserted, null-photoUrl path not asserted)
+Task 2: complete (1f91a18..8daacf5 [impl e458208 + fix 8daacf5], review clean after fix — Critical empty-days guard added to assignToDays + test; Important dedupe stable-order test strengthened; Minor capBuckets all-3-categories test. 6/6 pass)
+Task 3: complete (8daacf5..2f7accc, review clean — Spec ✅, quality Approved. Impl cleaned brief's 2 no-op test lines (top-level mock aliases). ⚠️ resolved: capBuckets preserves order (slice), REC_CATEGORIES order confirmed Task 2. Minors → final triage: no try/catch around nearbySearch/getPlaceDetails in fill loop (client mount .catch degrades gracefully); per-category `have` rebuild wasteful but correct. 2/2 file + 206 suite pass)
+Task 4: complete (2f7accc..62d27bc, review clean — Spec ✅, Approved. Minor → final triage: Test 1 doesn't assert opening-hours/reason render (guarded correctly in impl). 2/2 pass)
+Task 5: complete (62d27bc..b7cc20b, review clean — Spec ✅, Approved, no findings. 3/3 pass)
+Task 6: complete (b7cc20b..7906a0c, review clean — Spec ✅, Approved. Both day components symmetric; iframe attrs preserved; border/rounding migrated to inner box. Minor → final triage: itinerary-day-recommend.test.tsx may lack trailing newline (final lint will catch). new + 6 regression pass)
+Task 7: complete (7906a0c..5345bbd, review clean — Spec ✅, Approved. Mount effect run-once+leak-safe; handleAddRecommendation carries all 9 Place fields + removes card across all categories; 5 existing ItineraryClient tests each +4/-4 mock-swap only (zero assertion changes); getRecommendations/RecommendPanel/RecommendCard fully removed, no dangling refs. Minor → final triage: itinerary-client-recommend test mock boilerplate (necessary). full suite 209 pass, lint clean.)
+
+All 7 tasks complete. Proceeding to final whole-branch review.
+
+## Final whole-branch review
+- Verdict: MERGE WITH FOLLOW-UPS (opus). E2E flow verified correct; no crashes, no key leaks; geographic assignment + website-first ordering sound.
+- Fix-now applied (commit ecb5af8, re-reviewed clean): (1) IMPORTANT cross-day dedup — trip-wide recommendedIds set so no placeId repeats across days/categories + new test; (2) per-day fill try/catch preserves partial results; (3) removed dead Recommendation interface. Full suite 210 pass, lint clean.
+- Deferred follow-ups (non-blocking): parallelize the serial fill loop (perf/quota); type nearbySearch `(r: any)` at places.ts:84 (warning-level, pre-existing); RecommendationCard test omits hours/reason assertions; itinerary-day-recommend test trailing newline. TimelineDay has recommendations parity wired but is not rendered in production yet (only ItineraryDay is).
+- Final commit: ecb5af8
+
+## Post-PR CI fix (Vercel build failure)
+- PR #1 Vercel deploy failed. Root cause reproduced locally via `next build` (which npm test / npm run lint did NOT surface):
+  1) app/actions/places.ts `(r: any)` → @typescript-eslint/no-explicit-any is a BUILD error under `next build`. Fixed with a NearbyPlaceResult interface.
+  2) app/actions/recommend.ts fill-loop `have` set spread `...existingIds`/`...recommendedIds` → Set spread needs downlevelIteration under project tsconfig target. Fixed with Array.from().
+- Both were masked because ts-jest compiles looser than `next build`. Lesson: run `next build` in verification, not just `npm test`.
+- Fix commit 97dc9a7 (pushed). Local: `next build` clean, 210 tests pass.
 ---
 
 # SDD Progress Ledger
