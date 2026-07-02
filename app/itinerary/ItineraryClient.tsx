@@ -28,6 +28,7 @@ import { CombinedInput } from '@/components/CombinedInput'
 import { DWELL } from '@/lib/placeType'
 import { fetchDayArrangeInputs } from '@/app/actions/arrange'
 import { arrangeDayOrder } from '@/lib/utils/arrangeDay'
+import { AiRearrangeInput } from '@/components/AiRearrangeInput'
 
 // pointerWithin is essential for multi-container: it checks where the pointer
 // physically is, not center-to-center distance (closestCenter favors the source container)
@@ -385,6 +386,10 @@ export function ItineraryClient({ initial }: Props) {
     }
   }, [scheduleRecalc])
 
+  const handleAiApply = useCallback((newPlan: PlanResult) => {
+    scheduleRecalc(newPlan, true)
+  }, [scheduleRecalc])
+
   const N = targetDays ?? plan.days.length
   const overCount = Math.max(0, plan.days.length - N)
 
@@ -428,6 +433,7 @@ export function ItineraryClient({ initial }: Props) {
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
+        <AiRearrangeInput plan={plan} onApply={handleAiApply} />
         {arrangeError && (
           <p className="text-sm text-red-600 mb-4" role="alert">{arrangeError}</p>
         )}
