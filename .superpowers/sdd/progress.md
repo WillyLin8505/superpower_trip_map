@@ -392,3 +392,36 @@ Task 2: complete (commits f8a3838..b2ab21d, review clean — Spec ✅ + Approved
 - Product nit (non-blocking, spec-conformant, user's call): day-end pill also shows after an accommodation last-card — could read oddly; possible follow-up to suppress
 - 265/265 green + build clean
 - Final commit: b2ab21d
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-07-02-ai-rearrange.md
+Branch: main (Lane A); BASE: 55b241f
+
+## Tasks
+- [x] Task 1: 純變動引擎 rearrangeChanges.ts（diffPlan + applyChanges）
+- [x] Task 2: 伺服器動作 rearrangeItinerary
+- [x] Task 3: 元件 AiRearrangeInput
+- [x] Task 4: 接上 ItineraryClient（最小改動）
+
+Task 1: complete (commits 55b241f..81f0b09, review clean — Spec ✅ verbatim + Approved no issues, 273/273 + build green; Change union move/duration/window, diffPlan, applyChanges subset-safe + no input mutation [places spread-cloned])
+Task 2: complete (commits 81f0b09..694b4df, review clean — Spec ✅ + Approved no issues, 278/278 + build green; rearrangeItinerary ref-prompt + callClaude + buildProposed ALL validation guards verified [ref 1..N perm, day count, HH:MM, dur>0, durationLocked kept], all failure paths → ok:false)
+Task 3: complete (commits 694b4df..d05d87b, review clean — Spec ✅ verbatim + Approved, 281/281 + build green; AiRearrangeInput input+loading+per-day change list+✗(immutable Set)+一鍵同意全部+取消+error, changeLabel per kind)
+  Minor (non-blocking): apply-all button stays clickable when all changes ✗'d → applyChanges(plan,[]) harmless no-op.
+Task 4: complete (commits d05d87b..e8b4d85 + cleanup 51d52e9, review clean after cleanup — Spec ✅ + Approved, 282/282 + build green; ItineraryClient +6 lines [import + handleAiApply→scheduleRecalc(_,true) + render AiRearrangeInput])
+  INFRA: ItineraryClient now transitively imports Anthropic SDK (AiRearrangeInput→rearrange→lib/claude→new Anthropic()) → crashed jsdom suites w/ TextEncoder undefined. Fix: jest.config.ts moduleNameMapper stubs @anthropic-ai/sdk → __stubs__/anthropic-sdk.js (test-only; production uses real SDK; claude.test.ts has own precedence mock; does NOT shadow real component — Task 3 coverage intact).
+  Minor FIXED (controller cleanup 51d52e9): removed dead __stubs__/AiRearrangeInput.tsx (unused after final approach used the SDK stub).
+  ⚠️ for final review: whole suite now depends on @anthropic-ai/sdk stub to load any ItineraryClient-rendering suite (documented in jest.config.ts comment).
+
+## Final Review (#8)
+- Whole-branch review (55b241f..51d52e9): Ready to merge — no Critical/Important
+- Core safety airtight: AI can NEVER drop/dupe/invent a place (ref 1..N perm enforced by buildProposed; applyChanges only permutes existing place objects; day count + place set invariant). buildProposed maps AI days positionally (ignores AI's day field → can't corrupt numbering). durationLocked triple-enforced (buildProposed keeps + diffPlan skips + applyChanges refuses).
+- Subset-apply correct, no interdependence bug (clone-first, 3 independent passes duration→window→move; a place with both duration+move survives both). diff↔apply consistent (apply consumes by kind not id).
+- ItineraryClient +6 lines; handleAiApply reuses #4 scheduleRecalc(_,true) → moved places re-timed + per-segment travel recomputed. No regression.
+- jest-config SDK stub: test-only (build uses real SDK), anchored ^@anthropic-ai/sdk$ (no shadowing), claude.test.ts own precedence mock keeps callClaude tested.
+- Minor (non-blocking, optional follow-up): isHHMM /^\d{2}:\d{2}$/ accepts "99:99"; durationMin only checked >0 (no upper bound). Both preview-gated + non-crashing.
+- 282/282 green + build clean
+- Final commit: 51d52e9
+
+=== ROADMAP COMPLETE: all 9 sub-projects shipped (#1-#9). ===
