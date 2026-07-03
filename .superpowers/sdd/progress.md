@@ -480,3 +480,18 @@ All 4 tasks complete. Proceeding to final whole-branch review.
 - Deferred follow-ups: (Minor) dedup test scans .shown only; day-comp backfilling literal-union type; backfilling object literal per render; setState-after-unmount in backfill resolver (harmless in React 18); backfillKeys boolean not count (cosmetic); TimelineDay backfilling prop is dead wiring (parity only). 
 - TRACKED FOLLOW-UP (Important, pre-existing — NOT this feature): handleDeleteDay/handleScatterDay renumber plan.days but do NOT reindex recsRef/recsByDay; a backfill fetch resolving after a delete can commit under a shifted day (existence guard checks presence not identity). Broader per-day-recs architectural gap; fix separately.
 - Suite 290/290, npm run build clean.
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-07-03-accommodation-card-refinements.md
+Branch: main (Lane A follow-up); BASE: 4c2e3fe
+
+## Tasks
+- [x] Task 1: (A) recalcDay 住宿延到 dayEnd
+- [x] Task 2: (B) 早 check-in 提醒（ItineraryCard）
+
+EXECUTED INLINE (controller, context-limited): both changes are tiny verbatim-from-plan edits.
+- (A) clientScheduler.ts: extendLastAccommodation helper applied at both recalcDay returns (last accommodation, !durationLocked, arrival<dayEnd → durationMin=dayEnd−arrival). Removes trailing free-time pill (remaining→0). Respects lock + arrival≥dayEnd edge.
+- (B) ItineraryCard.tsx: derived warning「⚠ 早於一般 check-in 時間（15:00）」when type=accommodation && startTime<15:00.
+- 7/7 new tests (extend-accommodation 4, itinerary-card-checkin 3); full suite 316/316; build clean. No existing tests broke.

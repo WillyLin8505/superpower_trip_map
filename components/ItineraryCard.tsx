@@ -8,6 +8,11 @@ import { addMinutes } from '@/lib/utils/time'
 import type { PlaceType, ScheduledPlace, TransportMode } from '@/lib/types'
 import { DWELL, TYPE_META } from '@/lib/placeType'
 
+function toMin(t: string): number {
+  const [h, m] = t.split(':').map(Number)
+  return h * 60 + m
+}
+
 interface Props {
   place: ScheduledPlace
   index: number
@@ -114,6 +119,9 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
           )}
           {place.durationMin < DWELL[place.type] && (
             <p className="text-xs text-orange-600 font-medium mt-1">&#x26A0; 停留少於建議（建議 {DWELL[place.type]} 分）</p>
+          )}
+          {place.type === 'accommodation' && toMin(place.startTime) < 15 * 60 && (
+            <p className="text-xs text-orange-600 font-medium mt-1">&#x26A0; 早於一般 check-in 時間（15:00）</p>
           )}
         </div>
         {(onToggleStartLock || onToggleDurationLock) && (
