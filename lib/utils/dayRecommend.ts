@@ -1,7 +1,17 @@
-import type { CategoryArrays, CategoryList, DayItinerary, DayRecommendation } from '@/lib/types'
+import type { CategoryArrays, CategoryList, DayItinerary, DayRecommendation, RecommendationsByDay } from '@/lib/types'
 import { findClosestDay } from './geo'
 
 export const REC_CATEGORIES = ['dessert', 'attraction', 'restaurant'] as const
+
+// Keep the per-day recommendations array index-aligned with plan.days when a day
+// is removed (delete/scatter). Drops the removed day's bucket; null passes through.
+export function removeRecsDay(
+  recs: RecommendationsByDay | null,
+  dayIdx: number
+): RecommendationsByDay | null {
+  if (!recs) return recs
+  return recs.filter((_, i) => i !== dayIdx)
+}
 
 export function centroidOf(
   places: { lat: number; lng: number }[]
