@@ -9,7 +9,7 @@ create unique index if not exists trips_invite_token_idx
 create table if not exists public.trip_members (
   trip_id   uuid not null references public.trips(id) on delete cascade,
   user_id   uuid not null references auth.users(id) on delete cascade,
-  role      text not null default 'editor',
+  role      text not null default 'editor' check (role = 'editor'),
   joined_at timestamptz not null default now(),
   primary key (trip_id, user_id)
 );
@@ -22,6 +22,7 @@ returns boolean
 language sql
 security definer
 stable
+set search_path = public
 as $$
   select exists (
     select 1 from public.trips where id = t and owner_id = auth.uid()

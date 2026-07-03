@@ -26,9 +26,9 @@ export default async function JoinPage({ params }: JoinPageProps) {
     if (error instanceof Error && error.message === 'INVALID_INVITE') {
       return (
         <main className="mx-auto flex max-w-sm flex-col gap-4 px-4 py-16 text-center">
-          <p className="text-gray-700">{'\u9080\u8acb\u9023\u7d50\u7121\u6548\u6216\u5df2\u5931\u6548'}</p>
+          <p className="text-gray-700">邀請連結無效或已失效</p>
           <Link href="/trips" className="text-sm underline">
-            {'\u56de\u5230\u6211\u7684\u884c\u7a0b'}
+            回到我的行程
           </Link>
         </main>
       )

@@ -205,3 +205,11 @@ it('leaveTrip throws NOT_AUTHENTICATED when logged out', async () => {
 
   await expect(leaveTrip('trip-1')).rejects.toThrow('NOT_AUTHENTICATED')
 })
+
+it('removeMember throws NOT_AUTHENTICATED when logged out', async () => {
+  state.authUser = null
+
+  const { removeMember } = loadActions()
+
+  await expect(removeMember('trip-1', 'editor-1')).rejects.toThrow('NOT_AUTHENTICATED')
+})

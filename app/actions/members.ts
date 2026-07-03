@@ -163,6 +163,7 @@ export async function listMembers(tripId: string): Promise<TripMember[]> {
 }
 
 export async function removeMember(tripId: string, userId: string): Promise<void> {
+  await requireUserId()
   const supabase = createClient()
   const { error } = await supabase
     .from('trip_members')
