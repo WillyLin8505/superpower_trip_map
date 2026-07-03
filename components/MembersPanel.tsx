@@ -112,7 +112,11 @@ export function MembersPanel({ tripId, members, isOwner }: MembersPanelProps) {
         <ul className="flex flex-col gap-2">
           {members.map((member) => (
             <li key={member.userId} className="flex items-center justify-between gap-3 text-sm">
-              <span>{member.name}</span>
+              <span>
+                {member.name}
+                {member.role === 'owner' ? '（擁有者）' : ''}
+                {member.isSelf ? '（你）' : ''}
+              </span>
               {isOwner && !member.isSelf && member.role !== 'owner' ? (
                 <button
                   type="button"

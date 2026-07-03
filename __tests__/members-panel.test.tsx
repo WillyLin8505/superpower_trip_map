@@ -9,6 +9,7 @@ const removeMember = jest.fn()
 const leaveTrip = jest.fn()
 const refresh = jest.fn()
 const push = jest.fn()
+const writeText = jest.fn()
 
 jest.mock('@/app/actions/members', () => ({
   getInviteLink: (...args: unknown[]) => getInviteLink(...args),
@@ -35,9 +36,10 @@ describe('MembersPanel', () => {
     rotateInvite.mockResolvedValue({ token: 'invite-456' })
     removeMember.mockResolvedValue(undefined)
     leaveTrip.mockResolvedValue(undefined)
+    writeText.mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
-      value: { writeText: jest.fn().mockResolvedValue(undefined) },
+      value: { writeText },
     })
   })
 
@@ -52,13 +54,36 @@ describe('MembersPanel', () => {
     expect(screen.getByRole('button', { name: '重新產生連結' })).toBeInTheDocument()
   })
 
-  it('owner sees the member list and a single 移除 button for non-self editor members', () => {
+  it('owner sees the member list and a single 蝘駁 button for non-self editor members', () => {
     render(<MembersPanel tripId="trip-1" members={members} isOwner />)
 
     expect(screen.getByRole('heading', { name: '成員' })).toBeInTheDocument()
-    expect(screen.getByText('Owner')).toBeInTheDocument()
+    expect(screen.getByText('Owner（擁有者）（你）')).toBeInTheDocument()
     expect(screen.getByText('Editor')).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: '移除' })).toHaveLength(1)
+  })
+
+  it('複製連結 copies the generated invite URL to the clipboard', async () => {
+    render(<MembersPanel tripId="trip-1" members={members} isOwner />)
+
+    fireEvent.click(screen.getByRole('button', { name: '產生邀請連結' }))
+    await screen.findByDisplayValue('http://localhost/join/invite-123')
+
+    fireEvent.click(screen.getByRole('button', { name: '複製連結' }))
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('http://localhost/join/invite-123'))
+  })
+
+  it('重新產生連結 rotates the invite token and updates the visible URL', async () => {
+    render(<MembersPanel tripId="trip-1" members={members} isOwner />)
+
+    fireEvent.click(screen.getByRole('button', { name: '產生邀請連結' }))
+    await screen.findByDisplayValue('http://localhost/join/invite-123')
+
+    fireEvent.click(screen.getByRole('button', { name: '重新產生連結' }))
+
+    await waitFor(() => expect(rotateInvite).toHaveBeenCalledWith('trip-1'))
+    expect(screen.getByDisplayValue('http://localhost/join/invite-456')).toBeInTheDocument()
   })
 
   it('non-owner member sees 離開行程 and no invite controls', () => {
