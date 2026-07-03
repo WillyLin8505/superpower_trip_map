@@ -92,3 +92,11 @@ export interface TripSummary {
   title: string
   updatedAt: string   // ISO
 }
+
+export interface TripMember {
+  userId: string
+  name: string
+  avatarUrl: string | null
+  role: 'owner' | 'editor'
+  isSelf: boolean
+}
