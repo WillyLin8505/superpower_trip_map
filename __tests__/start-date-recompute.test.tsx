@@ -5,6 +5,10 @@ import { render, screen, fireEvent } from '@testing-library/react'
 // NOTE: 不 mock @/lib/utils/clientScheduler 也不 mock @/lib/utils/hours，
 // 直接用真實排程，驗證「改開始日期 → 全天營業時間警告重算」。
 
+jest.mock('@/app/actions/recommend', () => ({
+  getDayRecommendations: jest.fn().mockResolvedValue([]),
+}))
+
 // Next.js navigation (transitive deps)
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
@@ -41,10 +45,6 @@ jest.mock('@dnd-kit/utilities', () => ({
 }))
 
 // Heavy / unrelated sub-components stubbed out
-jest.mock('@/components/RecommendPanel', () => ({
-  RecommendPanel: () => null,
-}))
-
 jest.mock('@/components/CombinedInput', () => ({
   CombinedInput: () => null,
 }))
