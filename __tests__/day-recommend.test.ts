@@ -1,7 +1,7 @@
 import {
-  centroidOf, dedupeAndExclude, assignToDays, bucketByCategory, splitShownReserve,
+  centroidOf, dedupeAndExclude, assignToDays, bucketByCategory, splitShownReserve, removeRecsDay,
 } from '@/lib/utils/dayRecommend'
-import type { DayItinerary, DayRecommendation, PlaceType } from '@/lib/types'
+import type { CategoryList, DayItinerary, DayRecommendation, PlaceType, RecommendationsByDay } from '@/lib/types'
 
 function rec(placeId: string, type: PlaceType, lat = 25, lng = 121): DayRecommendation {
   return {
@@ -10,6 +10,23 @@ function rec(placeId: string, type: PlaceType, lat = 25, lng = 121): DayRecommen
     reason: 'r', sourceLabel: 's',
   }
 }
+
+function bucketsWith(placeId: string): RecommendationsByDay[number] {
+  const list = (shown: DayRecommendation[]): CategoryList => ({ shown, reserve: [] })
+  return { dessert: list([rec(placeId, 'dessert')]), attraction: list([]), restaurant: list([]) }
+}
+
+test('removeRecsDay drops the removed day bucket and keeps the rest index-aligned', () => {
+  const recs: RecommendationsByDay = [bucketsWith('day0'), bucketsWith('day1'), bucketsWith('day2')]
+  const out = removeRecsDay(recs, 1)
+  expect(out).toHaveLength(2)
+  expect(out![0].dessert.shown[0].placeId).toBe('day0')
+  expect(out![1].dessert.shown[0].placeId).toBe('day2')   // day2 shifted into index 1
+})
+
+test('removeRecsDay passes null through', () => {
+  expect(removeRecsDay(null, 0)).toBeNull()
+})
 
 function day(lat: number, lng: number): DayItinerary {
   return {

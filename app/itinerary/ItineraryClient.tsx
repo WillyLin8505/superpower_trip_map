@@ -24,6 +24,7 @@ import { ItineraryCard } from '@/components/ItineraryCard'
 import { getDayRecommendations, fetchReplacementRecommendation } from '@/app/actions/recommend'
 import { applyDragResult, findContainer } from '@/lib/utils/dragContainers'
 import { findClosestDay } from '@/lib/utils/geo'
+import { removeRecsDay } from '@/lib/utils/dayRecommend'
 import { CombinedInput } from '@/components/CombinedInput'
 import { DWELL } from '@/lib/placeType'
 import { fetchDayArrangeInputs } from '@/app/actions/arrange'
@@ -433,8 +434,9 @@ export function ItineraryClient({ initial }: Props) {
     planRef.current = recalced
     setPlan(recalced)
     setTargetDays((t) => (t !== null && next.length <= t ? null : t))
+    commitRecs(removeRecsDay(recsRef.current, dayIdx))   // keep recs index-aligned with days
     scheduleRecalc(recalced, true)
-  }, [scheduleRecalc])
+  }, [scheduleRecalc, commitRecs])
 
   const handleScatterDay = useCallback((dayIdx: number) => {
     const src = planRef.current.days[dayIdx]
@@ -449,8 +451,9 @@ export function ItineraryClient({ initial }: Props) {
     planRef.current = recalced
     setPlan(recalced)
     setTargetDays((t) => (t !== null && next.length <= t ? null : t))
+    commitRecs(removeRecsDay(recsRef.current, dayIdx))   // keep recs index-aligned with days
     scheduleRecalc(recalced, true)
-  }, [scheduleRecalc])
+  }, [scheduleRecalc, commitRecs])
 
   const handleSetAvoid = useCallback(
     (dayIdx: number, field: 'avoidTraffic' | 'avoidCrowds', value: boolean) => {
