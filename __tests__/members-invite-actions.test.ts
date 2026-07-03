@@ -1,7 +1,8 @@
 type AuthUser = { id: string } | null
 
 type QueryResult = { data: unknown; error: unknown }
-type UpdateResult = { error: unknown }
+type UpdatePredicate = { column: string; value: string }
+type UpdateResult = { data: Array<{ id: string }> | null; error: unknown }
 type InsertResult = { error: { code?: string } | null }
 
 type AdminState = {
@@ -10,7 +11,8 @@ type AdminState = {
   updateResult: UpdateResult
   insertResult: InsertResult
   lastUpdate: { invite_token: string } | null
-  lastUpdateTripId: string | null
+  lastUpdatePredicates: UpdatePredicate[]
+  lastUpdateSelect: string | null
   lastInsert: { trip_id: string; user_id: string; role: 'editor' } | null
 }
 
@@ -48,12 +50,24 @@ function makeTripsBuilder() {
         ),
       })),
     })),
-    update: jest.fn((_values: { invite_token: string }) => ({
-      eq: jest.fn(async (_column: string, value: string) => {
-        adminState.lastUpdateTripId = value
-        return adminState.updateResult
-      }),
-    })),
+    update: jest.fn((values: { invite_token: string }) => {
+      adminState.lastUpdate = values
+
+      const predicates: UpdatePredicate[] = []
+      const builder = {
+        eq: jest.fn((column: string, value: string) => {
+          predicates.push({ column, value })
+          adminState.lastUpdatePredicates = [...predicates]
+          return builder
+        }),
+        select: jest.fn(async (columns: string) => {
+          adminState.lastUpdateSelect = columns
+          return adminState.updateResult
+        }),
+      }
+
+      return builder
+    }),
   }
 }
 
@@ -75,10 +89,11 @@ beforeEach(() => {
   adminState = {
     tripLookup: { data: { id: 'trip-1', owner_id: 'owner-1' }, error: null },
     ownerLookup: { data: { owner_id: 'owner-1', invite_token: 'invite-existing' }, error: null },
-    updateResult: { error: null },
+    updateResult: { data: [{ id: 'trip-1' }], error: null },
     insertResult: { error: null },
     lastUpdate: null,
-    lastUpdateTripId: null,
+    lastUpdatePredicates: [],
+    lastUpdateSelect: null,
     lastInsert: null,
   }
   jest.resetModules()
@@ -125,7 +140,7 @@ it('getInviteLink returns existing token without update', async () => {
   authUser = { id: 'owner-1' }
   const { getInviteLink } = loadActions()
   await expect(getInviteLink('trip-1')).resolves.toEqual({ token: 'invite-existing' })
-  expect(adminState.lastUpdateTripId).toBeNull()
+  expect(adminState.lastUpdate).toBeNull()
 })
 
 it('getInviteLink generates and persists a UUID when missing', async () => {
@@ -134,7 +149,12 @@ it('getInviteLink generates and persists a UUID when missing', async () => {
   jest.spyOn(crypto, 'randomUUID').mockReturnValue('invite-new')
   const { getInviteLink } = loadActions()
   await expect(getInviteLink('trip-1')).resolves.toEqual({ token: 'invite-new' })
-  expect(adminState.lastUpdateTripId).toBe('trip-1')
+  expect(adminState.lastUpdate).toEqual({ invite_token: 'invite-new' })
+  expect(adminState.lastUpdatePredicates).toEqual([
+    { column: 'id', value: 'trip-1' },
+    { column: 'owner_id', value: 'owner-1' },
+  ])
+  expect(adminState.lastUpdateSelect).toBe('id')
 })
 
 it('rotateInvite owner gets a new persisted token', async () => {
@@ -142,10 +162,29 @@ it('rotateInvite owner gets a new persisted token', async () => {
   jest.spyOn(crypto, 'randomUUID').mockReturnValue('invite-rotated')
   const { rotateInvite } = loadActions()
   await expect(rotateInvite('trip-1')).resolves.toEqual({ token: 'invite-rotated' })
-  expect(adminState.lastUpdateTripId).toBe('trip-1')
+  expect(adminState.lastUpdate).toEqual({ invite_token: 'invite-rotated' })
+  expect(adminState.lastUpdatePredicates).toEqual([
+    { column: 'id', value: 'trip-1' },
+    { column: 'owner_id', value: 'owner-1' },
+  ])
+  expect(adminState.lastUpdateSelect).toBe('id')
 })
 
 it('rotateInvite throws NOT_OWNER for non-owner', async () => {
   const { rotateInvite } = loadActions()
   await expect(rotateInvite('trip-1')).rejects.toThrow('NOT_OWNER')
+})
+
+it('rotateInvite throws INVITE_UPDATE_FAILED when owner-scoped update affects no rows', async () => {
+  authUser = { id: 'owner-1' }
+  adminState.updateResult = { data: [], error: null }
+  jest.spyOn(crypto, 'randomUUID').mockReturnValue('invite-missed')
+  const { rotateInvite } = loadActions()
+  await expect(rotateInvite('trip-1')).rejects.toThrow('INVITE_UPDATE_FAILED')
+  expect(adminState.lastUpdate).toEqual({ invite_token: 'invite-missed' })
+  expect(adminState.lastUpdatePredicates).toEqual([
+    { column: 'id', value: 'trip-1' },
+    { column: 'owner_id', value: 'owner-1' },
+  ])
+  expect(adminState.lastUpdateSelect).toBe('id')
 })

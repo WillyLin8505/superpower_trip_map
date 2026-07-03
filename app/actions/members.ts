@@ -20,8 +20,10 @@ async function requireUserId(): Promise<string> {
   return user.id
 }
 
-async function requireOwner(tripId: string): Promise<{ inviteToken: string | null }> {
-  const userId = await requireUserId()
+async function requireOwner(
+  tripId: string,
+  userId: string,
+): Promise<{ inviteToken: string | null }> {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('trips')
@@ -37,14 +39,16 @@ async function requireOwner(tripId: string): Promise<{ inviteToken: string | nul
   return { inviteToken: trip.invite_token }
 }
 
-async function persistInviteToken(tripId: string, token: string): Promise<void> {
+async function persistInviteToken(tripId: string, ownerId: string, token: string): Promise<void> {
   const admin = createAdminClient()
-  const { error } = await admin
+  const { data, error } = await admin
     .from('trips')
     .update({ invite_token: token })
     .eq('id', tripId)
+    .eq('owner_id', ownerId)
+    .select('id')
 
-  if (error) throw new Error('INVITE_UPDATE_FAILED')
+  if (error || !data?.length) throw new Error('INVITE_UPDATE_FAILED')
 }
 
 export async function joinTrip(token: string): Promise<{ tripId: string }> {
@@ -73,18 +77,20 @@ export async function joinTrip(token: string): Promise<{ tripId: string }> {
 }
 
 export async function getInviteLink(tripId: string): Promise<{ token: string }> {
-  const { inviteToken } = await requireOwner(tripId)
+  const userId = await requireUserId()
+  const { inviteToken } = await requireOwner(tripId, userId)
   if (inviteToken) return { token: inviteToken }
 
   const token = crypto.randomUUID()
-  await persistInviteToken(tripId, token)
+  await persistInviteToken(tripId, userId, token)
   return { token }
 }
 
 export async function rotateInvite(tripId: string): Promise<{ token: string }> {
-  await requireOwner(tripId)
+  const userId = await requireUserId()
+  await requireOwner(tripId, userId)
 
   const token = crypto.randomUUID()
-  await persistInviteToken(tripId, token)
+  await persistInviteToken(tripId, userId, token)
   return { token }
 }
