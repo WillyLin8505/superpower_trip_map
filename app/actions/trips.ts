@@ -15,16 +15,16 @@ export async function createTrip(plan: PlanResult, title: string): Promise<{ tri
   return { tripId: (data as { id: string }).id }
 }
 
-export async function getTrip(tripId: string): Promise<{ plan: PlanResult; title: string } | null> {
+export async function getTrip(tripId: string): Promise<{ plan: PlanResult; title: string; ownerId: string } | null> {
   const supabase = createClient()
   const { data, error } = await supabase
     .from('trips')
-    .select('plan, title')
+    .select('plan, title, owner_id')
     .eq('id', tripId)
     .single()
   if (error || !data) return null
-  const row = data as { plan: PlanResult; title: string }
-  return { plan: row.plan, title: row.title }
+  const row = data as { plan: PlanResult; title: string; owner_id: string }
+  return { plan: row.plan, title: row.title, ownerId: row.owner_id }
 }
 
 export async function saveTrip(tripId: string, plan: PlanResult): Promise<void> {

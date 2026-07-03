@@ -67,10 +67,10 @@ it('getTrip returns null on error', async () => {
   expect(await getTrip('x')).toBeNull()
 })
 
-it('getTrip maps plan + title on success', async () => {
-  current = makeSupabase({ single: { data: { plan, title: '東京' }, error: null } })
+it('getTrip maps plan + title + ownerId on success', async () => {
+  current = makeSupabase({ single: { data: { plan, title: '東京', owner_id: 'u1' }, error: null } })
   const { getTrip } = require('@/app/actions/trips')
-  expect(await getTrip('t1')).toEqual({ plan, title: '東京' })
+  expect(await getTrip('t1')).toEqual({ plan, title: '東京', ownerId: 'u1' })
 })
 
 it('listTrips maps rows to TripSummary', async () => {
