@@ -8,17 +8,23 @@ function sp(name: string, over: Partial<ScheduledPlace> = {}): ScheduledPlace {
     lateExit: false, startLocked: false, durationLocked: false, ...over }
 }
 const defaults: LegDefault[] = [
-  { legMode: 'driving', travelMin: 18 },
-  { legMode: 'walking', travelMin: 8 },
+  { legMode: 'driving', travelMin: 18, travelDistanceM: 5000 },
+  { legMode: 'walking', travelMin: 8, travelDistanceM: 400 },
 ]
 
-it('keeps a manual leg when its next place is unchanged', () => {
+it('keeps a manual leg (incl. its distance) when its next place is unchanged', () => {
   // A manually set to transit toward B; A still precedes B → preserved
-  const places = [sp('A', { legMode: 'transit', travelMinToNext: 25, legManualNext: 'B' }), sp('B'), sp('C')]
+  const places = [sp('A', { legMode: 'transit', travelMinToNext: 25, travelDistanceToNext: 7000, legManualNext: 'B' }), sp('B'), sp('C')]
   const out = legMerge(places, defaults)
   expect(out[0].legMode).toBe('transit')
   expect(out[0].travelMinToNext).toBe(25)
+  expect(out[0].travelDistanceToNext).toBe(7000)
   expect(out[0].legManualNext).toBe('B')
+})
+it('applies default distance (travelDistanceToNext) to non-manual legs', () => {
+  const out = legMerge([sp('A'), sp('B'), sp('C')], defaults)
+  expect(out[0].travelDistanceToNext).toBe(5000)
+  expect(out[1].travelDistanceToNext).toBe(400)
 })
 it('drops a manual leg when its recorded next no longer follows it', () => {
   // A manual toward B, but now A precedes C → reverts to default, clears legManualNext
@@ -37,8 +43,9 @@ it('applies defaults to non-manual legs', () => {
 })
 it('clears the last place leg fields', () => {
   const places = [sp('A'), sp('B')]
-  const out = legMerge(places, [{ legMode: 'driving', travelMin: 18 }])
+  const out = legMerge(places, [{ legMode: 'driving', travelMin: 18, travelDistanceM: 5000 }])
   expect(out[1].legMode).toBeUndefined()
   expect(out[1].travelMinToNext).toBeNull()
+  expect(out[1].travelDistanceToNext).toBeNull()
   expect(out[1].legManualNext).toBeUndefined()
 })

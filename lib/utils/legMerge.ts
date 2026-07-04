@@ -3,7 +3,7 @@ import type { ScheduledPlace, LegDefault } from '@/lib/types'
 export function legMerge(places: ScheduledPlace[], legPlan: LegDefault[]): ScheduledPlace[] {
   return places.map((p, i) => {
     if (i === places.length - 1) {
-      return { ...p, legMode: undefined, travelMinToNext: null, legManualNext: undefined }
+      return { ...p, legMode: undefined, travelMinToNext: null, travelDistanceToNext: null, legManualNext: undefined }
     }
     const next = places[i + 1]
     // 手動段且相鄰未變 → 保留（同一對站 → 距離時間不變）
@@ -11,6 +11,6 @@ export function legMerge(places: ScheduledPlace[], legPlan: LegDefault[]): Sched
       return p
     }
     const def = legPlan[i]
-    return { ...p, legMode: def.legMode, travelMinToNext: def.travelMin, legManualNext: undefined }
+    return { ...p, legMode: def.legMode, travelMinToNext: def.travelMin, travelDistanceToNext: def.travelDistanceM ?? null, legManualNext: undefined }
   })
 }

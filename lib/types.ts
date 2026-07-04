@@ -22,6 +22,7 @@ export interface ScheduledPlace extends Place {
   startTime: string         // "HH:MM" 24h
   durationMin: number       // minutes
   travelMinToNext: number | null  // null for last place of the day
+  travelDistanceToNext?: number | null  // 到下一站的路程距離(公尺);null/undefined = 未知
   aiDescription: string | null
   outsideHours: boolean     // true → show orange warning
   lateExit: boolean         // startTime + durationMin exceeds today's closing time
@@ -82,11 +83,13 @@ export interface Source {
 export interface DistanceMatrix {
   indices: string[]         // place IDs in order
   matrix: number[][]        // matrix[i][j] = seconds from i to j
+  distances?: number[][]    // distances[i][j] = 公尺 from i to j(Google 路程,fallback haversine 直線)
 }
 
 export interface LegDefault {
   legMode: TransportMode
   travelMin: number
+  travelDistanceM?: number  // 路程距離(公尺)
 }
 
 export interface DayArrangeInputs {

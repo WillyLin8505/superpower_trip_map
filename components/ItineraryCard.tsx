@@ -173,7 +173,7 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
       {place.travelMinToNext !== null && (
         <div className="text-xs text-gray-400 mt-3 pl-10 flex items-center gap-2 flex-wrap">
           <span>
-            &#x2192; {LEG_META[place.legMode ?? 'driving'].icon} {LEG_META[place.legMode ?? 'driving'].label} {place.travelMinToNext} 分
+            &#x2192; {LEG_META[place.legMode ?? 'driving'].icon} {LEG_META[place.legMode ?? 'driving'].label} {place.travelMinToNext} 分{place.travelDistanceToNext != null ? ` · ${(place.travelDistanceToNext / 1000).toFixed(1)} 公里` : ''}
           </span>
           {onChangeLegMode && (
             legBusy ? (

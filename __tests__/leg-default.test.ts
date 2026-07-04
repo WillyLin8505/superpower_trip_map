@@ -11,13 +11,18 @@ it('haversineSeconds equals round(meters / 1.4) — behavior unchanged', () => {
   const a = { lat: 25.03, lng: 121.56 }, b = { lat: 25.04, lng: 121.57 }
   expect(haversineSeconds(a, b)).toBe(Math.round(haversineMeters(a, b) / 1.4))
 })
-it('pickLegDefault: <=500m → walking', () => {
-  expect(pickLegDefault(400, 10, 20, 8)).toEqual({ legMode: 'walking', travelMin: 8 })
+const D = (min: number, distM: number) => ({ min, distM })
+it('pickLegDefault: <=500m → walking (carries walking distance)', () => {
+  expect(pickLegDefault(400, D(10, 5000), D(20, 6000), D(8, 350)))
+    .toEqual({ legMode: 'walking', travelMin: 8, travelDistanceM: 350 })
 })
-it('pickLegDefault: >500m → faster of driving/transit', () => {
-  expect(pickLegDefault(600, 10, 20, 40)).toEqual({ legMode: 'driving', travelMin: 10 })
-  expect(pickLegDefault(600, 25, 12, 40)).toEqual({ legMode: 'transit', travelMin: 12 })
+it('pickLegDefault: >500m → faster of driving/transit (carries its distance)', () => {
+  expect(pickLegDefault(600, D(10, 5000), D(20, 6000), D(40, 800)))
+    .toEqual({ legMode: 'driving', travelMin: 10, travelDistanceM: 5000 })
+  expect(pickLegDefault(600, D(25, 5000), D(12, 6000), D(40, 800)))
+    .toEqual({ legMode: 'transit', travelMin: 12, travelDistanceM: 6000 })
 })
 it('pickLegDefault: >500m tie → driving wins (deterministic)', () => {
-  expect(pickLegDefault(600, 15, 15, 40)).toEqual({ legMode: 'driving', travelMin: 15 })
+  expect(pickLegDefault(600, D(15, 5000), D(15, 6000), D(40, 800)))
+    .toEqual({ legMode: 'driving', travelMin: 15, travelDistanceM: 5000 })
 })

@@ -17,7 +17,7 @@ import {
 import type { PlanResult, ScheduledPlace, Place, PlaceType, TransportMode, RecommendationsByDay, DayRecommendation } from '@/lib/types'
 import { recalcPlan } from '@/lib/utils/clientScheduler'
 import { daysBetween, dayDate } from '@/lib/utils/date'
-import { legDuration, computeLegPlan } from '@/app/actions/legs'
+import { legInfo, computeLegPlan } from '@/app/actions/legs'
 import { legMerge } from '@/lib/utils/legMerge'
 import { ItineraryDay } from '@/components/ItineraryDay'
 import { ItineraryCard } from '@/components/ItineraryCard'
@@ -179,12 +179,12 @@ export function ItineraryClient({ initial }: Props) {
     setLegError(null)
     setLegBusy({ dayIdx, placeId })
     try {
-      const min = await legDuration(day.places[idx], next, mode)
+      const { travelMin, travelDistanceM } = await legInfo(day.places[idx], next, mode)
       const newDays = planRef.current.days.map((d, i) =>
         i !== dayIdx ? d : {
           ...d,
           places: d.places.map((p) =>
-            p.id === placeId ? { ...p, legMode: mode, travelMinToNext: min, legManualNext: next.id } : p
+            p.id === placeId ? { ...p, legMode: mode, travelMinToNext: travelMin, travelDistanceToNext: travelDistanceM, legManualNext: next.id } : p
           ),
         }
       )

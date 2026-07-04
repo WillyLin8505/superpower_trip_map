@@ -9,6 +9,9 @@ import { dayDate } from '@/lib/utils/date'
 function legMin(m: DistanceMatrix, i: number): number {
   return Math.round((m.matrix[i]?.[i + 1] ?? 0) / 60)
 }
+function legDistM(m: DistanceMatrix, i: number): number {
+  return Math.round(m.distances?.[i]?.[i + 1] ?? 0)
+}
 
 export async function computeLegPlan(orderedPlaces: Place[]): Promise<LegDefault[]> {
   const n = orderedPlaces.length
@@ -21,14 +24,24 @@ export async function computeLegPlan(orderedPlaces: Place[]): Promise<LegDefault
   const out: LegDefault[] = []
   for (let i = 0; i < n - 1; i++) {
     const dist = haversineMeters(orderedPlaces[i], orderedPlaces[i + 1])
-    out.push(pickLegDefault(dist, legMin(driving, i), legMin(transit, i), legMin(walking, i)))
+    out.push(pickLegDefault(
+      dist,
+      { min: legMin(driving, i), distM: legDistM(driving, i) },
+      { min: legMin(transit, i), distM: legDistM(transit, i) },
+      { min: legMin(walking, i), distM: legDistM(walking, i) },
+    ))
   }
   return out
 }
 
-export async function legDuration(origin: Place, dest: Place, mode: TransportMode): Promise<number> {
+export async function legInfo(
+  origin: Place, dest: Place, mode: TransportMode
+): Promise<{ travelMin: number; travelDistanceM: number }> {
   const m = await buildDistanceMatrix([origin, dest], mode)
-  return Math.round((m.matrix[0]?.[1] ?? 0) / 60)
+  return {
+    travelMin: Math.round((m.matrix[0]?.[1] ?? 0) / 60),
+    travelDistanceM: Math.round(m.distances?.[0]?.[1] ?? 0),
+  }
 }
 
 export async function applyLegDefaults(
@@ -40,8 +53,8 @@ export async function applyLegDefaults(
       const legPlan = await computeLegPlan(day.places)
       const places = day.places.map((p, i) =>
         i < day.places.length - 1
-          ? { ...p, legMode: legPlan[i].legMode, travelMinToNext: legPlan[i].travelMin }
-          : { ...p, legMode: undefined, travelMinToNext: null }
+          ? { ...p, legMode: legPlan[i].legMode, travelMinToNext: legPlan[i].travelMin, travelDistanceToNext: legPlan[i].travelDistanceM ?? null }
+          : { ...p, legMode: undefined, travelMinToNext: null, travelDistanceToNext: null }
       )
       return recalcDay({ ...day, places }, dayDate(startDate, day.day))
     })

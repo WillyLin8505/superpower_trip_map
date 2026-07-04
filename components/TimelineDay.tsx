@@ -107,7 +107,7 @@ export function TimelineDay({ day, dayIdx, mode, startDate, isDragging, draggabl
                     {cl.travelMin > 0 && (
                       <div className="relative flex items-center justify-center" style={{ height: `${cl.travelGapPx}px` }} data-testid={`travel-gap-${place.id}`}>
                         <div className="absolute inset-x-4 border-t border-dashed border-gray-300" />
-                        <span className="relative bg-white px-2 text-xs text-gray-400">&#x2192; {cl.travelMin} 分鐘</span>
+                        <span className="relative bg-white px-2 text-xs text-gray-400">&#x2192; {cl.travelMin} 分鐘{place.travelDistanceToNext != null ? ` · ${(place.travelDistanceToNext / 1000).toFixed(1)} 公里` : ''}</span>
                       </div>
                     )}
                   </div>
