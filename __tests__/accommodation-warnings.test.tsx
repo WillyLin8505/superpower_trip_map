@@ -48,6 +48,22 @@ it('accommodation has no suggested duration → never warns 少於/超過', () =
   rerender(<ItineraryCard place={sp('H', 'accommodation', { durationMin: 600 })} index={0} dateIso="2026-06-30" />)
   expect(screen.queryByText(/停留少於建議|停留超過建議/)).not.toBeInTheDocument()
 })
+it('warns 超出當天活動時間 when a place ends after dayEnd', () => {
+  render(<ItineraryCard place={sp('A', 'attraction', { startTime: '20:00', durationMin: 120 })} index={0} dateIso="2026-06-30" dayEnd="21:00" />)
+  expect(screen.getByText(/超出當天活動時間/)).toBeInTheDocument()
+})
+it('does not warn 超出當天活動時間 when a place ends within dayEnd', () => {
+  render(<ItineraryCard place={sp('A', 'attraction', { startTime: '19:00', durationMin: 120 })} index={0} dateIso="2026-06-30" dayEnd="21:00" />)
+  expect(screen.queryByText(/超出當天活動時間/)).not.toBeInTheDocument()
+})
+it('does not warn 超出當天活動時間 when a place ends exactly at dayEnd', () => {
+  render(<ItineraryCard place={sp('A', 'accommodation', { startTime: '20:00', durationMin: 60 })} index={0} dateIso="2026-06-30" dayEnd="21:00" />)
+  expect(screen.queryByText(/超出當天活動時間/)).not.toBeInTheDocument()
+})
+it('does not warn 超出當天活動時間 when dayEnd is not provided', () => {
+  render(<ItineraryCard place={sp('A', 'attraction', { startTime: '20:00', durationMin: 120 })} index={0} dateIso="2026-06-30" />)
+  expect(screen.queryByText(/超出當天活動時間/)).not.toBeInTheDocument()
+})
 it('renders a 刪除地點 button that calls onDeletePlace with the place id', () => {
   const onDeletePlace = jest.fn()
   render(<ItineraryCard place={sp('A', 'attraction')} index={0} dateIso="2026-06-30" onDeletePlace={onDeletePlace} />)

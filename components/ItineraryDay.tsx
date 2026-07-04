@@ -163,6 +163,7 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
                     onChangeLegMode={onChangeLegMode}
                     legBusy={legBusyPlaceId === place.id}
                     onDeletePlace={onDeletePlace}
+                    dayEnd={day.dayEnd}
                   />
                   {fb && (
                     <div

@@ -25,9 +25,10 @@ interface Props {
   onChangeLegMode?: (placeId: string, mode: TransportMode) => void
   legBusy?: boolean
   onDeletePlace?: (placeId: string) => void
+  dayEnd?: string
 }
 
-export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onChangeLegMode, legBusy, onDeletePlace }: Props) {
+export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onChangeLegMode, legBusy, onDeletePlace, dayEnd }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: place.id, disabled: !draggable || place.startLocked })
 
@@ -137,6 +138,9 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
             )
             return null
           })()}
+          {dayEnd && toMin(place.startTime) + place.durationMin > toMin(dayEnd) && (
+            <p className="text-xs text-orange-600 font-medium mt-1">&#x26A0; 超出當天活動時間（活動至 {dayEnd}）</p>
+          )}
           {place.type === 'accommodation' && toMin(place.startTime) < 15 * 60 && (
             <p className="text-xs text-orange-600 font-medium mt-1">&#x26A0; 早於一般 check-in 時間（15:00）</p>
           )}
