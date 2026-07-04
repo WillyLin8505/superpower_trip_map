@@ -561,9 +561,10 @@ Mode: subagent-driven. Pure-visual restyle (溫暖旅誌 → itinerary page). Co
 ## Tasks
 - [x] Task 1: 設計 token 打底（fonts + tailwind theme + globals）
 - [x] Task 2: 類別色 + ItineraryCard（+ 3 測試斷言）
-- [ ] Task 3: ItineraryDay 襯線標題 + 控制列收色
+- [x] Task 3: ItineraryDay 襯線標題 + 控制列收色
 - [ ] Task 4: 共用元件 token 化 + 按鈕語言
 - [ ] Task 5（可延後）: 自動排程卡片進場動效
 
 Task 1: complete (27641d6, review=controller-verified — exact-spec transcription; jest 401/401, next build clean, grep bg-background=0, browse body #FBF7F0 + Noto Sans TC). NOTE: first implementer died on session limit post-edit pre-commit; controller confirmed files==plan then gated+committed.
 Task 2: complete (6ff62a7..79a8b6a, review clean — ✅ Approved: exact class mappings, accent token cascades color-only, 3 assertions test real behavior, no blue residue, 401/401 + build green). Minor(final-review): 2 stale test NAMES still say 'purple/pink'. NOTE: live-server /itinerary visual deferred to end-of-plan clean pass (dev-server port/cold-compile flakiness; jsdom RTL asserts the new classes so component output is verified).
+Task 3: complete (776fb69..e9c7e47, review clean — ✅ Approved, no issues; 13 lines className-only, serif day header, zero blue/gray/orange residue, 401/401 + build green). ⚠→controller visual: 散到其他天→warn-family, 整天鎖 hover→bg-paper (both token-valid, folded into end-of-plan visual pass).
