@@ -14,8 +14,8 @@ create policy "participant_select_candidates" on public.trip_candidates
   for select using (public.is_trip_participant(trip_id));
 create policy "participant_insert_candidates" on public.trip_candidates
   for insert with check (public.is_trip_participant(trip_id) and added_by = auth.uid());
-create policy "adder_or_owner_delete_candidates" on public.trip_candidates
-  for delete using (
-    added_by = auth.uid()
-    or exists (select 1 from public.trips where id = trip_id and owner_id = auth.uid())
-  );
+-- 共享候選池：任何目前的 participant 都能移除任一候選（含把候選放進某天的 move 語義）。
+-- participant 檢查同時擋掉「已被移出 trip 的前成員仍能刪自己加的候選」漏洞，
+-- 並讓 CandidatePanel 對所有候選顯示的「移除／放進」對每個成員都真正生效（不會靜默失敗）。
+create policy "participant_delete_candidates" on public.trip_candidates
+  for delete using (public.is_trip_participant(trip_id));
