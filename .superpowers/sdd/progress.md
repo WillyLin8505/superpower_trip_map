@@ -495,3 +495,26 @@ EXECUTED INLINE (controller, context-limited): both changes are tiny verbatim-fr
 - (A) clientScheduler.ts: extendLastAccommodation helper applied at both recalcDay returns (last accommodation, !durationLocked, arrival<dayEnd → durationMin=dayEnd−arrival). Removes trailing free-time pill (remaining→0). Respects lock + arrival≥dayEnd edge.
 - (B) ItineraryCard.tsx: derived warning「⚠ 早於一般 check-in 時間（15:00）」when type=accommodation && startTime<15:00.
 - 7/7 new tests (extend-accommodation 4, itinerary-card-checkin 3); full suite 316/316; build clean. No existing tests broke.
+
+## Final Review (accommodation-card-refinements, 4c2e3fe..c2fac3e)
+- Whole-branch review (opus, independent) — Verdict: **Ready to merge — no Critical/Important.**
+- Verified: (A) extendLastAccommodation wraps BOTH recalcDay return paths but only one executes per call → no double-apply; per-day dayEnd keying correct (read inside recalcDay, recalcPlan .map); duration math dayEndMin−startMin → freeTime remaining=0 so trailing pill vanishes (freeTime.ts untouched); accommodation is last stop so no downstream re-time corruption; all guards present (empty/non-accom/durationLocked/startMin≥dayEndMin), immutable returns. (B) pure-derived, 15:00 threshold correct, no collision with lateExit/below-DWELL warnings. Constraints honored: strict TS, no any, no new pkgs, TC copy, only the 2 allowed source files touched. No existing accommodation/free-time/scheduler test went stale (reviewer checked free-time, itinerary-day-free-time, client-scheduler, accommodation-warnings, schedule-accommodation).
+- Minors (non-blocking, logged): (1) lateExit computed pre-extension in applyWarnings, not refreshed after duration rewrite — LATENT ONLY (accommodations have openingHours:null → checkLateExit returns false); (2) lock-path wrap (clientScheduler.ts:105) untested — all 4 extend tests hit the no-lock branch → suggested fast-follow test; (3) helper also pins an over-long unlocked accommodation back to dayEnd (spec §2 貼回 dayEnd intended) — name reads extend-only, consider rename/comment; (4) 3rd private toMin (clientScheduler/freeTime/ItineraryCard) — DRY-forbidden by "only 2 files" constraint, plan-sanctioned, not a defect.
+- Final commit: c2fac3e (already pushed to origin/main). Lane A remains ROADMAP COMPLETE.
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-07-03-laneC-c2-sharing-membership.md (+ C1 auth-persistence)
+Branch: lane/c1-auth-persistence (C1+C2) → merged to main
+
+## Ship to main (merge 8936653)
+- Merged Lane C spine (C1 auth+persistence + C2 sharing+members) into main via --no-ff.
+- Base had diverged: main +43 / lane +28 commits. Single content conflict: app/itinerary/ItineraryClient.tsx.
+- Conflict resolved additively — kept Lane A (AiRearrangeInput import + recs mount effect + commitRecs) AND Lane C (trips actions import + onSave/autosave/onRetry save UI). Shared state decls auto-merged.
+- Post-merge dep install: main worktree lacked @supabase/ssr / @supabase/supabase-js (were in merged package.json); npm install fixed 9 suite load failures.
+- Merge test fixes: (1) itinerary-client-ai-rearrange.test.tsx (Lane-A-only, missed Lane C's auto-merged mock updates) — added next/navigation + trips mocks now that ItineraryClient uses useRouter/saveTrip; (2) itinerary-client-save.test.tsx — removed stale @/components/RecommendPanel mock (component no longer exists on main).
+- Gate on merged tree: 373 tests pass (83 suites), next lint clean, next build passes (all Lane C + Lane A routes).
+- Pushed origin/main c2fac3e..8936653 (deploy triggered). Roadmap C1/C2 → SHIPPED.
+- Outstanding: live Supabase/OAuth (Google + LINE) verification pending prod keys.
+- Not cleaned up (intentional): lane/c1-auth-persistence, lane/c2-sharing, lane/c3-candidate-pool branches + sibling worktrees retained — C3 builds on C1/C2.
