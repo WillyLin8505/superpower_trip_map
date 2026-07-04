@@ -36,7 +36,7 @@ const BASE: ScheduledPlace = {
 
 it('renders accommodation card with purple background', () => {
   render(<ItineraryCard place={{ ...BASE, type: 'accommodation' }} index={0} dateIso="2026-06-30" />)
-  expect(screen.getByTestId('card-p1').className).toContain('bg-purple-50')
+  expect(screen.getByTestId('card-p1').className).toContain('border-l-lodging')
 })
 
 it('clicking the badge and picking a type calls onChangeType with the selected type', () => {
