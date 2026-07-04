@@ -364,3 +364,20 @@ Task 6: complete (commits 9c3b01f..7c0f2f7 + fix a124118, review clean after fix
   Important FIXED (commit a124118): structural branch never cleared legError → banner persisted through later successful recalcs; added setLegError(null) at try entry. 254/254 green.
   Minor (accepted): async 2s debounce callback can setState after unmount (benign React 18; window now ~2s+RTT). LEG_META per-render (Task 5).
   Final-review ⚠️ to check: ItineraryCard aria-label/labels exist (Task 5 ✓); no standalone handleDeletePlace with non-structural scheduleRecalc.
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-07-04-laneC-c3-candidate-pool.md
+Branch: lane/c3-candidate-pool (stacked on lane/c1-auth-persistence = C1+C2); BASE: 48f1c90
+Mode: subagent-driven, code-first (live Supabase verify deferred)
+
+## Tasks
+- [x] Task 1: candidate pool migration (0003)
+- [ ] Task 2: Candidate type + candidates actions
+- [ ] Task 3: CandidatePanel component
+- [ ] Task 4: ItineraryClient integration (state + promote + panel)
+- [ ] Task 5: wire /itinerary/[tripId] page
+- [ ] Task 6: roadmap + full gate
+
+Task 1: complete (commit 4c42230, migration 0003_candidates.sql — code-first, no unit test)
