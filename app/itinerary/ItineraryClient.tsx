@@ -601,9 +601,9 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
   return (
     <main className="max-w-5xl mx-auto px-4 py-10">
       <div className="flex items-center justify-between mb-6">
-        <a href="/" className="text-blue-600 text-sm inline-block">&#x2190; 重新規劃</a>
+        <a href="/" className="text-clay text-sm inline-block">&#x2190; 重新規劃</a>
         {tripId ? (
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-muted">
             {saveState === 'saving' && '儲存中…'}
             {saveState === 'saved' && '已儲存'}
             {saveState === 'error' && (
@@ -617,7 +617,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
           </span>
         ) : (
           <span className="flex flex-col items-end gap-1">
-            <button onClick={onSave} className="text-sm border rounded px-3 py-1 hover:bg-gray-50">
+            <button onClick={onSave} className="text-sm border border-clay text-clay-deep rounded-md px-3 py-1 hover:bg-clay-tint">
               儲存行程
             </button>
             {saveState === 'error' && (
@@ -628,19 +628,19 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
       </div>
       <section className="mb-6 flex flex-wrap items-end gap-4">
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-gray-500">開始日期</span>
+          <span className="text-xs text-muted">開始日期</span>
           <input type="date" data-testid="trip-start-date" value={plan.startDate}
             onChange={(e) => handleChangeStartDate(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+            className="border border-border rounded-lg px-3 py-1.5 text-sm" />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-gray-500">結束日期</span>
+          <span className="text-xs text-muted">結束日期</span>
           <input type="date" data-testid="trip-end-date" min={plan.startDate}
             value={dayDate(plan.startDate, plan.days.length)}
             onChange={(e) => handleChangeEndDate(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+            className="border border-border rounded-lg px-3 py-1.5 text-sm" />
         </label>
-        <span className="text-sm text-gray-600 pb-1.5">共 {plan.days.length} 天</span>
+        <span className="text-sm text-muted pb-1.5">共 {plan.days.length} 天</span>
       </section>
       {overCount > 0 && (
         <div className="mb-4 px-4 py-2 rounded-lg bg-orange-50 border border-orange-200 text-sm text-orange-700">
@@ -648,7 +648,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
         </div>
       )}
       <section className="mb-6 space-y-3">
-        <h2 className="text-sm font-semibold text-gray-700">新增行程</h2>
+        <h2 className="text-sm font-semibold text-ink">新增行程</h2>
         <CombinedInput onAdd={handleAddPlace} onAddPlaces={handleAddPlaces} />
       </section>
       {tripId && (

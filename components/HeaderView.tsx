@@ -6,8 +6,8 @@ interface Props {
 
 export function HeaderView({ user }: Props) {
   return (
-    <header className="border-b px-4 py-2 flex items-center justify-between">
-      <Link href="/" className="font-semibold">行程規劃</Link>
+    <header className="border-b border-border px-4 py-2 flex items-center justify-between">
+      <Link href="/" className="font-display text-lg font-semibold text-ink">行程規劃</Link>
       {user ? (
         <div className="flex items-center gap-3 text-sm">
           <Link href="/trips" className="hover:underline">我的行程</Link>

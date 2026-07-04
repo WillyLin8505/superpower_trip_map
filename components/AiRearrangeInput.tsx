@@ -62,7 +62,7 @@ export function AiRearrangeInput({ plan, onApply }: Props) {
           rows={2}
         />
         <button type="button" onClick={submit} disabled={loading || !text.trim()}
-          className="px-3 py-1 rounded-full border border-blue-300 text-blue-700 hover:bg-blue-50 disabled:opacity-40 self-start">
+          className="px-3 py-1 rounded-full border border-clay/40 text-clay-deep hover:bg-clay-tint disabled:opacity-40 self-start">
           {loading ? 'AI 重排中…' : '重排'}
         </button>
       </div>
@@ -91,7 +91,7 @@ export function AiRearrangeInput({ plan, onApply }: Props) {
           )}
           <div className="flex gap-2 mt-2">
             <button type="button" onClick={applyAll}
-              className="px-3 py-1 rounded-full bg-blue-600 text-white text-sm hover:bg-blue-700">一鍵同意全部</button>
+              className="px-3 py-1 rounded-full bg-clay text-white text-sm hover:bg-clay-deep">一鍵同意全部</button>
             <button type="button" onClick={cancel}
               className="px-3 py-1 rounded-full border border-gray-300 text-gray-600 text-sm hover:bg-gray-100">取消</button>
           </div>
