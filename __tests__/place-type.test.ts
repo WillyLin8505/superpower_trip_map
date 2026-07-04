@@ -1,4 +1,4 @@
-import { inferType, validateType, TYPE_META, DWELL, PLACE_TYPES } from '@/lib/placeType'
+import { inferType, validateType, TYPE_META, DWELL, PLACE_TYPES, SUGGESTED_DURATION } from '@/lib/placeType'
 
 describe('inferType', () => {
   it('detects accommodation keywords', () => {
@@ -31,5 +31,11 @@ describe('type maps', () => {
       expect(TYPE_META[t]).toBeDefined()
       expect(typeof DWELL[t]).toBe('number')
     }
+  })
+  it('SUGGESTED_DURATION is 景點120/餐廳90/甜點60 and excludes accommodation', () => {
+    expect(SUGGESTED_DURATION.attraction).toBe(120)
+    expect(SUGGESTED_DURATION.restaurant).toBe(90)
+    expect(SUGGESTED_DURATION.dessert).toBe(60)
+    expect(SUGGESTED_DURATION.accommodation).toBeUndefined()
   })
 })

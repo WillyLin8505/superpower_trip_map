@@ -23,12 +23,28 @@ it('day with an accommodation card does NOT warn', () => {
   render(<ItineraryDay day={day([sp('A', 'attraction'), sp('H', 'accommodation')])} dayIdx={0} mode="driving" startDate="2026-06-28" isLastDay={false} />)
   expect(screen.queryByText(/這天沒有住宿/)).not.toBeInTheDocument()
 })
-it('card warns when durationMin is below the suggested DWELL', () => {
-  // attraction DWELL = 90; 60 < 90 → warn
-  render(<ItineraryCard place={sp('A', 'attraction', { durationMin: 60 })} index={0} dateIso="2026-06-30" />)
-  expect(screen.getByText(/停留少於建議/)).toBeInTheDocument()
-})
-it('card does not warn when durationMin meets the suggested DWELL', () => {
+// 建議停留(SUGGESTED_DURATION):景點 120 / 餐廳 90 / 甜點 60 / 住宿=無
+it('card warns 少於建議 when attraction duration is below suggested (120)', () => {
   render(<ItineraryCard place={sp('A', 'attraction', { durationMin: 90 })} index={0} dateIso="2026-06-30" />)
-  expect(screen.queryByText(/停留少於建議/)).not.toBeInTheDocument()
+  expect(screen.getByText(/停留少於建議（建議 120 分）/)).toBeInTheDocument()
+})
+it('card warns 超過建議 when attraction duration exceeds suggested (120)', () => {
+  render(<ItineraryCard place={sp('A', 'attraction', { durationMin: 180 })} index={0} dateIso="2026-06-30" />)
+  expect(screen.getByText(/停留超過建議（建議 120 分）/)).toBeInTheDocument()
+})
+it('card does not warn when attraction duration exactly meets suggested (120)', () => {
+  render(<ItineraryCard place={sp('A', 'attraction', { durationMin: 120 })} index={0} dateIso="2026-06-30" />)
+  expect(screen.queryByText(/停留少於建議|停留超過建議/)).not.toBeInTheDocument()
+})
+it('restaurant suggested is 90: warns below and above', () => {
+  const { rerender } = render(<ItineraryCard place={sp('R', 'restaurant', { durationMin: 60 })} index={0} dateIso="2026-06-30" />)
+  expect(screen.getByText(/停留少於建議（建議 90 分）/)).toBeInTheDocument()
+  rerender(<ItineraryCard place={sp('R', 'restaurant', { durationMin: 120 })} index={0} dateIso="2026-06-30" />)
+  expect(screen.getByText(/停留超過建議（建議 90 分）/)).toBeInTheDocument()
+})
+it('accommodation has no suggested duration → never warns 少於/超過', () => {
+  const { rerender } = render(<ItineraryCard place={sp('H', 'accommodation', { durationMin: 10 })} index={0} dateIso="2026-06-30" />)
+  expect(screen.queryByText(/停留少於建議|停留超過建議/)).not.toBeInTheDocument()
+  rerender(<ItineraryCard place={sp('H', 'accommodation', { durationMin: 600 })} index={0} dateIso="2026-06-30" />)
+  expect(screen.queryByText(/停留少於建議|停留超過建議/)).not.toBeInTheDocument()
 })

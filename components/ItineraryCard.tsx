@@ -6,7 +6,7 @@ import { TypePicker } from './TypePicker'
 import { getHoursForDate } from '@/lib/utils/hours'
 import { addMinutes } from '@/lib/utils/time'
 import type { PlaceType, ScheduledPlace, TransportMode } from '@/lib/types'
-import { DWELL, TYPE_META } from '@/lib/placeType'
+import { SUGGESTED_DURATION, TYPE_META } from '@/lib/placeType'
 
 function toMin(t: string): number {
   const [h, m] = t.split(':').map(Number)
@@ -117,9 +117,17 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
           {place.lateExit && (
             <p className="text-xs text-orange-600 font-medium mt-1">&#x26A0; 結束時間超出營業時間</p>
           )}
-          {place.durationMin < DWELL[place.type] && (
-            <p className="text-xs text-orange-600 font-medium mt-1">&#x26A0; 停留少於建議（建議 {DWELL[place.type]} 分）</p>
-          )}
+          {(() => {
+            const suggested = SUGGESTED_DURATION[place.type]
+            if (suggested === undefined) return null
+            if (place.durationMin < suggested) return (
+              <p className="text-xs text-orange-600 font-medium mt-1">&#x26A0; 停留少於建議（建議 {suggested} 分）</p>
+            )
+            if (place.durationMin > suggested) return (
+              <p className="text-xs text-orange-600 font-medium mt-1">&#x26A0; 停留超過建議（建議 {suggested} 分）</p>
+            )
+            return null
+          })()}
           {place.type === 'accommodation' && toMin(place.startTime) < 15 * 60 && (
             <p className="text-xs text-orange-600 font-medium mt-1">&#x26A0; 早於一般 check-in 時間（15:00）</p>
           )}

@@ -26,6 +26,15 @@ export const DWELL: Record<PlaceType, number> = {
   accommodation: 60,
 }
 
+// 建議停留時間（分鐘）— 卡片提醒基準,刻意與排程用的 DWELL 分離。
+// 住宿不設建議停留(不提醒)。未來改用每點真實停留時間,見
+// docs/superpowers/spikes/2026-07-04-per-place-visit-duration-sourcing.md
+export const SUGGESTED_DURATION: Partial<Record<PlaceType, number>> = {
+  attraction: 120,
+  restaurant: 90,
+  dessert: 60,
+}
+
 export function inferType(query: string): PlaceType {
   const q = query.toLowerCase()
   if (
