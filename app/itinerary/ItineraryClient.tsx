@@ -15,7 +15,7 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import type { PlanResult, ScheduledPlace, Place, PlaceType, TransportMode, RecommendationsByDay, DayRecommendation } from '@/lib/types'
+import type { PlanResult, ScheduledPlace, Place, PlaceType, TransportMode, RecommendationsByDay, DayRecommendation, Candidate } from '@/lib/types'
 import { recalcPlan } from '@/lib/utils/clientScheduler'
 import { daysBetween, dayDate } from '@/lib/utils/date'
 import { legDuration, computeLegPlan } from '@/app/actions/legs'
@@ -32,6 +32,8 @@ import { fetchDayArrangeInputs } from '@/app/actions/arrange'
 import { arrangeDayOrder } from '@/lib/utils/arrangeDay'
 import { AiRearrangeInput } from '@/components/AiRearrangeInput'
 import { createTrip, saveTrip } from '@/app/actions/trips'
+import { CandidatePanel } from '@/components/CandidatePanel'
+import { addCandidate, removeCandidate } from '@/app/actions/candidates'
 
 // pointerWithin is essential for multi-container: it checks where the pointer
 // physically is, not center-to-center distance (closestCenter favors the source container)
@@ -48,9 +50,10 @@ function renumberDays<T extends { day: number }>(days: T[]): T[] {
 interface Props {
   initial: PlanResult
   tripId?: string
+  initialCandidates?: Candidate[]
 }
 
-export function ItineraryClient({ initial, tripId }: Props) {
+export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Props) {
   const router = useRouter()
   const [plan, setPlan] = useState<PlanResult>(initial)
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -63,6 +66,7 @@ export function ItineraryClient({ initial, tripId }: Props) {
   const [legBusy, setLegBusy] = useState<{ dayIdx: number; placeId: string } | null>(null)
   const [legError, setLegError] = useState<string | null>(null)
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [candidates, setCandidates] = useState<Candidate[]>(initialCandidates)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const autosaveRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // planRef always tracks the latest committed plan (avoids stale closures in dnd-kit callbacks)
@@ -358,6 +362,46 @@ export function ItineraryClient({ initial, tripId }: Props) {
     scheduleRecalc(next, true)
   }, [scheduleRecalc])
 
+  // 加候選：先呼叫 action 取得 id，再樂觀加入本地池
+  const onAddCandidate = useCallback(async (place: Place) => {
+    if (!tripId) return
+    try {
+      const { id } = await addCandidate(tripId, place)
+      setCandidates((cs) => [...cs, { id, place, addedBy: 'me', addedByName: '你' }])
+    } catch { /* 靜默失敗（未登入/非participant/RLS）；候選不進池 */ }
+  }, [tripId])
+
+  const onAddCandidates = useCallback((places: Place[]) => {
+    places.forEach((p) => { void onAddCandidate(p) })
+  }, [onAddCandidate])
+
+  const onRemoveCandidate = useCallback(async (candidateId: string) => {
+    try {
+      await removeCandidate(candidateId)
+      setCandidates((cs) => cs.filter((c) => c.id !== candidateId))
+    } catch { /* 保留在池 */ }
+  }, [])
+
+  // 放進指定天（移動語義）：比照 handleAddPlace 建卡加到 dayIndex 末尾 → recalc/autosave → 從池移除
+  const handleAddCandidateToDay = useCallback((place: Place, dayIndex: number, candidateId: string) => {
+    const newPlace: ScheduledPlace = {
+      ...place,
+      startTime: '09:00',
+      durationMin: DWELL[place.type],
+      travelMinToNext: null,
+      aiDescription: null,
+      outsideHours: false,
+      lateExit: false,
+      startLocked: false,
+      durationLocked: false,
+    }
+    const newDays = planRef.current.days.map((d, i) =>
+      i === dayIndex ? { ...d, places: [...d.places, newPlace] } : d
+    )
+    scheduleRecalc({ ...planRef.current, days: newDays }, true)
+    void onRemoveCandidate(candidateId)
+  }, [scheduleRecalc, onRemoveCandidate])
+
   const buildExcludeIds = useCallback((): string[] => {
     const ids = new Set<string>()
     planRef.current.days.forEach((d) => d.places.forEach((p) => ids.add(p.placeId)))
@@ -607,6 +651,18 @@ export function ItineraryClient({ initial, tripId }: Props) {
         <h2 className="text-sm font-semibold text-gray-700">新增行程</h2>
         <CombinedInput onAdd={handleAddPlace} onAddPlaces={handleAddPlaces} />
       </section>
+      {tripId && (
+        <div className="mb-6">
+          <CandidatePanel
+            candidates={candidates}
+            dayCount={plan.days.length}
+            onAddPlace={onAddCandidate}
+            onAddPlaces={onAddCandidates}
+            onRemove={onRemoveCandidate}
+            onPromote={handleAddCandidateToDay}
+          />
+        </div>
+      )}
       <DndContext
         sensors={sensors}
         collisionDetection={multiContainerCollision}
