@@ -58,3 +58,10 @@ on it. The default remains Claude-drives / Codex-reviews.
 ### Single source of truth
 Both models review the same `git diff`. Don't paraphrase the change — point the reviewer at
 the diff so context never drifts between the two models.
+
+## Design System
+Always read `DESIGN.md` before making any visual or UI decision. Font choices, colors,
+spacing, radius, and motion are defined there (「溫暖旅誌」: warm paper `#FBF7F0` + clay
+primary `#C65D3B`, Fraunces + Noto Serif TC headers / Noto Sans TC body). North star:
+「規劃行程竟然這麼輕鬆」. Do not deviate without explicit user approval. In QA / design
+review, flag any code that doesn't match DESIGN.md. Rollout is itinerary-page-first.
