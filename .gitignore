@@ -37,3 +37,8 @@ next-env.d.ts
 .worktrees/
 
 .claude/worktrees/
+
+# tooling / test artifacts (not source)
+.codex/
+.mcp.json
+/test-results/
