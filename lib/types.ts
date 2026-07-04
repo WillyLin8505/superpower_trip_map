@@ -113,3 +113,10 @@ export interface TripMember {
   role: 'owner' | 'editor'
   isSelf: boolean
 }
+
+export interface Candidate {
+  id: string
+  place: Place
+  addedBy: string
+  addedByName: string
+}
