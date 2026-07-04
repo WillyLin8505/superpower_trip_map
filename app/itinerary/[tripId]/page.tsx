@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { getTrip } from '@/app/actions/trips'
 import { listMembers } from '@/app/actions/members'
+import { listCandidates } from '@/app/actions/candidates'
 import { createClient } from '@/lib/supabase/server'
 import { ItineraryClient } from '@/app/itinerary/ItineraryClient'
 import { MembersPanel } from '@/components/MembersPanel'
@@ -12,10 +13,11 @@ export default async function TripPage({ params }: { params: { tripId: string } 
   const { data: { user } } = await supabase.auth.getUser()
   const isOwner = user?.id === trip.ownerId
   const members = await listMembers(params.tripId)
+  const candidates = await listCandidates(params.tripId)
   return (
     <>
       <MembersPanel tripId={params.tripId} members={members} isOwner={isOwner} />
-      <ItineraryClient initial={trip.plan} tripId={params.tripId} />
+      <ItineraryClient initial={trip.plan} tripId={params.tripId} initialCandidates={candidates} />
     </>
   )
 }
