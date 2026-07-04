@@ -39,9 +39,10 @@ interface Props {
   arranging?: boolean
   onChangeLegMode?: (placeId: string, mode: TransportMode) => void
   legBusyPlaceId?: string | null
+  onDeletePlace?: (placeId: string) => void
 }
 
-export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, backfilling, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId }: Props) {
+export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, backfilling, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId, onDeletePlace }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
 
@@ -161,6 +162,7 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
                     onChangeType={onChangeType}
                     onChangeLegMode={onChangeLegMode}
                     legBusy={legBusyPlaceId === place.id}
+                    onDeletePlace={onDeletePlace}
                   />
                   {fb && (
                     <div

@@ -24,9 +24,10 @@ interface Props {
   onChangeType?: (placeId: string, type: PlaceType) => void
   onChangeLegMode?: (placeId: string, mode: TransportMode) => void
   legBusy?: boolean
+  onDeletePlace?: (placeId: string) => void
 }
 
-export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onChangeLegMode, legBusy }: Props) {
+export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onChangeLegMode, legBusy, onDeletePlace }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: place.id, disabled: !draggable || place.startLocked })
 
@@ -54,6 +55,14 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
       data-testid={`card-${place.id}`}
     >
       <div className="flex items-start gap-3">
+        {onDeletePlace && (
+          <button
+            type="button"
+            onClick={() => onDeletePlace(place.id)}
+            aria-label="刪除地點"
+            className="text-gray-300 hover:text-red-500 transition-colors mt-1 shrink-0 leading-none"
+          >&#x2715;</button>
+        )}
         {draggable && !place.startLocked && (
           <span
             {...attributes}

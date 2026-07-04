@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { ItineraryDay } from '@/components/ItineraryDay'
 import { ItineraryCard } from '@/components/ItineraryCard'
 import type { DayItinerary, ScheduledPlace } from '@/lib/types'
@@ -47,4 +47,14 @@ it('accommodation has no suggested duration → never warns 少於/超過', () =
   expect(screen.queryByText(/停留少於建議|停留超過建議/)).not.toBeInTheDocument()
   rerender(<ItineraryCard place={sp('H', 'accommodation', { durationMin: 600 })} index={0} dateIso="2026-06-30" />)
   expect(screen.queryByText(/停留少於建議|停留超過建議/)).not.toBeInTheDocument()
+})
+it('renders a 刪除地點 button that calls onDeletePlace with the place id', () => {
+  const onDeletePlace = jest.fn()
+  render(<ItineraryCard place={sp('A', 'attraction')} index={0} dateIso="2026-06-30" onDeletePlace={onDeletePlace} />)
+  fireEvent.click(screen.getByRole('button', { name: '刪除地點' }))
+  expect(onDeletePlace).toHaveBeenCalledWith('A')
+})
+it('does not render the delete button when onDeletePlace is absent', () => {
+  render(<ItineraryCard place={sp('A', 'attraction')} index={0} dateIso="2026-06-30" />)
+  expect(screen.queryByRole('button', { name: '刪除地點' })).not.toBeInTheDocument()
 })

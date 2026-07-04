@@ -428,6 +428,13 @@ export function ItineraryClient({ initial }: Props) {
     setPlan(recalced)
   }, [])
 
+  const handleDeletePlace = useCallback((dayIdx: number, placeId: string) => {
+    const newDays = planRef.current.days.map((d, i) =>
+      i === dayIdx ? { ...d, places: d.places.filter((p) => p.id !== placeId) } : d
+    )
+    scheduleRecalc({ ...planRef.current, days: newDays }, true)
+  }, [scheduleRecalc])
+
   const handleDeleteDay = useCallback((dayIdx: number) => {
     const next = renumberDays(planRef.current.days.filter((_, i) => i !== dayIdx))
     const recalced = recalcPlan({ ...planRef.current, days: next })
@@ -583,6 +590,7 @@ export function ItineraryClient({ initial }: Props) {
                 }}
                 onChangeLegMode={(placeId, mode) => handleChangeLegMode(dayIdx, placeId, mode)}
                 legBusyPlaceId={legBusy?.dayIdx === dayIdx ? legBusy.placeId : null}
+                onDeletePlace={(placeId) => handleDeletePlace(dayIdx, placeId)}
               />
             </SortableContext>
           ))}
