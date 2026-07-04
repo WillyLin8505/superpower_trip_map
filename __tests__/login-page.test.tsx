@@ -12,7 +12,11 @@ jest.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams('next=/trips'),
 }))
 
-beforeEach(() => { signInWithOAuth.mockClear() })
+beforeEach(() => {
+  signInWithOAuth.mockClear()
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://x.supabase.co'
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key'
+})
 
 it('renders Google + LINE buttons', () => {
   const LoginPage = require('@/app/login/page').default
@@ -40,6 +44,18 @@ it('LINE button calls signInWithOAuth with provider line', () => {
   expect(signInWithOAuth).toHaveBeenCalledWith(
     expect.objectContaining({ provider: 'line' }),
   )
+})
+
+it('degrades gracefully when Supabase is not configured: buttons disabled, no client call', () => {
+  delete process.env.NEXT_PUBLIC_SUPABASE_URL
+  delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const LoginPage = require('@/app/login/page').default
+  render(<LoginPage />)
+  const google = screen.getByRole('button', { name: '使用 Google 登入' })
+  expect(google).toBeDisabled()
+  fireEvent.click(google)
+  expect(signInWithOAuth).not.toHaveBeenCalled()
+  expect(screen.getByRole('alert')).toHaveTextContent('登入尚未設定')
 })
 
 it('open-redirect guard: malicious next (//evil.com) is rejected and defaults to /trips', () => {

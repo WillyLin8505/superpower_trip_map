@@ -12,8 +12,8 @@ Lane C 把目前**單機、單人、零持久化**的行程規劃器，演進成
 
 | 子專案 | 標題 | 狀態 | 依賴 |
 |--------|------|------|------|
-| **C1** | 登入 + 持久化地基 | **DONE** (branch: `lane/c1-auth-persistence`) | 無（地基） |
-| **C2** | 分享 + 成員（邀請連結 → 別人能加入同一趟 trip）| **DONE** (branch: `lane/c2-sharing`; live Supabase/OAuth verification pending keys) | C1 |
+| **C1** | 登入 + 持久化地基 | **SHIPPED** (merged to main `8936653`) | 無（地基） |
+| **C2** | 分享 + 成員（邀請連結 → 別人能加入同一趟 trip）| **SHIPPED** (merged to main `8936653`; live Supabase/OAuth verification pending keys) | C1 |
 | C3 | 共享候選池（append-only 口袋名單）| pending | C1 |
 | C4 | 候選池一鍵 `smart-arrange` 排程 | pending | C3 |
 | C5 | 即時並發共編 / 任務分工 / 變更牆（選配） | pending | C2, C3 |

@@ -1,9 +1,12 @@
 'use client'
+import { Fragment } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { ItineraryCard } from './ItineraryCard'
 import { buildDayEmbedUrl } from '@/lib/utils/mapUrl'
 import { dayDate, formatDateLabel } from '@/lib/utils/date'
-import type { DayItinerary, TransportMode, PlaceType } from '@/lib/types'
+import { DayRecommendations } from './DayRecommendations'
+import { freeBlocks, formatGap } from '@/lib/utils/freeTime'
+import type { DayItinerary, TransportMode, PlaceType, CategoryBuckets, DayRecommendation } from '@/lib/types'
 
 function toMin(t: string): number {
   const [h, m] = t.split(':').map(Number)
@@ -27,6 +30,9 @@ interface Props {
   onSetDayStartLock?: (locked: boolean) => void
   onSetDayDurationLock?: (locked: boolean) => void
   onChangeWindow?: (field: 'dayStart' | 'dayEnd', value: string) => void
+  recommendations?: CategoryBuckets
+  onAddRecommendation?: (rec: DayRecommendation) => void
+  backfilling?: Partial<Record<'dessert' | 'attraction' | 'restaurant', boolean>>
   isLastDay?: boolean
   onSmartArrange?: () => void
   onSetAvoid?: (field: 'avoidTraffic' | 'avoidCrowds', value: boolean) => void
@@ -35,7 +41,7 @@ interface Props {
   legBusyPlaceId?: string | null
 }
 
-export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId }: Props) {
+export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, backfilling, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
 
@@ -136,34 +142,63 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
           ref={setNodeRef}
           className={`flex-1 space-y-3 rounded-lg transition-colors min-h-[60px] ${isOver ? 'ring-2 ring-blue-400 bg-blue-50' : ''}`}
         >
-          {day.places.map((place, i) => (
-            <ItineraryCard
-              key={place.id}
-              place={place}
-              index={i}
-              dateIso={dayDate(startDate, day.day)}
-              draggable={draggable}
-              onTimeChange={onTimeChange}
-              onToggleStartLock={onToggleStartLock}
-              onToggleDurationLock={onToggleDurationLock}
-              onChangeType={onChangeType}
-              onChangeLegMode={onChangeLegMode}
-              legBusy={legBusyPlaceId === place.id}
-            />
-          ))}
+          {(() => {
+            const byAfter = new Map(
+              freeBlocks(day.places, toMin(day.dayEnd)).map((b) => [b.afterId, b] as const)
+            )
+            return day.places.map((place, i) => {
+              const fb = byAfter.get(place.id)
+              return (
+                <Fragment key={place.id}>
+                  <ItineraryCard
+                    place={place}
+                    index={i}
+                    dateIso={dayDate(startDate, day.day)}
+                    draggable={draggable}
+                    onTimeChange={onTimeChange}
+                    onToggleStartLock={onToggleStartLock}
+                    onToggleDurationLock={onToggleDurationLock}
+                    onChangeType={onChangeType}
+                    onChangeLegMode={onChangeLegMode}
+                    legBusy={legBusyPlaceId === place.id}
+                  />
+                  {fb && (
+                    <div
+                      data-testid={`free-block-${fb.afterId}`}
+                      className="text-xs text-gray-500 bg-gray-100 rounded-lg px-3 py-1.5 flex items-center gap-1"
+                    >
+                      &#x23F1; 空閒 {formatGap(fb.minutes)}{fb.untilTime ? `（到 ${fb.untilTime}）` : ''}
+                    </div>
+                  )}
+                </Fragment>
+              )
+            })
+          })()}
         </div>
-        {embedUrl && (
-          <div className="w-96 shrink-0 sticky top-4 rounded-xl overflow-hidden border border-gray-200">
-            <iframe
-              src={embedUrl}
-              width="100%"
-              height="500"
-              style={{ border: 0, pointerEvents: isDragging ? 'none' : 'auto' }}
-              loading="lazy"
-              allowFullScreen
-              referrerPolicy="no-referrer-when-downgrade"
-              title={`第 ${day.day} 天路線地圖`}
-            />
+        {(embedUrl || (recommendations && onAddRecommendation)) && (
+          <div className="w-96 shrink-0 sticky top-4">
+            {embedUrl && (
+              <div className="rounded-xl overflow-hidden border border-gray-200">
+                <iframe
+                  src={embedUrl}
+                  width="100%"
+                  height="500"
+                  style={{ border: 0, pointerEvents: isDragging ? 'none' : 'auto' }}
+                  loading="lazy"
+                  allowFullScreen
+                  referrerPolicy="no-referrer-when-downgrade"
+                  title={`第 ${day.day} 天路線地圖`}
+                />
+              </div>
+            )}
+            {recommendations && onAddRecommendation && (
+              <DayRecommendations
+                recommendations={recommendations}
+                dateIso={dayDate(startDate, day.day)}
+                onAdd={onAddRecommendation}
+                backfilling={backfilling}
+              />
+            )}
           </div>
         )}
       </div>

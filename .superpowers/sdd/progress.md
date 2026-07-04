@@ -282,6 +282,40 @@ Task 3: complete (85d5220..9907feb + fix 18895fd, review APPROVED after moving P
 Task 4: complete (18895fd..e5207f5 + fix 82a82ab, review APPROVED after onChangeType pass-through parity fix + test collision fix; Minor: empty-state placeholder is TimelineDay-only [spec §8], accepted)
 All 4 tasks complete. Proceeding to final whole-branch review.
 
+## Final whole-branch review
+- Verdict: MERGE WITH MINOR FOLLOW-UPS (opus). No blocking; parity faithful; Lane A can swap ItineraryDay<->TimelineDay with no prop changes.
+- Fix-now applied (commit 2aa7846): CardContent hours label 今日->營業 to match current ItineraryCard (keeps Lane A adoption a clean no-op).
+- Deferred Minors: toMin NaN guard; end-picker rawDur==0→1440 (verbatim from ItineraryCard); nativeEvent.clientY redundant; cardHeight math duplication (justified by live preview); empty-state placeholder (spec §8, intentional).
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-06-30-per-day-recommendations.md
+Branch: lane/ai-research; BASE: c14984e
+
+## Tasks
+Task 1: complete (c14984e..1f91a18, review clean — Spec ✅. ⚠️ resolved: Place.address is `string` so `?? ''` correct; places.ts:1 is 'use server'. Minors → final triage: no try/catch around fetch (consistent w/ existing searchPlace/getPlaceDetails), dessert keyword URL not asserted, null-photoUrl path not asserted)
+Task 2: complete (1f91a18..8daacf5 [impl e458208 + fix 8daacf5], review clean after fix — Critical empty-days guard added to assignToDays + test; Important dedupe stable-order test strengthened; Minor capBuckets all-3-categories test. 6/6 pass)
+Task 3: complete (8daacf5..2f7accc, review clean — Spec ✅, quality Approved. Impl cleaned brief's 2 no-op test lines (top-level mock aliases). ⚠️ resolved: capBuckets preserves order (slice), REC_CATEGORIES order confirmed Task 2. Minors → final triage: no try/catch around nearbySearch/getPlaceDetails in fill loop (client mount .catch degrades gracefully); per-category `have` rebuild wasteful but correct. 2/2 file + 206 suite pass)
+Task 4: complete (2f7accc..62d27bc, review clean — Spec ✅, Approved. Minor → final triage: Test 1 doesn't assert opening-hours/reason render (guarded correctly in impl). 2/2 pass)
+Task 5: complete (62d27bc..b7cc20b, review clean — Spec ✅, Approved, no findings. 3/3 pass)
+Task 6: complete (b7cc20b..7906a0c, review clean — Spec ✅, Approved. Both day components symmetric; iframe attrs preserved; border/rounding migrated to inner box. Minor → final triage: itinerary-day-recommend.test.tsx may lack trailing newline (final lint will catch). new + 6 regression pass)
+Task 7: complete (7906a0c..5345bbd, review clean — Spec ✅, Approved. Mount effect run-once+leak-safe; handleAddRecommendation carries all 9 Place fields + removes card across all categories; 5 existing ItineraryClient tests each +4/-4 mock-swap only (zero assertion changes); getRecommendations/RecommendPanel/RecommendCard fully removed, no dangling refs. Minor → final triage: itinerary-client-recommend test mock boilerplate (necessary). full suite 209 pass, lint clean.)
+
+All 7 tasks complete. Proceeding to final whole-branch review.
+
+## Final whole-branch review
+- Verdict: MERGE WITH FOLLOW-UPS (opus). E2E flow verified correct; no crashes, no key leaks; geographic assignment + website-first ordering sound.
+- Fix-now applied (commit ecb5af8, re-reviewed clean): (1) IMPORTANT cross-day dedup — trip-wide recommendedIds set so no placeId repeats across days/categories + new test; (2) per-day fill try/catch preserves partial results; (3) removed dead Recommendation interface. Full suite 210 pass, lint clean.
+- Deferred follow-ups (non-blocking): parallelize the serial fill loop (perf/quota); type nearbySearch `(r: any)` at places.ts:84 (warning-level, pre-existing); RecommendationCard test omits hours/reason assertions; itinerary-day-recommend test trailing newline. TimelineDay has recommendations parity wired but is not rendered in production yet (only ItineraryDay is).
+- Final commit: ecb5af8
+
+## Post-PR CI fix (Vercel build failure)
+- PR #1 Vercel deploy failed. Root cause reproduced locally via `next build` (which npm test / npm run lint did NOT surface):
+  1) app/actions/places.ts `(r: any)` → @typescript-eslint/no-explicit-any is a BUILD error under `next build`. Fixed with a NearbyPlaceResult interface.
+  2) app/actions/recommend.ts fill-loop `have` set spread `...existingIds`/`...recommendedIds` → Set spread needs downlevelIteration under project tsconfig target. Fixed with Array.from().
+- Both were masked because ts-jest compiles looser than `next build`. Lesson: run `next build` in verification, not just `npm test`.
+- Fix commit 97dc9a7 (pushed). Local: `next build` clean, 210 tests pass.
 ---
 
 # SDD Progress Ledger
@@ -365,11 +399,131 @@ Task 6: complete (commits 9c3b01f..7c0f2f7 + fix a124118, review clean after fix
   Minor (accepted): async 2s debounce callback can setState after unmount (benign React 18; window now ~2s+RTT). LEG_META per-render (Task 5).
   Final-review ⚠️ to check: ItineraryCard aria-label/labels exist (Task 5 ✓); no standalone handleDeletePlace with non-structural scheduleRecalc.
 
+## Final Review (#4)
+- Whole-branch review (4ab711d..a124118): Ready to merge — no Critical/Important/Minor
+- Verified: units consistent (matrix secs/threshold meters), haversineSeconds byte-identical, every structural mutation flags leg recompute, no single-place-delete handler skips it, applyLegDefaults-not-schedule.ts deviation sound, aria-label renders
+- 254/254 green + build clean; pushed 14c35a5..dfb58dd
+- NOTE: range also contains 2 non-#4 commits (Lane C auth+persistence docs: 9a54e0c design, 8b5d56c plan) committed to main during the cross-day gap — docs-only, no dependency change; not mine, left as-is
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-07-01-free-time-blocks.md
+Branch: main (Lane A); BASE: eaee19b
+
+## Tasks
+- [x] Task 1: 純函式 freeTime.ts（freeBlocks + formatGap）
+- [x] Task 2: ItineraryDay 穿插空閒 pill
+
+Task 1: complete (commits eaee19b..f8a3838, review clean — Spec ✅ + Approved no issues, 262/262 + build green; freeBlocks card-gap+day-end ≥15, formatGap 分/小時, pure)
+  NOTE: implementer subagent interrupted (session limit) after transcribing both files but before commit; controller verified content matches brief exactly + ran free-time/full-suite/build green, then committed. 8 it() blocks (brief Step 4 label "7" was a typo).
+Task 2: complete (commits f8a3838..b2ab21d, review clean — Spec ✅ + Approved, 265/265 + build green; ItineraryDay Fragment-wrapped card + conditional 空閒 pill; CRITICAL regression check PASS — all 10 card props intact, key moved to Fragment; pill is non-sortable sibling, no drag interference)
+  Minor (non-blocking): ⏱ as HTML entity vs literal (plan-mandated style match).
+
+## Final Review (#6)
+- Whole-branch review (eaee19b..b2ab21d): Ready to merge — no Critical/Important
+- Verified: idle math subtracts travel (genuine idle only), 15-min threshold both card-gap+day-end, all edge cases hold (overflow/single/empty/accommodation-last), drag SortableContext unaffected (pills non-sortable siblings, items by id list), map layout untouched, all 10 card props intact + key on Fragment, derived-only zero-migration, only ItineraryDay+freeTime touched (Lane C low-conflict honored)
+- Product nit (non-blocking, spec-conformant, user's call): day-end pill also shows after an accommodation last-card — could read oddly; possible follow-up to suppress
+- 265/265 green + build clean
+- Final commit: b2ab21d
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-07-02-ai-rearrange.md
+Branch: main (Lane A); BASE: 55b241f
+
+## Tasks
+- [x] Task 1: 純變動引擎 rearrangeChanges.ts（diffPlan + applyChanges）
+- [x] Task 2: 伺服器動作 rearrangeItinerary
+- [x] Task 3: 元件 AiRearrangeInput
+- [x] Task 4: 接上 ItineraryClient（最小改動）
+
+Task 1: complete (commits 55b241f..81f0b09, review clean — Spec ✅ verbatim + Approved no issues, 273/273 + build green; Change union move/duration/window, diffPlan, applyChanges subset-safe + no input mutation [places spread-cloned])
+Task 2: complete (commits 81f0b09..694b4df, review clean — Spec ✅ + Approved no issues, 278/278 + build green; rearrangeItinerary ref-prompt + callClaude + buildProposed ALL validation guards verified [ref 1..N perm, day count, HH:MM, dur>0, durationLocked kept], all failure paths → ok:false)
+Task 3: complete (commits 694b4df..d05d87b, review clean — Spec ✅ verbatim + Approved, 281/281 + build green; AiRearrangeInput input+loading+per-day change list+✗(immutable Set)+一鍵同意全部+取消+error, changeLabel per kind)
+  Minor (non-blocking): apply-all button stays clickable when all changes ✗'d → applyChanges(plan,[]) harmless no-op.
+Task 4: complete (commits d05d87b..e8b4d85 + cleanup 51d52e9, review clean after cleanup — Spec ✅ + Approved, 282/282 + build green; ItineraryClient +6 lines [import + handleAiApply→scheduleRecalc(_,true) + render AiRearrangeInput])
+  INFRA: ItineraryClient now transitively imports Anthropic SDK (AiRearrangeInput→rearrange→lib/claude→new Anthropic()) → crashed jsdom suites w/ TextEncoder undefined. Fix: jest.config.ts moduleNameMapper stubs @anthropic-ai/sdk → __stubs__/anthropic-sdk.js (test-only; production uses real SDK; claude.test.ts has own precedence mock; does NOT shadow real component — Task 3 coverage intact).
+  Minor FIXED (controller cleanup 51d52e9): removed dead __stubs__/AiRearrangeInput.tsx (unused after final approach used the SDK stub).
+  ⚠️ for final review: whole suite now depends on @anthropic-ai/sdk stub to load any ItineraryClient-rendering suite (documented in jest.config.ts comment).
+
+## Final Review (#8)
+- Whole-branch review (55b241f..51d52e9): Ready to merge — no Critical/Important
+- Core safety airtight: AI can NEVER drop/dupe/invent a place (ref 1..N perm enforced by buildProposed; applyChanges only permutes existing place objects; day count + place set invariant). buildProposed maps AI days positionally (ignores AI's day field → can't corrupt numbering). durationLocked triple-enforced (buildProposed keeps + diffPlan skips + applyChanges refuses).
+- Subset-apply correct, no interdependence bug (clone-first, 3 independent passes duration→window→move; a place with both duration+move survives both). diff↔apply consistent (apply consumes by kind not id).
+- ItineraryClient +6 lines; handleAiApply reuses #4 scheduleRecalc(_,true) → moved places re-timed + per-segment travel recomputed. No regression.
+- jest-config SDK stub: test-only (build uses real SDK), anchored ^@anthropic-ai/sdk$ (no shadowing), claude.test.ts own precedence mock keeps callClaude tested.
+- Minor (non-blocking, optional follow-up): isHHMM /^\d{2}:\d{2}$/ accepts "99:99"; durationMin only checked >0 (no upper bound). Both preview-gated + non-crashing.
+- 282/282 green + build clean
+- Final commit: 51d52e9
+
+=== ROADMAP COMPLETE: all 9 Lane A sub-projects shipped (#1-#9). ===
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-07-02-recommendation-backfill.md
+Branch: lane/ai-research; BASE: 8ba73c9
+
+## Tasks
+Task 1: complete (8ba73c9..9740a35, review clean — Spec ✅, Approved. reserve=website-only verified, Google fills→shown, cross-day dedup preserved (recommendedIds seeded from all extractions incl reserve). No any/Set-spread. day-recommend 8/8, action 12/12. Minors→triage: stale "cap" comment in recommend.ts loop header; action dedup test scans .shown only (reserve dedup structurally guaranteed). NOTE: next build type-checking deferred — component reads old shape until Task 3/4.)
+Task 2: complete (9740a35..3236bd7, review clean — Spec ✅, Approved, no findings. fetchReplacementRecommendation: null-on-no-centroid without calling nearbySearch, exclude filter, enrich+fallback, try/catch→null. 4/4 pass.)
+Task 3: complete (3236bd7..fc15e4d [impl 8e58446 + fix fc15e4d], review clean after fix — Spec ✅. DayRecommendations reads .shown, backfill placeholder; ItineraryDay/TimelineDay forward backfilling. Important fixed: guard was `total===0 return null` before placeholder check → now `total===0 && !anyBackfilling` so placeholder shows when all-empty+backfilling (+ test). Minor deferred: day-component backfilling prop uses literal union not derived type (structurally equal). 5/5 pass.)
+Task 4: complete (fc15e4d..09a66dc, review clean — Spec ✅, Approved. handleAddRecommendation: immutable reserve-promote / Google-fetch with recsRef sync, buildExcludeIds from freshest planRef+recsRef, race/dup guard, finally clears backfillKey; no crash on null/reject; added place excluded from future backfills; backfillKeys copy-on-write. focused 3/3, full suite 290/290, npm run build CLEAN. Minors→triage: backfilling object literal new per render (negligible); no concurrency test.)
+
+All 4 tasks complete. Proceeding to final whole-branch review.
+
+## Final whole-branch review (backfill)
+- Verdict: MERGE WITH FOLLOW-UPS (opus). No Critical/blocking. E2E sound: commitRecs is single writer keeping recsRef+recsByDay in lockstep; planRef updated before buildExcludeIds; trip-wide dedup holds for initial fill AND on-demand backfill; reserve website-only; placeholder never wedges (finally clears key); Google key server-side.
+- Fix-now applied (commit pending): stale "cap" comment in recommend.ts:67 corrected.
+- Deferred follow-ups: (Minor) dedup test scans .shown only; day-comp backfilling literal-union type; backfilling object literal per render; setState-after-unmount in backfill resolver (harmless in React 18); backfillKeys boolean not count (cosmetic); TimelineDay backfilling prop is dead wiring (parity only). 
+- TRACKED FOLLOW-UP (Important, pre-existing — NOT this feature): handleDeleteDay/handleScatterDay renumber plan.days but do NOT reindex recsRef/recsByDay; a backfill fetch resolving after a delete can commit under a shifted day (existence guard checks presence not identity). Broader per-day-recs architectural gap; fix separately.
+- Suite 290/290, npm run build clean.
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-07-03-accommodation-card-refinements.md
+Branch: main (Lane A follow-up); BASE: 4c2e3fe
+
+## Tasks
+- [x] Task 1: (A) recalcDay 住宿延到 dayEnd
+- [x] Task 2: (B) 早 check-in 提醒（ItineraryCard）
+
+EXECUTED INLINE (controller, context-limited): both changes are tiny verbatim-from-plan edits.
+- (A) clientScheduler.ts: extendLastAccommodation helper applied at both recalcDay returns (last accommodation, !durationLocked, arrival<dayEnd → durationMin=dayEnd−arrival). Removes trailing free-time pill (remaining→0). Respects lock + arrival≥dayEnd edge.
+- (B) ItineraryCard.tsx: derived warning「⚠ 早於一般 check-in 時間（15:00）」when type=accommodation && startTime<15:00.
+- 7/7 new tests (extend-accommodation 4, itinerary-card-checkin 3); full suite 316/316; build clean. No existing tests broke.
+
+## Final Review (accommodation-card-refinements, 4c2e3fe..c2fac3e)
+- Whole-branch review (opus, independent) — Verdict: **Ready to merge — no Critical/Important.**
+- Verified: (A) extendLastAccommodation wraps BOTH recalcDay return paths but only one executes per call → no double-apply; per-day dayEnd keying correct (read inside recalcDay, recalcPlan .map); duration math dayEndMin−startMin → freeTime remaining=0 so trailing pill vanishes (freeTime.ts untouched); accommodation is last stop so no downstream re-time corruption; all guards present (empty/non-accom/durationLocked/startMin≥dayEndMin), immutable returns. (B) pure-derived, 15:00 threshold correct, no collision with lateExit/below-DWELL warnings. Constraints honored: strict TS, no any, no new pkgs, TC copy, only the 2 allowed source files touched. No existing accommodation/free-time/scheduler test went stale (reviewer checked free-time, itinerary-day-free-time, client-scheduler, accommodation-warnings, schedule-accommodation).
+- Minors (non-blocking, logged): (1) lateExit computed pre-extension in applyWarnings, not refreshed after duration rewrite — LATENT ONLY (accommodations have openingHours:null → checkLateExit returns false); (2) lock-path wrap (clientScheduler.ts:105) untested — all 4 extend tests hit the no-lock branch → suggested fast-follow test; (3) helper also pins an over-long unlocked accommodation back to dayEnd (spec §2 貼回 dayEnd intended) — name reads extend-only, consider rename/comment; (4) 3rd private toMin (clientScheduler/freeTime/ItineraryCard) — DRY-forbidden by "only 2 files" constraint, plan-sanctioned, not a defect.
+- Final commit: c2fac3e (already pushed to origin/main). Lane A remains ROADMAP COMPLETE.
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-07-03-laneC-c2-sharing-membership.md (+ C1 auth-persistence)
+Branch: lane/c1-auth-persistence (C1+C2) → merged to main
+
+## Ship to main (merge 8936653)
+- Merged Lane C spine (C1 auth+persistence + C2 sharing+members) into main via --no-ff.
+- Base had diverged: main +43 / lane +28 commits. Single content conflict: app/itinerary/ItineraryClient.tsx.
+- Conflict resolved additively — kept Lane A (AiRearrangeInput import + recs mount effect + commitRecs) AND Lane C (trips actions import + onSave/autosave/onRetry save UI). Shared state decls auto-merged.
+- Post-merge dep install: main worktree lacked @supabase/ssr / @supabase/supabase-js (were in merged package.json); npm install fixed 9 suite load failures.
+- Merge test fixes: (1) itinerary-client-ai-rearrange.test.tsx (Lane-A-only, missed Lane C's auto-merged mock updates) — added next/navigation + trips mocks now that ItineraryClient uses useRouter/saveTrip; (2) itinerary-client-save.test.tsx — removed stale @/components/RecommendPanel mock (component no longer exists on main).
+- Gate on merged tree: 373 tests pass (83 suites), next lint clean, next build passes (all Lane C + Lane A routes).
+- Pushed origin/main c2fac3e..8936653 (deploy triggered). Roadmap C1/C2 → SHIPPED.
+- Outstanding: live Supabase/OAuth (Google + LINE) verification pending prod keys.
+- Not cleaned up (intentional): lane/c1-auth-persistence, lane/c2-sharing, lane/c3-candidate-pool branches + sibling worktrees retained — C3 builds on C1/C2.
+
 ---
 
 # SDD Progress Ledger
 Plan: docs/superpowers/plans/2026-07-04-laneC-c3-candidate-pool.md
-Branch: lane/c3-candidate-pool (stacked on lane/c1-auth-persistence = C1+C2); BASE: 48f1c90
+Branch: lane/c3-candidate-pool (stacked on lane/c1-auth-persistence = C1+C2); BASE: 48f1c90 (merged main for current integration base)
 Mode: subagent-driven, code-first (live Supabase verify deferred)
 
 ## Tasks

@@ -58,10 +58,6 @@ jest.mock('@dnd-kit/utilities', () => ({
   CSS: { Transform: { toString: () => '' } },
 }))
 
-jest.mock('@/components/RecommendPanel', () => ({
-  RecommendPanel: () => null,
-}))
-
 jest.mock('@/components/CombinedInput', () => ({
   CombinedInput: () => null,
 }))
