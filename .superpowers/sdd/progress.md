@@ -528,10 +528,20 @@ Mode: subagent-driven, code-first (live Supabase verify deferred)
 
 ## Tasks
 - [x] Task 1: candidate pool migration (0003)
-- [ ] Task 2: Candidate type + candidates actions
-- [ ] Task 3: CandidatePanel component
-- [ ] Task 4: ItineraryClient integration (state + promote + panel)
-- [ ] Task 5: wire /itinerary/[tripId] page
-- [ ] Task 6: roadmap + full gate
+- [x] Task 2: Candidate type + candidates actions
+- [x] Task 3: CandidatePanel component
+- [x] Task 4: ItineraryClient integration (state + promote + panel)
+- [x] Task 5: wire /itinerary/[tripId] page
+- [x] Task 6: roadmap + full gate
 
 Task 1: complete (commit 4c42230, migration 0003_candidates.sql — code-first, no unit test)
+Task 2: complete — Candidate type + add/list/remove actions (RLS, admin name-resolve, 0-row guard). Test authored by Codex (gpt-5.5), Claude reviewed+ran: 10/10.
+Task 3: complete — CandidatePanel (reuse CombinedInput, list, remove, day-picker promote); 5/5.
+Task 4: complete — ItineraryClient candidate pool (state, add/remove, promote-to-day move, panel persistent-only); 4/4. Fixed test bug (two CombinedInput mocks → scoped pool click); corrected plan's stale assertion (promoted name also renders as a card → assert pool-only adder text gone).
+Task 5: complete — trip page listCandidates → initialCandidates; +mock listCandidates in pre-existing trip-page/-members tests (new page data dep).
+Task 6: complete — roadmap C3 → DONE; full gate 401/401 jest (89 suites), lint clean, next build PASS.
+
+## Notes
+- Merged main into laneC3 first for current integration base (single content conflict: progress.md ledger union). Reconciled plan literals against merged code: ScheduledPlace fields + CombinedInput onAdd/onAddPlaces props all matched; promote handler byte-identical to current handleAddPlace.
+- Two-model workflow: Task 2 test authored by Codex (gpt-5.5, 30.9k OpenAI tokens), reviewed+run by Claude. Tasks 3-5 tests written by Claude directly — Codex background delegation proved flaky across session-resume (runs exited 0 but produced no file); loop already proven on Task 2. Final independent Codex review of whole C3 diff pending.
+- Outstanding: live Supabase apply 0003_candidates.sql + multi-account RLS verification (pending keys).
