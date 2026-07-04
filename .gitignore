@@ -42,3 +42,4 @@ next-env.d.ts
 .codex/
 .mcp.json
 /test-results/
+.gstack/
