@@ -518,3 +518,35 @@ Branch: lane/c1-auth-persistence (C1+C2) → merged to main
 - Pushed origin/main c2fac3e..8936653 (deploy triggered). Roadmap C1/C2 → SHIPPED.
 - Outstanding: live Supabase/OAuth (Google + LINE) verification pending prod keys.
 - Not cleaned up (intentional): lane/c1-auth-persistence, lane/c2-sharing, lane/c3-candidate-pool branches + sibling worktrees retained — C3 builds on C1/C2.
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-07-04-laneC-c3-candidate-pool.md
+Branch: lane/c3-candidate-pool (stacked on lane/c1-auth-persistence = C1+C2); BASE: 48f1c90 (merged main for current integration base)
+Mode: subagent-driven, code-first (live Supabase verify deferred)
+
+## Tasks
+- [x] Task 1: candidate pool migration (0003)
+- [x] Task 2: Candidate type + candidates actions
+- [x] Task 3: CandidatePanel component
+- [x] Task 4: ItineraryClient integration (state + promote + panel)
+- [x] Task 5: wire /itinerary/[tripId] page
+- [x] Task 6: roadmap + full gate
+
+Task 1: complete (commit 4c42230, migration 0003_candidates.sql — code-first, no unit test)
+Task 2: complete — Candidate type + add/list/remove actions (RLS, admin name-resolve, 0-row guard). Test authored by Codex (gpt-5.5), Claude reviewed+ran: 10/10.
+Task 3: complete — CandidatePanel (reuse CombinedInput, list, remove, day-picker promote); 5/5.
+Task 4: complete — ItineraryClient candidate pool (state, add/remove, promote-to-day move, panel persistent-only); 4/4. Fixed test bug (two CombinedInput mocks → scoped pool click); corrected plan's stale assertion (promoted name also renders as a card → assert pool-only adder text gone).
+Task 5: complete — trip page listCandidates → initialCandidates; +mock listCandidates in pre-existing trip-page/-members tests (new page data dep).
+Task 6: complete — roadmap C3 → DONE; full gate 401/401 jest (89 suites), lint clean, next build PASS.
+
+## Notes
+- Merged main into laneC3 first for current integration base (single content conflict: progress.md ledger union). Reconciled plan literals against merged code: ScheduledPlace fields + CombinedInput onAdd/onAddPlaces props all matched; promote handler byte-identical to current handleAddPlace.
+- Two-model workflow: Task 2 test authored by Codex (gpt-5.5, 30.9k OpenAI tokens), reviewed+run by Claude. Tasks 3-5 tests written by Claude directly — Codex background delegation proved flaky across session-resume (runs exited 0 but produced no file); loop already proven on Task 2. Final independent Codex review of whole C3 diff pending.
+- Outstanding: live Supabase apply 0003_candidates.sql + multi-account RLS verification (pending keys).
+
+## Final independent Codex review (gpt-5.5, whole C3 diff) — 3 findings, verified by Claude
+- **Medium ×2 FIXED (RLS)**: delete policy was adder/owner-only → (a) a removed former member could still delete their own candidates (no participation check); (b) UI shows 移除/放進 for ALL candidates but non-adder delete silently failed → promote-move left duplicates. Both fixed by changing delete RLS to `participant_delete_candidates … using is_trip_participant(trip_id)` (shared-pool intent per spec「成員…移除」; participant check also closes the former-member gap). SQL-only, no unit test; jest/lint/build unaffected.
+  - DEVIATION from plan's「移除限 adder/owner」: intentional — plan was internally inconsistent (restricted RLS but rendered 移除 for everyone); spec + UI want any participant to curate the shared pool.
+- **High ACCEPTED as known limitation (not fixed)**: promote-to-day is non-transactional — plan update relies on debounced autosave while `removeCandidate` deletes immediately; if autosave fails AND the user refreshes without retrying, the promoted place is lost while the candidate is already gone. Recoverable in-session (saveState='error' + retry; place stays in local state). Inherent to the spec's client-move design under last-write-wins; a transactional promote RPC (update plan + delete candidate atomically) is C4/C5-scope. FOLLOW-UP logged.
