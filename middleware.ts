@@ -1,8 +1,12 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { isSupabaseConfigured } from '@/lib/supabase/config'
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request })
+  // 未設定金鑰時跳過 session 刷新——否則 createServerClient(undefined) 會 throw，
+  // 導致每個路由 MIDDLEWARE_INVOCATION_FAILED（含匿名首頁）。設定金鑰後自動恢復。
+  if (!isSupabaseConfigured()) return response
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
