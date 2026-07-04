@@ -550,3 +550,19 @@ Task 6: complete — roadmap C3 → DONE; full gate 401/401 jest (89 suites), li
 - **Medium ×2 FIXED (RLS)**: delete policy was adder/owner-only → (a) a removed former member could still delete their own candidates (no participation check); (b) UI shows 移除/放進 for ALL candidates but non-adder delete silently failed → promote-move left duplicates. Both fixed by changing delete RLS to `participant_delete_candidates … using is_trip_participant(trip_id)` (shared-pool intent per spec「成員…移除」; participant check also closes the former-member gap). SQL-only, no unit test; jest/lint/build unaffected.
   - DEVIATION from plan's「移除限 adder/owner」: intentional — plan was internally inconsistent (restricted RLS but rendered 移除 for everyone); spec + UI want any participant to curate the shared pool.
 - **High ACCEPTED as known limitation (not fixed)**: promote-to-day is non-transactional — plan update relies on debounced autosave while `removeCandidate` deletes immediately; if autosave fails AND the user refreshes without retrying, the promoted place is lost while the candidate is already gone. Recoverable in-session (saveState='error' + retry; place stays in local state). Inherent to the spec's client-move design under last-write-wins; a transactional promote RPC (update plan + delete candidate atomically) is C4/C5-scope. FOLLOW-UP logged.
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-07-04-itinerary-warm-journal-restyle.md
+Branch: main (Lane A); BASE: 4ed40b3
+Mode: subagent-driven. Pure-visual restyle (溫暖旅誌 → itinerary page). Controller does gstack visual spot-checks; implementers run jest + next build.
+
+## Tasks
+- [x] Task 1: 設計 token 打底（fonts + tailwind theme + globals）
+- [ ] Task 2: 類別色 + ItineraryCard（+ 3 測試斷言）
+- [ ] Task 3: ItineraryDay 襯線標題 + 控制列收色
+- [ ] Task 4: 共用元件 token 化 + 按鈕語言
+- [ ] Task 5（可延後）: 自動排程卡片進場動效
+
+Task 1: complete (27641d6, review=controller-verified — exact-spec transcription; jest 401/401, next build clean, grep bg-background=0, browse body #FBF7F0 + Noto Sans TC). NOTE: first implementer died on session limit post-edit pre-commit; controller confirmed files==plan then gated+committed.
