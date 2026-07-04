@@ -322,6 +322,26 @@ export function ItineraryClient({ initial }: Props) {
     return Array.from(ids)
   }, [])
 
+  // 抽出可重用的「智慧排程單日」核心;智慧排程按鈕與新增推薦後自動排程共用。
+  const arrangeDay = useCallback(async (dayIdx: number) => {
+    const current = planRef.current
+    const day = current.days[dayIdx]
+    const inputs = await fetchDayArrangeInputs(
+      day.places, current.transportMode, day.avoidCrowds ?? true
+    )
+    const reordered = arrangeDayOrder(
+      day,
+      dayDate(current.startDate, day.day),
+      inputs,
+      { avoidTraffic: day.avoidTraffic ?? true, avoidCrowds: day.avoidCrowds ?? true }
+    )
+    const newDays = planRef.current.days.map((d, i) => (i === dayIdx ? { ...d, places: reordered } : d))
+    const recalced = recalcPlan({ ...planRef.current, days: newDays })
+    planRef.current = recalced
+    setPlan(recalced)
+    scheduleRecalc(recalced, true)
+  }, [scheduleRecalc])
+
   const handleAddRecommendation = useCallback((dayIdx: number, rec: DayRecommendation) => {
     const cat = rec.type as 'dessert' | 'attraction' | 'restaurant'
 
@@ -351,6 +371,10 @@ export function ItineraryClient({ initial }: Props) {
       i === dayIdx ? { ...d, places: [...d.places, newPlace] } : d
     )
     scheduleRecalc({ ...planRef.current, days: newDays })
+
+    // 1b. 新增後自動智慧排程該天(讓新地點被排到合理位置);失敗則沿用已附加、非重排的結果。
+    setArrangingDay(dayIdx)
+    arrangeDay(dayIdx).catch(() => {}).finally(() => setArrangingDay(null))
 
     // 2. remove the card; promote a reserve item if available
     const prev = recsRef.current
@@ -390,7 +414,7 @@ export function ItineraryClient({ initial }: Props) {
         .catch(() => { /* leave slot empty */ })
         .finally(() => setBackfillKeys((s) => { const n = new Set(s); n.delete(key); return n }))
     }
-  }, [scheduleRecalc, commitRecs, buildExcludeIds])
+  }, [scheduleRecalc, commitRecs, buildExcludeIds, arrangeDay])
 
   const handleChangeStartDate = useCallback((iso: string) => {
     const recalced = recalcPlan({ ...planRef.current, startDate: iso })
@@ -473,31 +497,16 @@ export function ItineraryClient({ initial }: Props) {
   )
 
   const handleSmartArrange = useCallback(async (dayIdx: number) => {
-    const current = planRef.current
-    const day = current.days[dayIdx]
     setArrangeError(null)
     setArrangingDay(dayIdx)
     try {
-      const inputs = await fetchDayArrangeInputs(
-        day.places, current.transportMode, day.avoidCrowds ?? true
-      )
-      const reordered = arrangeDayOrder(
-        day,
-        dayDate(current.startDate, day.day),
-        inputs,
-        { avoidTraffic: day.avoidTraffic ?? true, avoidCrowds: day.avoidCrowds ?? true }
-      )
-      const newDays = planRef.current.days.map((d, i) => (i === dayIdx ? { ...d, places: reordered } : d))
-      const recalced = recalcPlan({ ...planRef.current, days: newDays })
-      planRef.current = recalced
-      setPlan(recalced)
-      scheduleRecalc(recalced, true)
+      await arrangeDay(dayIdx)
     } catch {
       setArrangeError('排程失敗，請稍後再試')
     } finally {
       setArrangingDay(null)
     }
-  }, [scheduleRecalc])
+  }, [arrangeDay])
 
   const handleAiApply = useCallback((newPlan: PlanResult) => {
     scheduleRecalc(newPlan, true)

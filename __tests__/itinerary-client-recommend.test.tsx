@@ -7,6 +7,12 @@ jest.mock('@/app/actions/recommend', () => ({
   fetchReplacementRecommendation: jest.fn(),
 }))
 
+// Adding a recommendation now auto smart-arranges the day; stub the arrange
+// action to reject so these tests keep the plain append-and-promote behavior.
+jest.mock('@/app/actions/arrange', () => ({
+  fetchDayArrangeInputs: jest.fn().mockRejectedValue(new Error('no-arrange-in-test')),
+}))
+
 // Required mocks to prevent transitive import failures (same pattern as itinerary-date-controls.test.tsx)
 jest.mock('@/lib/utils/clientScheduler', () => ({
   recalcPlan: jest.fn((p: unknown) => p),
