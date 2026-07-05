@@ -30,7 +30,7 @@ interface Props {
 
 export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onChangeLegMode, legBusy, onDeletePlace, dayEnd }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: place.id, disabled: !draggable || place.startLocked })
+    useSortable({ id: place.id, disabled: !draggable })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -64,7 +64,7 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
             className="text-gray-300 hover:text-red-500 transition-colors mt-1 shrink-0 leading-none"
           >&#x2715;</button>
         )}
-        {draggable && !place.startLocked && (
+        {draggable && (
           <span
             {...attributes}
             {...listeners}

@@ -51,14 +51,14 @@ it('clicking start lock calls onToggleStartLock; duration lock calls onToggleDur
   expect(onDur).toHaveBeenCalledWith('p1')
 })
 
-it('startLocked → start time static (no start picker) and no drag handle', () => {
+it('startLocked → start time static (no start picker) but drag handle still shown (drag decoupled from locks)', () => {
   render(
     <ItineraryCard place={{ ...BASE, startLocked: true }} index={0} dateIso="2026-06-30" draggable
       onTimeChange={jest.fn()} onToggleStartLock={jest.fn()} onToggleDurationLock={jest.fn()} />
   )
   // aria-label flips to 解鎖開始時間 when locked
   expect(screen.getByRole('button', { name: '解鎖開始時間' })).toBeInTheDocument()
-  expect(screen.queryByTestId('drag-handle')).not.toBeInTheDocument()
+  expect(screen.getByTestId('drag-handle')).toBeInTheDocument()
   // start shown as static text 09:00 (no picker button for 09:00)
   expect(screen.queryByRole('button', { name: '09:00' })).not.toBeInTheDocument()
 })

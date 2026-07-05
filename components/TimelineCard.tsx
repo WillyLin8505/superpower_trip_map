@@ -21,7 +21,7 @@ interface Props {
 
 export function TimelineCard({ place, index, dateIso, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: place.id, disabled: !draggable || place.startLocked })
+    useSortable({ id: place.id, disabled: !draggable })
   const [previewDur, setPreviewDur] = useState<number | null>(null)
   const startRef = useRef<{ y: number; dur: number } | null>(null)
 
@@ -69,7 +69,7 @@ export function TimelineCard({ place, index, dateIso, draggable, onTimeChange, o
       data-testid={`timeline-card-${place.id}`}
     >
       <div className="flex items-start gap-2 h-full">
-        {draggable && !place.startLocked && (
+        {draggable && (
           <span
             {...attributes}
             {...listeners}
