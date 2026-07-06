@@ -64,9 +64,9 @@ export function MembersPanel({ tripId, members, isOwner }: MembersPanelProps) {
   }
 
   return (
-    <section className="rounded-md border p-4">
+    <section className="rounded-lg border border-border p-4 bg-surface">
       <div className="flex flex-col gap-3">
-        <h2 className="font-medium">成員</h2>
+        <h2 className="font-medium text-ink">成員</h2>
 
         {isOwner ? (
           <div className="flex flex-col gap-2">
@@ -75,14 +75,14 @@ export function MembersPanel({ tripId, members, isOwner }: MembersPanelProps) {
                 <input
                   readOnly
                   value={inviteUrl}
-                  className="flex-1 rounded border px-2 py-1 text-sm"
+                  className="flex-1 rounded border border-border px-2 py-1 text-sm text-ink"
                 />
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={handleCopy}
                     disabled={busy}
-                    className="rounded border px-3 py-1 text-sm"
+                    className="rounded-md border border-border px-3 py-1 text-sm hover:bg-paper"
                   >
                     複製連結
                   </button>
@@ -90,7 +90,7 @@ export function MembersPanel({ tripId, members, isOwner }: MembersPanelProps) {
                     type="button"
                     onClick={handleRotate}
                     disabled={busy}
-                    className="text-sm underline"
+                    className="text-sm text-clay-deep hover:underline"
                   >
                     重新產生連結
                   </button>
@@ -101,7 +101,7 @@ export function MembersPanel({ tripId, members, isOwner }: MembersPanelProps) {
                 type="button"
                 onClick={handleGenerate}
                 disabled={busy}
-                className="self-start rounded border px-3 py-1 text-sm"
+                className="self-start rounded-md border border-border px-3 py-1 text-sm hover:bg-paper"
               >
                 產生邀請連結
               </button>
@@ -111,7 +111,7 @@ export function MembersPanel({ tripId, members, isOwner }: MembersPanelProps) {
 
         <ul className="flex flex-col gap-2">
           {members.map((member) => (
-            <li key={member.userId} className="flex items-center justify-between gap-3 text-sm">
+            <li key={member.userId} className="flex items-center justify-between gap-3 text-sm text-ink">
               <span>
                 {member.name}
                 {member.role === 'owner' ? '（擁有者）' : ''}
@@ -122,7 +122,7 @@ export function MembersPanel({ tripId, members, isOwner }: MembersPanelProps) {
                   type="button"
                   onClick={() => handleRemove(member.userId)}
                   disabled={busy}
-                  className="text-red-600 hover:underline"
+                  className="text-error hover:underline"
                 >
                   移除
                 </button>
@@ -136,7 +136,7 @@ export function MembersPanel({ tripId, members, isOwner }: MembersPanelProps) {
             type="button"
             onClick={handleLeave}
             disabled={busy}
-            className="self-start text-red-600 hover:underline"
+            className="self-start text-error hover:underline"
           >
             離開行程
           </button>
