@@ -106,19 +106,6 @@ it('search-add calls addCandidate and shows the new candidate in the pool', asyn
   await waitFor(() => expect(within(pool).getByText('新候選')).toBeInTheDocument())
 })
 
-it('promote adds the place to the chosen day and removes the candidate from the pool', async () => {
-  removeCandidate.mockResolvedValue(undefined)
-  render(<ItineraryClient initial={plan()} tripId="t1" initialCandidates={[cand('c1', '台北101')]} />)
-  fireEvent.change(screen.getByLabelText('放進第幾天 台北101'), { target: { value: '0' } })
-  fireEvent.click(screen.getByRole('button', { name: '放進' }))
-  // removeCandidate invoked with the candidate id
-  expect(removeCandidate).toHaveBeenCalledWith('c1')
-  // the place now appears as a card in day 0 (place id === 'c1')
-  expect(dayOrder()).toContain('c1')
-  // the candidate leaves the pool: the pool-only adder text disappears
-  await waitFor(() => expect(screen.queryByText(/由 小明 加入/)).not.toBeInTheDocument())
-})
-
 it('shows the pool candidate as a ← suggestion under its geographic day and accepts it on click', async () => {
   removeCandidate.mockResolvedValue(undefined)
   // plan() 的地點與 cand 皆在 lat/lng 0,0 → findClosestDay 指向 day 0

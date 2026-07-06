@@ -662,11 +662,9 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
         <div className="mb-6">
           <CandidatePanel
             candidates={candidates}
-            dayCount={plan.days.length}
             onAddPlace={onAddCandidate}
             onAddPlaces={onAddCandidates}
             onRemove={onRemoveCandidate}
-            onPromote={handleAddCandidateToDay}
           />
         </div>
       )}
