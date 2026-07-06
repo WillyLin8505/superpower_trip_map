@@ -113,7 +113,7 @@ export function ItineraryClient({ initial }: Props) {
     }, 2000)
   }, [])
 
-  const toggleLockField = useCallback((dayIdx: number, placeId: string, field: 'startLocked' | 'durationLocked') => {
+  const toggleLockField = useCallback((dayIdx: number, placeId: string, field: 'startLocked' | 'durationLocked' | 'endLocked') => {
     const newDays = planRef.current.days.map((d, i) => {
       if (i !== dayIdx) return d
       return {
@@ -134,6 +134,10 @@ export function ItineraryClient({ initial }: Props) {
   )
   const handleToggleDurationLock = useCallback(
     (dayIdx: number, placeId: string) => toggleLockField(dayIdx, placeId, 'durationLocked'),
+    [toggleLockField]
+  )
+  const handleToggleEndLock = useCallback(
+    (dayIdx: number, placeId: string) => toggleLockField(dayIdx, placeId, 'endLocked'),
     [toggleLockField]
   )
 
@@ -578,6 +582,7 @@ export function ItineraryClient({ initial }: Props) {
                 }
                 onToggleStartLock={(placeId) => handleToggleStartLock(dayIdx, placeId)}
                 onToggleDurationLock={(placeId) => handleToggleDurationLock(dayIdx, placeId)}
+                onToggleEndLock={(placeId) => handleToggleEndLock(dayIdx, placeId)}
                 onChangeType={(placeId, type) => handleChangeType(dayIdx, placeId, type)}
                 onSetDayStartLock={(locked) => handleSetDayStartLock(dayIdx, locked)}
                 onSetDayDurationLock={(locked) => handleSetDayDurationLock(dayIdx, locked)}

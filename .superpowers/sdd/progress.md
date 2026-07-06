@@ -495,3 +495,22 @@ EXECUTED INLINE (controller, context-limited): both changes are tiny verbatim-fr
 - (A) clientScheduler.ts: extendLastAccommodation helper applied at both recalcDay returns (last accommodation, !durationLocked, arrival<dayEnd → durationMin=dayEnd−arrival). Removes trailing free-time pill (remaining→0). Respects lock + arrival≥dayEnd edge.
 - (B) ItineraryCard.tsx: derived warning「⚠ 早於一般 check-in 時間（15:00）」when type=accommodation && startTime<15:00.
 - 7/7 new tests (extend-accommodation 4, itinerary-card-checkin 3); full suite 316/316; build clean. No existing tests broke.
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-07-05-three-lock-model.md
+Branch: lane/ai-research
+Base: 190e13b
+
+## Tasks
+- [x] Task 1: endLocked field + lockDerive helpers
+- [x] Task 2: scheduler anchor generalization
+- [x] Task 3: lock/drag decoupling
+- [ ] Task 4: third 結束 toggle + derived-disabling + wiring
+- [ ] Task 5: free-facet editors + end-lock edit behavior
+- [ ] Task 6: supersede note + final gate
+Task 1: complete (commits 190e13b..392c3fc, review clean; MINOR: lib/types.ts:63 comment spacing)
+Task 2: complete (commits 392c3fc..7db4fc5, review clean; MINOR: no direct arrangeDay end-lock test)
+Task 3: complete (commits 7db4fc5..5928838, controller-verified after implementer session-limit interrupt; 346/346 green, diff matches brief exactly; RED not separately captured but split-lock-card assertion flip proves behavior change)
+Note: reviewer subagents blocked by account weekly limit — remaining tasks executed inline with controller self-review + full gate.

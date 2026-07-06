@@ -26,6 +26,7 @@ interface Props {
   onTimeChange?: (placeId: string, field: 'startTime' | 'durationMin', value: string | number) => void
   onToggleStartLock?: (placeId: string) => void
   onToggleDurationLock?: (placeId: string) => void
+  onToggleEndLock?: (placeId: string) => void
   onChangeType?: (placeId: string, type: PlaceType) => void
   onSetDayStartLock?: (locked: boolean) => void
   onSetDayDurationLock?: (locked: boolean) => void
@@ -42,7 +43,7 @@ interface Props {
   onDeletePlace?: (placeId: string) => void
 }
 
-export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, backfilling, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId, onDeletePlace }: Props) {
+export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, backfilling, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId, onDeletePlace }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
 
@@ -159,6 +160,7 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
                     onTimeChange={onTimeChange}
                     onToggleStartLock={onToggleStartLock}
                     onToggleDurationLock={onToggleDurationLock}
+                    onToggleEndLock={onToggleEndLock}
                     onChangeType={onChangeType}
                     onChangeLegMode={onChangeLegMode}
                     legBusy={legBusyPlaceId === place.id}
