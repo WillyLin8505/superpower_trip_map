@@ -571,3 +571,11 @@ Task 3: complete (776fb69..e9c7e47, review clean — ✅ Approved, no issues; 13
 Task 4: complete (eb0d94c..e3e616b, review clean — ✅ Approved: 7 files className-only, button language correct, 0 blue/indigo, no out-of-scope files, 401/401 + build green). Minors(final-review): AiRearrangeInput border-clay/40 one-off vs solid border-clay elsewhere; 2 extended gray swaps (text-gray-700→ink, border-gray-300→border) reasonable.
 NOTE: repeated live-visual failures diagnosed = subagent `npm run build` corrupts the running `next dev` shared .next (empty-CSS pages); NOT a code defect. Doing clean dev rebuild for visual.
 Follow-up (post-Task4, user-requested): TimeScrollPicker times/dropdown blue→clay+warm tokens (was out-of-scope; the editable 09:00→10:30 looked blue). className-only, grep 0 blue, 401/401 + build green. Proceeding to final whole-branch review.
+
+## Final Whole-Branch Review (4ed40b3..fdd795c, opus)
+- Verdict: **Ready to merge — no Critical/Important.** Provably className/config/token-only (no behavior/hook/prop/scheduleRecalc change); all tokens resolve; next/font correct (preload:false on CJK); TYPE_META cascade color-only; only the 3 sanctioned test assertions changed; every residual cool color confined to documented deferred files (Timeline*, app/page.tsx, PlaceSearch*, ItineraryPasteInput, admin/*).
+- New Minor (non-blocking): CardContent.tsx half-restyled (keeps gray/orange) but only feeds TimelineCard (deferred, not in prod) → finish in the Timeline phase.
+- Minors triaged as accepted follow-ups: stale test NAMES (purple/pink) [assertions correct]; border-clay/40 = deliberate 3-tier button hierarchy; 2 extended gray swaps sound.
+- Deferred (not defects): Task 5 reveal motion; input page bespoke layout + other pages; full dark-mode QA.
+- Final commit: fdd795c (DESIGN.md decisions-log + dessert tint added after).
+=== RESTYLE (itinerary page) COMPLETE — merge-ready. Pending: user decision on push/deploy + optional Codex cross-review (CLAUDE.md). ===

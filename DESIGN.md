@@ -33,7 +33,7 @@ Must carry Traditional Chinese — CJK-capable fonts are non-negotiable.
 - **Ink (text):** `#2B2320` warm near-black; muted `#7A6F66`.
 - **Primary — Clay:** `#C65D3B` (hover `#A94A2E`, tint `#F6E7DF`). Actions, number badges, the active "moment". **Replaces all existing blue.**
 - **Secondary — Sea:** `#3E7C7B` (tint `#E1EBEA`). Maps, transport, wayfinding — a cool counterpoint that keeps routes legible without breaking warmth.
-- **Category tints (warm family):** 景點 amber `#E8B04B` (tint `#F7EBCF`) · 餐廳 clay-rose `#D98C6A` (tint `#F5E4DA`) · 住宿 sage `#7C8B6A` (tint `#E7ECDF`). Used as card left-border + tag pill.
+- **Category tints (warm family):** 景點 amber `#E8B04B` (tint `#F7EBCF`) · 餐廳 clay-rose `#D98C6A` (tint `#F5E4DA`) · 住宿 sage `#7C8B6A` (tint `#E7ECDF`) · 甜點 berry `#C17B9B` (tint `#F3E4EC`). Used as card left-border + tag pill (cards are `bg-surface`; category signalled by left-border + pill, not full tint).
 - **Semantic:** success 香草綠 `#4E8A5B`, warning 琥珀 `#D08A2C`, error 磚紅 `#C0392B`, info = Sea `#3E7C7B`.
 - **Contrast:** hold WCAG AA — body ≥4.5:1, large/UI ≥3:1. Clay on paper and ink on paper both pass; verify any clay-on-tint text.
 - **Dark mode (warm dark, not inverted gray):** paper `#211C18`, surface `#2B2420`, ink `#F1EADF`, muted `#B3A597`, borders `#3A322C`. Accents lifted/desaturated: clay `#E0764F`, sea `#69A8A6`, sage `#9BAA86`, clay-rose `#E0A585`. `color-scheme: dark` on `<html>`.
@@ -64,4 +64,5 @@ Must carry Traditional Chinese — CJK-capable fonts are non-negotiable.
 ## Decisions Log
 | Date | Decision | Rationale |
 |------|----------|-----------|
+| 2026-07-06 | Applied to itinerary page (Tasks 1–4 + TimeScrollPicker follow-up) | SDD restyle: token foundation (fonts+tailwind+globals) → category tints in lib/placeType.ts → serif day headers → component token swap + clay button language → clay time picker. Pure-visual, 401/401 + build green, whole-branch review ✅ merge-ready. Deferred: Task 5 reveal motion, CardContent (Timeline phase), input page / other pages, full dark-mode QA. Added 甜點 berry tint (not in original palette). |
 | 2026-07-04 | Initial design system 「溫暖旅誌」 created | /design-consultation. Direction: warm editorial-organic. North star: 「規劃行程竟然這麼輕鬆」. Chose clay `#C65D3B` primary over category-standard blue to own warmth + avoid AI-slop; Fraunces + Noto Serif TC editorial headers; Noto Sans TC body (CJK coverage). Preview approved by user (HTML preview, light+dark). AI-mockup path skipped (no OpenAI key). Apply itinerary-page-first. |
