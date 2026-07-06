@@ -1,5 +1,5 @@
 'use client'
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   DndContext,
@@ -34,6 +34,7 @@ import { AiRearrangeInput } from '@/components/AiRearrangeInput'
 import { createTrip, saveTrip } from '@/app/actions/trips'
 import { CandidatePanel } from '@/components/CandidatePanel'
 import { addCandidate, removeCandidate } from '@/app/actions/candidates'
+import { groupCandidatesByDay } from '@/lib/utils/candidateArrange'
 
 // pointerWithin is essential for multi-container: it checks where the pointer
 // physically is, not center-to-center distance (closestCenter favors the source container)
@@ -402,6 +403,12 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
     void onRemoveCandidate(candidateId)
   }, [scheduleRecalc, onRemoveCandidate])
 
+  // C4：衍生把候選池依地理分到各天（供每天的 ← 建議卡）
+  const candidatesByDay = useMemo(
+    () => groupCandidatesByDay(plan.days, candidates),
+    [plan.days, candidates]
+  )
+
   const buildExcludeIds = useCallback((): string[] => {
     const ids = new Set<string>()
     planRef.current.days.forEach((d) => d.places.forEach((p) => ids.add(p.placeId)))
@@ -708,6 +715,8 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
                 draggable
                 recommendations={recsByDay?.[dayIdx]}
                 onAddRecommendation={(rec) => handleAddRecommendation(dayIdx, rec)}
+                candidates={tripId ? candidatesByDay[dayIdx] : undefined}
+                onAddCandidate={tripId ? (candidateId, place) => handleAddCandidateToDay(place, dayIdx, candidateId) : undefined}
                 backfilling={{
                   dessert: backfillKeys.has(`${dayIdx}:dessert`),
                   attraction: backfillKeys.has(`${dayIdx}:attraction`),
