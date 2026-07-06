@@ -585,3 +585,26 @@ Follow-up (post-Task4, user-requested): TimeScrollPicker times/dropdown blue→c
 - Fix (commit 4523b80): added "./lib/**/*.{js,ts,jsx,tsx,mdx}" to tailwind.config.ts content. Re-verified: all category classes now PRESENT in built CSS; browse confirms attraction card left-border rgb(232,176,75)=amber, 餐廳 clay-rose, 住宿 sage, times clay. 401/401 + build green.
 - Lesson: dynamic Tailwind classes assembled in lib/ (or any non-scanned dir) get purged; keep content globs covering every file that HOLDS class-name literals, even if used via interpolation. jsdom class-assertion tests do NOT catch purge — verify emitted CSS or visual.
 === RESTYLE COMPLETE + Codex-caught purge bug fixed. Pushing to origin/main (Vercel deploy). ===
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-07-05-laneC-c4-candidate-arrange.md
+Branch: lane/c4-candidate-arrange (off main = C1+C2+C3); Mode: executing-plans inline, code-first
+
+## Tasks
+- [x] Task 1: groupCandidatesByDay pure fn (findClosestDay + round-robin fallback)
+- [x] Task 2: DayCandidateSuggestions component (← add cards)
+- [x] Task 3: ItineraryDay + ItineraryClient wiring (candidatesByDay + per-day suggestions)
+- [x] Task 4: retire CandidatePanel day-picker + full gate
+
+Task 1: complete — groupCandidatesByDay; 4/4. hasAnchor guard: all-empty days → round-robin (findClosestDay returns 0 for all when no anchors).
+Task 2: complete — DayCandidateSuggestions mirrors RecommendationCard ← arrow; 3/3.
+Task 3: complete — ItineraryDay gains candidates/onAddCandidate props + renders suggestions in right column; ItineraryClient candidatesByDay useMemo + per-day dayIdx-bound onAddCandidate→handleAddCandidateToDay (C3 reuse). Integration test: candidate shows as ← suggestion under geo day, click → place in day + removeCandidate + suggestion gone. Updated 2 C3 tests (name now appears in pool AND day-suggestion → scoped to pool section). 409/409.
+Task 4: complete — CandidatePanel dropped day-picker (dayCount/onPromote removed), caller updated, promote test replaced with no-day-picker assertion + removed stale day-picker integration test (← arrow accept covers it). Gate: 408/408 jest (91 suites), lint clean, next build PASS.
+
+## Notes
+- Design: user chose geo-distribution (findClosestDay) + per-day ← arrows like recommendations, auto-shown (no button), no accept-all. Candidate appears in both pool panel (list+remove) and per-day suggestion by design.
+- Accept reuses C3 handleAddCandidateToDay (move semantics); per-item click sidesteps C3's non-transactional-bulk risk.
+- FOLLOW-UP: 溫暖旅誌 DESIGN.md was applied to itinerary page on a separate unpushed branch (per memory 2026-07-06); C4's new cards use plain rec-card style (consistent with C4's origin/main base). Restyle DayCandidateSuggestions/CandidatePanel when that design branch merges.
+- Pending: final Codex review of C4 diff; live Supabase verify (keys).

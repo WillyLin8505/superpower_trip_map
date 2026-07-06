@@ -85,9 +85,10 @@ beforeEach(() => { addCandidate.mockReset(); removeCandidate.mockReset() })
 
 it('persistent mode renders the candidate pool with initial candidates', () => {
   render(<ItineraryClient initial={plan()} tripId="t1" initialCandidates={[cand('c1', '台北101')]} />)
-  expect(screen.getByText('候選池')).toBeInTheDocument()
-  expect(screen.getByText('台北101')).toBeInTheDocument()
-  expect(screen.getByText(/小明/)).toBeInTheDocument()
+  // 名稱同時出現在候選池清單與每天 ← 建議卡，故 assertion scope 到候選池 section
+  const pool = screen.getByText('候選池').closest('section') as HTMLElement
+  expect(within(pool).getByText('台北101')).toBeInTheDocument()
+  expect(within(pool).getByText(/小明/)).toBeInTheDocument()
 })
 
 it('anonymous mode (no tripId) does not render the candidate pool', () => {
@@ -102,18 +103,16 @@ it('search-add calls addCandidate and shows the new candidate in the pool', asyn
   const pool = screen.getByText('候選池').closest('section') as HTMLElement
   fireEvent.click(within(pool).getByText('pool-add'))
   await waitFor(() => expect(addCandidate).toHaveBeenCalledWith('t1', expect.objectContaining({ name: '新候選' })))
-  await waitFor(() => expect(screen.getByText('新候選')).toBeInTheDocument())
+  await waitFor(() => expect(within(pool).getByText('新候選')).toBeInTheDocument())
 })
 
-it('promote adds the place to the chosen day and removes the candidate from the pool', async () => {
+it('shows the pool candidate as a ← suggestion under its geographic day and accepts it on click', async () => {
   removeCandidate.mockResolvedValue(undefined)
+  // plan() 的地點與 cand 皆在 lat/lng 0,0 → findClosestDay 指向 day 0
   render(<ItineraryClient initial={plan()} tripId="t1" initialCandidates={[cand('c1', '台北101')]} />)
-  fireEvent.change(screen.getByLabelText('放進第幾天 台北101'), { target: { value: '0' } })
-  fireEvent.click(screen.getByRole('button', { name: '放進' }))
-  // removeCandidate invoked with the candidate id
+  const addBtn = await screen.findByTestId('cand-add-c1')
+  fireEvent.click(addBtn)
   expect(removeCandidate).toHaveBeenCalledWith('c1')
-  // the place now appears as a card in day 0 (place id === 'c1')
   expect(dayOrder()).toContain('c1')
-  // the candidate leaves the pool: the pool-only adder text disappears
-  await waitFor(() => expect(screen.queryByText(/由 小明 加入/)).not.toBeInTheDocument())
+  await waitFor(() => expect(screen.queryByTestId('cand-add-c1')).not.toBeInTheDocument())
 })
