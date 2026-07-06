@@ -133,7 +133,7 @@ describe('ItineraryClient — handleChangeType', () => {
 
     render(<ItineraryClient initial={INITIAL} />)
 
-    // Open the TypePicker for the attraction (trigger text: "🏔 景點 ▾")
+    // Open the TypePicker for the attraction (trigger text: "📷 景點 ▾")
     fireEvent.click(screen.getByRole('button', { name: /景點/ }))
     // Pick accommodation
     fireEvent.click(screen.getByText('🏨 住宿'))

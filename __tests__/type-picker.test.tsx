@@ -7,9 +7,9 @@ describe('TypePicker', () => {
     render(<TypePicker type="attraction" onChange={jest.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: /景點/ }))
     expect(screen.getByText('🏨 住宿')).toBeInTheDocument()
-    expect(screen.getByText('🍽 餐廳')).toBeInTheDocument()
+    expect(screen.getByText('🍴 餐廳')).toBeInTheDocument()
     expect(screen.getByText('🍰 甜點')).toBeInTheDocument()
-    expect(screen.getByText('🏔 景點')).toBeInTheDocument()
+    expect(screen.getByText('📷 景點')).toBeInTheDocument()
   })
 
   it('calls onChange with the selected type and closes the menu', () => {
@@ -18,7 +18,7 @@ describe('TypePicker', () => {
     fireEvent.click(screen.getByRole('button', { name: /景點/ }))
     fireEvent.click(screen.getByText('🏨 住宿'))
     expect(onChange).toHaveBeenCalledWith('accommodation')
-    expect(screen.queryByText('🍽 餐廳')).not.toBeInTheDocument()
+    expect(screen.queryByText('🍴 餐廳')).not.toBeInTheDocument()
   })
 
   it('marks the current type with a check', () => {

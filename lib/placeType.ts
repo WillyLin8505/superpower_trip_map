@@ -12,9 +12,9 @@ export interface TypeMeta {
 }
 
 export const TYPE_META: Record<PlaceType, TypeMeta> = {
-  attraction:    { label: '景點', emoji: '🏔', badge: 'bg-attraction-tint text-attraction-ink', cardBg: 'bg-surface', accent: 'border-l-attraction' },
+  attraction:    { label: '景點', emoji: '📷', badge: 'bg-attraction-tint text-attraction-ink', cardBg: 'bg-surface', accent: 'border-l-attraction' },
   accommodation: { label: '住宿', emoji: '🏨', badge: 'bg-lodging-tint text-lodging-ink',       cardBg: 'bg-surface', accent: 'border-l-lodging' },
-  restaurant:    { label: '餐廳', emoji: '🍽', badge: 'bg-restaurant-tint text-restaurant-ink', cardBg: 'bg-surface', accent: 'border-l-restaurant' },
+  restaurant:    { label: '餐廳', emoji: '🍴', badge: 'bg-restaurant-tint text-restaurant-ink', cardBg: 'bg-surface', accent: 'border-l-restaurant' },
   dessert:       { label: '甜點', emoji: '🍰', badge: 'bg-dessert-tint text-dessert-ink',       cardBg: 'bg-surface', accent: 'border-l-dessert' },
 }
 
