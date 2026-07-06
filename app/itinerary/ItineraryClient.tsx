@@ -18,6 +18,7 @@ import type { PlanResult, ScheduledPlace, Place, PlaceType, TransportMode, Recom
 import { recalcPlan } from '@/lib/utils/clientScheduler'
 import { daysBetween, dayDate } from '@/lib/utils/date'
 import { legInfo, computeLegPlan } from '@/app/actions/legs'
+import { applyTimeEdit } from '@/lib/utils/timeEdit'
 import { legMerge } from '@/lib/utils/legMerge'
 import { ItineraryDay } from '@/components/ItineraryDay'
 import { ItineraryCard } from '@/components/ItineraryCard'
@@ -258,7 +259,7 @@ export function ItineraryClient({ initial }: Props) {
         return {
           ...d,
           places: d.places.map((p) =>
-            p.id === placeId ? { ...p, [field]: value } : p
+            p.id === placeId ? applyTimeEdit(p, field, value) : p
           ),
         }
       })

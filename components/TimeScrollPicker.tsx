@@ -53,7 +53,7 @@ export function TimeScrollPicker({ value, onChange }: Props) {
   }
 
   return (
-    <div ref={containerRef} className="relative inline-block">
+    <div ref={containerRef} className="relative inline-block" data-testid="time-scroll-picker">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

@@ -21,6 +21,7 @@ export function CardContent({ place, dateIso, onTimeChange, onToggleStartLock, o
   const todayHours = getHoursForDate(place.openingHours, dateIso)
   const descriptionText = place.description || place.aiDescription
   const meta = TYPE_META[place.type]
+  const pin = effectivePinned(place)
 
   return (
     <>
@@ -37,13 +38,13 @@ export function CardContent({ place, dateIso, onTimeChange, onToggleStartLock, o
           )}
         </div>
         <div className="flex items-center gap-1 mt-1 flex-wrap">
-          {place.startLocked || !onTimeChange ? (
+          {pin.start || !onTimeChange ? (
             <span className="text-sm text-gray-500">{place.startTime}</span>
           ) : (
             <TimeScrollPicker value={place.startTime} onChange={(v) => onTimeChange(place.id, 'startTime', v)} />
           )}
           <span className="text-gray-400 text-sm">&#x2192;</span>
-          {place.durationLocked || !onTimeChange ? (
+          {pin.end || pin.duration || !onTimeChange ? (
             <span className="text-sm text-gray-500">{addMinutes(place.startTime, place.durationMin)}</span>
           ) : (
             <TimeScrollPicker

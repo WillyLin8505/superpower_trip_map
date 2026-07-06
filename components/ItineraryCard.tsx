@@ -49,6 +49,7 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
   const todayHours = getHoursForDate(place.openingHours, dateIso)
   const descriptionText = place.description || place.aiDescription
   const meta = TYPE_META[place.type]
+  const pin = effectivePinned(place)
 
   return (
     <div
@@ -93,7 +94,7 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
             )}
           </div>
           <div className="flex items-center gap-1 mt-1 flex-wrap">
-            {place.startLocked || !onTimeChange ? (
+            {pin.start || !onTimeChange ? (
               <span className="text-sm text-gray-500">{place.startTime}</span>
             ) : (
               <TimeScrollPicker
@@ -102,7 +103,7 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
               />
             )}
             <span className="text-gray-400 text-sm">→</span>
-            {place.durationLocked || !onTimeChange ? (
+            {pin.end || pin.duration || !onTimeChange ? (
               <span className="text-sm text-gray-500">{addMinutes(place.startTime, place.durationMin)}</span>
             ) : (
               <TimeScrollPicker
