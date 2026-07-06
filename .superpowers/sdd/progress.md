@@ -579,3 +579,9 @@ Follow-up (post-Task4, user-requested): TimeScrollPicker times/dropdown blue→c
 - Deferred (not defects): Task 5 reveal motion; input page bespoke layout + other pages; full dark-mode QA.
 - Final commit: fdd795c (DESIGN.md decisions-log + dessert tint added after).
 === RESTYLE (itinerary page) COMPLETE — merge-ready. Pending: user decision on push/deploy + optional Codex cross-review (CLAUDE.md). ===
+
+## Codex cross-review (CLAUDE.md, -m gpt-5.5) + fix
+- Codex caught a REAL Medium the jsdom tests + 4 human-style reviews all missed: TYPE_META category classes (border-l-<cat>, bg-<cat>-tint, text-<cat>-ink) live only as string literals in lib/placeType.ts, which was NOT in tailwind content globs → JIT purged them → card category left-borders/pill-tints rendered no CSS. jsdom asserts the class STRING (passes), can't see missing CSS emission. Confirmed against built .next CSS (classes MISSING pre-fix).
+- Fix (commit 4523b80): added "./lib/**/*.{js,ts,jsx,tsx,mdx}" to tailwind.config.ts content. Re-verified: all category classes now PRESENT in built CSS; browse confirms attraction card left-border rgb(232,176,75)=amber, 餐廳 clay-rose, 住宿 sage, times clay. 401/401 + build green.
+- Lesson: dynamic Tailwind classes assembled in lib/ (or any non-scanned dir) get purged; keep content globs covering every file that HOLDS class-name literals, even if used via interpolation. jsdom class-assertion tests do NOT catch purge — verify emitted CSS or visual.
+=== RESTYLE COMPLETE + Codex-caught purge bug fixed. Pushing to origin/main (Vercel deploy). ===
