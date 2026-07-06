@@ -90,7 +90,7 @@ export function MembersPanel({ tripId, members, isOwner }: MembersPanelProps) {
                     type="button"
                     onClick={handleRotate}
                     disabled={busy}
-                    className="text-sm text-clay hover:underline"
+                    className="text-sm text-clay-deep hover:underline"
                   >
                     重新產生連結
                   </button>
