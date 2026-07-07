@@ -5,6 +5,8 @@ let trips: TripRow[]
 let groups: GroupRow[]
 let lastUpdate: Record<string, unknown> | null
 let lastInsert: Record<string, unknown> | null
+let updateError: { message: string } | null
+let insertError: { message: string } | null
 
 jest.mock('@/lib/supabase/admin', () => ({
   createAdminClient: () => ({
@@ -46,6 +48,10 @@ function makeGroupsBuilder() {
       return {
         eq: (column: string, value: string) => ({
           eq: (_column2: string, value2: string) => {
+            if (updateError) {
+              return { select: async () => ({ data: null, error: updateError }) }
+            }
+
             groups = groups.map((group) =>
               group.line_group_id === value && group.status === value2
                 ? { ...group, status: String(payload.status) }
@@ -58,6 +64,10 @@ function makeGroupsBuilder() {
     },
     insert: (payload: Record<string, unknown>) => {
       lastInsert = payload
+      if (insertError) {
+        return { select: () => ({ single: async () => ({ data: null, error: insertError }) }) }
+      }
+
       groups.push({
         line_group_id: String(payload.line_group_id),
         trip_id: String(payload.trip_id),
@@ -75,6 +85,8 @@ beforeEach(() => {
   groups = []
   lastUpdate = null
   lastInsert = null
+  updateError = null
+  insertError = null
 })
 
 it('binds a LINE group from a join link token', async () => {
@@ -91,6 +103,23 @@ it('binds a LINE group from a join link token', async () => {
     write_as_user_id: 'owner-1',
     status: 'active',
   })
+  expect(lastUpdate).toBeNull()
+})
+
+it('rejects binding an already-bound LINE group without replacing it', async () => {
+  groups = [{ line_group_id: 'Cg123', trip_id: 'trip-1', write_as_user_id: 'owner-1', status: 'active' }]
+  const { bindLineGroupToTrip } = require('@/lib/line/bindings') as typeof import('@/lib/line/bindings')
+
+  await expect(bindLineGroupToTrip({
+    lineGroupId: 'Cg123',
+    tripLinkOrToken: 'token-1',
+  })).rejects.toThrow('LINE_GROUP_ALREADY_BOUND')
+
+  expect(lastUpdate).toBeNull()
+  expect(lastInsert).toBeNull()
+  expect(groups).toEqual([
+    { line_group_id: 'Cg123', trip_id: 'trip-1', write_as_user_id: 'owner-1', status: 'active' },
+  ])
 })
 
 it('disables an active binding', async () => {
@@ -99,6 +128,31 @@ it('disables an active binding', async () => {
 
   await expect(unbindLineGroup({ lineGroupId: 'Cg123' })).resolves.toBeUndefined()
   expect(lastUpdate).toEqual({ status: 'disabled' })
+})
+
+it('fails when disabling an active binding fails', async () => {
+  groups = [{ line_group_id: 'Cg123', trip_id: 'trip-1', write_as_user_id: 'owner-1', status: 'active' }]
+  updateError = { message: 'update failed' }
+  const { unbindLineGroup } = require('@/lib/line/bindings') as typeof import('@/lib/line/bindings')
+
+  await expect(unbindLineGroup({ lineGroupId: 'Cg123' })).rejects.toThrow('LINE_UNBIND_FAILED')
+  expect(lastUpdate).toEqual({ status: 'disabled' })
+  expect(groups).toEqual([
+    { line_group_id: 'Cg123', trip_id: 'trip-1', write_as_user_id: 'owner-1', status: 'active' },
+  ])
+})
+
+it('does not disable active bindings when a new bind insert fails', async () => {
+  insertError = { message: 'insert failed' }
+  const { bindLineGroupToTrip } = require('@/lib/line/bindings') as typeof import('@/lib/line/bindings')
+
+  await expect(bindLineGroupToTrip({
+    lineGroupId: 'Cg123',
+    tripLinkOrToken: 'token-1',
+  })).rejects.toThrow('LINE_BIND_FAILED')
+
+  expect(lastUpdate).toBeNull()
+  expect(groups).toEqual([])
 })
 
 it('returns the active binding or null', async () => {

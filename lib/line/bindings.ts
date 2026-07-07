@@ -9,15 +9,11 @@ export async function bindLineGroupToTrip(input: {
   lineGroupId: string
   tripLinkOrToken: string
 }): Promise<{ tripId: string }> {
+  const activeBinding = await getActiveLineGroupBinding(input.lineGroupId)
+  if (activeBinding) throw new Error('LINE_GROUP_ALREADY_BOUND')
+
   const trip = await resolveTrip(input.tripLinkOrToken)
   const admin = createAdminClient()
-
-  await admin
-    .from('trip_line_groups')
-    .update({ status: 'disabled' })
-    .eq('line_group_id', input.lineGroupId)
-    .eq('status', 'active')
-    .select('id')
 
   const { error } = await admin
     .from('trip_line_groups')
