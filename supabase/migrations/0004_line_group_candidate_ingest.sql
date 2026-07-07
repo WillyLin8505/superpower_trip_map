@@ -14,6 +14,20 @@ create table if not exists public.trip_line_groups (
   last_message_at timestamptz
 );
 
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'trip_line_groups_status_check'
+      and conrelid = 'public.trip_line_groups'::regclass
+  ) then
+    alter table public.trip_line_groups
+      add constraint trip_line_groups_status_check
+      check (status in ('active', 'disabled'));
+  end if;
+end $$;
+
 create unique index if not exists trip_line_groups_active_group_idx
   on public.trip_line_groups(line_group_id)
   where status = 'active';
@@ -38,6 +52,20 @@ create table if not exists public.line_ingest_jobs (
   created_at timestamptz not null default now(),
   processed_at timestamptz
 );
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'line_ingest_jobs_status_check'
+      and conrelid = 'public.line_ingest_jobs'::regclass
+  ) then
+    alter table public.line_ingest_jobs
+      add constraint line_ingest_jobs_status_check
+      check (status in ('queued', 'processing', 'done', 'ignored', 'failed'));
+  end if;
+end $$;
 
 create unique index if not exists line_ingest_jobs_message_id_idx
   on public.line_ingest_jobs(message_id);
