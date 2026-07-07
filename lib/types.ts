@@ -118,9 +118,39 @@ export interface TripMember {
   isSelf: boolean
 }
 
+export interface LineCandidateSource {
+  kind: 'line_group'
+  lineGroupId: string
+  lineUserId?: string
+  lineDisplayName?: string
+  messageId: string
+  messageText?: string
+  sourceUrl?: string
+}
+
+export type CandidateSource = LineCandidateSource
+
+export interface LineGroupBinding {
+  lineGroupId: string
+  tripId: string
+  writeAsUserId: string
+}
+
+export type LineIngestJobStatus = 'queued' | 'processing' | 'done' | 'ignored' | 'failed'
+
+export interface LineIngestJob {
+  id: string
+  lineGroupId: string | null
+  lineUserId: string | null
+  messageId: string
+  messageText: string | null
+  status: LineIngestJobStatus
+}
+
 export interface Candidate {
   id: string
   place: Place
   addedBy: string
   addedByName: string
+  source?: CandidateSource
 }
