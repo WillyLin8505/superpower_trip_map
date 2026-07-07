@@ -4,6 +4,17 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { ItineraryClient } from '@/app/itinerary/ItineraryClient'
 import type { PlanResult, ScheduledPlace } from '@/lib/types'
 
+jest.mock('next/navigation', () => ({ useRouter: () => ({ push: jest.fn() }) }))
+
+jest.mock('@/app/actions/trips', () => ({
+  createTrip: jest.fn(),
+  saveTrip: jest.fn(),
+  getTrip: jest.fn(),
+  listTrips: jest.fn(),
+  renameTrip: jest.fn(),
+  deleteTrip: jest.fn(),
+}))
+
 // 固定 inputs：A-B 20分, A-C 40分, B-C 20分；B 星期六 10 點 high、13 點 low
 const fetchDayArrangeInputs = jest.fn()
 jest.mock('@/app/actions/arrange', () => ({

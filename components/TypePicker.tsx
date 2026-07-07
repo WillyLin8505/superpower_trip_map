@@ -48,7 +48,7 @@ export function TypePicker({ type, onChange }: Props) {
                   className="flex items-center justify-between w-full px-3 py-1.5 text-sm hover:bg-gray-50 text-left"
                 >
                   <span>{m.emoji} {m.label}</span>
-                  {t === type && <span className="text-blue-600 ml-2">✓</span>}
+                  {t === type && <span className="text-clay ml-2">✓</span>}
                 </button>
               )
             })}

@@ -8,13 +8,14 @@ export interface TypeMeta {
   emoji: string
   badge: string        // 徽章 Tailwind 類別（背景+文字）
   cardBg: string       // 卡片底色 Tailwind 類別
+  accent: string       // 類別左邊框 Tailwind 類別（border-l-<類別>）
 }
 
 export const TYPE_META: Record<PlaceType, TypeMeta> = {
-  attraction:    { label: '景點', emoji: '🏔', badge: 'bg-blue-100 text-blue-700',     cardBg: 'bg-blue-50' },
-  accommodation: { label: '住宿', emoji: '🏨', badge: 'bg-purple-100 text-purple-700', cardBg: 'bg-purple-50' },
-  restaurant:    { label: '餐廳', emoji: '🍽', badge: 'bg-amber-100 text-amber-700',   cardBg: 'bg-amber-50' },
-  dessert:       { label: '甜點', emoji: '🍰', badge: 'bg-pink-100 text-pink-700',     cardBg: 'bg-pink-50' },
+  attraction:    { label: '景點', emoji: '🏔', badge: 'bg-attraction-tint text-attraction-ink', cardBg: 'bg-surface', accent: 'border-l-attraction' },
+  accommodation: { label: '住宿', emoji: '🏨', badge: 'bg-lodging-tint text-lodging-ink',       cardBg: 'bg-surface', accent: 'border-l-lodging' },
+  restaurant:    { label: '餐廳', emoji: '🍽', badge: 'bg-restaurant-tint text-restaurant-ink', cardBg: 'bg-surface', accent: 'border-l-restaurant' },
+  dessert:       { label: '甜點', emoji: '🍰', badge: 'bg-dessert-tint text-dessert-ink',       cardBg: 'bg-surface', accent: 'border-l-dessert' },
 }
 
 // 預設停留時間（分鐘）。accommodation 暫定 60，僅為佔位避免排程出錯；

@@ -1,5 +1,6 @@
 'use client'
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   DndContext,
   DragOverlay,
@@ -14,7 +15,7 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import type { PlanResult, ScheduledPlace, Place, PlaceType, TransportMode, RecommendationsByDay, DayRecommendation } from '@/lib/types'
+import type { PlanResult, ScheduledPlace, Place, PlaceType, TransportMode, RecommendationsByDay, DayRecommendation, Candidate } from '@/lib/types'
 import { recalcPlan } from '@/lib/utils/clientScheduler'
 import { daysBetween, dayDate } from '@/lib/utils/date'
 import { legInfo, computeLegPlan } from '@/app/actions/legs'
@@ -31,6 +32,10 @@ import { DWELL } from '@/lib/placeType'
 import { fetchDayArrangeInputs } from '@/app/actions/arrange'
 import { arrangeDayOrder } from '@/lib/utils/arrangeDay'
 import { AiRearrangeInput } from '@/components/AiRearrangeInput'
+import { createTrip, saveTrip } from '@/app/actions/trips'
+import { CandidatePanel } from '@/components/CandidatePanel'
+import { addCandidate, removeCandidate } from '@/app/actions/candidates'
+import { groupCandidatesByDay } from '@/lib/utils/candidateArrange'
 
 // pointerWithin is essential for multi-container: it checks where the pointer
 // physically is, not center-to-center distance (closestCenter favors the source container)
@@ -46,9 +51,12 @@ function renumberDays<T extends { day: number }>(days: T[]): T[] {
 
 interface Props {
   initial: PlanResult
+  tripId?: string
+  initialCandidates?: Candidate[]
 }
 
-export function ItineraryClient({ initial }: Props) {
+export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Props) {
+  const router = useRouter()
   const [plan, setPlan] = useState<PlanResult>(initial)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [targetDays, setTargetDays] = useState<number | null>(null)
@@ -59,7 +67,10 @@ export function ItineraryClient({ initial }: Props) {
   const [arrangeError, setArrangeError] = useState<string | null>(null)
   const [legBusy, setLegBusy] = useState<{ dayIdx: number; placeId: string } | null>(null)
   const [legError, setLegError] = useState<string | null>(null)
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [candidates, setCandidates] = useState<Candidate[]>(initialCandidates)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const autosaveRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // planRef always tracks the latest committed plan (avoids stale closures in dnd-kit callbacks)
   const planRef = useRef<PlanResult>(initial)
   const savedPlanRef = useRef<PlanResult>(initial)
@@ -90,6 +101,51 @@ export function ItineraryClient({ initial }: Props) {
     recsRef.current = next
     setRecsByDay(next)
   }, [])
+
+  // 匿名：建立 trip
+  const onSave = useCallback(async () => {
+    try {
+      const { tripId: newId } = await createTrip(planRef.current, '未命名行程')
+      router.push(`/itinerary/${newId}`)
+    } catch (e) {
+      if (e instanceof Error && e.message === 'NOT_AUTHENTICATED') {
+        router.push(`/login?next=${encodeURIComponent('/itinerary')}`)
+      } else {
+        setSaveState('error')
+      }
+    }
+  }, [router])
+
+  // 持久化：plan 變動 → debounced autosave（last-write-wins）
+  useEffect(() => {
+    if (!tripId) return
+    if (plan === savedPlanRef.current) return
+    setSaveState('saving')
+    if (autosaveRef.current) clearTimeout(autosaveRef.current)
+    autosaveRef.current = setTimeout(async () => {
+      try {
+        await saveTrip(tripId, planRef.current)
+        savedPlanRef.current = planRef.current
+        setSaveState('saved')
+      } catch {
+        setSaveState('error')
+      }
+    }, 1500)
+    return () => { if (autosaveRef.current) clearTimeout(autosaveRef.current) }
+  }, [plan, tripId])
+
+  // 持久化：重試按鈕直接呼叫 saveTrip（ref sentinel 方式無法重新觸發 effect）
+  const onRetry = useCallback(async () => {
+    if (!tripId) return
+    setSaveState('saving')
+    try {
+      await saveTrip(tripId, planRef.current)
+      savedPlanRef.current = planRef.current
+      setSaveState('saved')
+    } catch {
+      setSaveState('error')
+    }
+  }, [tripId])
 
   const scheduleRecalc = useCallback((nextPlan: PlanResult, structural = false) => {
     planRef.current = nextPlan
@@ -312,6 +368,52 @@ export function ItineraryClient({ initial }: Props) {
     scheduleRecalc(next, true)
   }, [scheduleRecalc])
 
+  // 加候選：先呼叫 action 取得 id，再樂觀加入本地池
+  const onAddCandidate = useCallback(async (place: Place) => {
+    if (!tripId) return
+    try {
+      const { id } = await addCandidate(tripId, place)
+      setCandidates((cs) => [...cs, { id, place, addedBy: 'me', addedByName: '你' }])
+    } catch { /* 靜默失敗（未登入/非participant/RLS）；候選不進池 */ }
+  }, [tripId])
+
+  const onAddCandidates = useCallback((places: Place[]) => {
+    places.forEach((p) => { void onAddCandidate(p) })
+  }, [onAddCandidate])
+
+  const onRemoveCandidate = useCallback(async (candidateId: string) => {
+    try {
+      await removeCandidate(candidateId)
+      setCandidates((cs) => cs.filter((c) => c.id !== candidateId))
+    } catch { /* 保留在池 */ }
+  }, [])
+
+  // 放進指定天（移動語義）：比照 handleAddPlace 建卡加到 dayIndex 末尾 → recalc/autosave → 從池移除
+  const handleAddCandidateToDay = useCallback((place: Place, dayIndex: number, candidateId: string) => {
+    const newPlace: ScheduledPlace = {
+      ...place,
+      startTime: '09:00',
+      durationMin: DWELL[place.type],
+      travelMinToNext: null,
+      aiDescription: null,
+      outsideHours: false,
+      lateExit: false,
+      startLocked: false,
+      durationLocked: false,
+    }
+    const newDays = planRef.current.days.map((d, i) =>
+      i === dayIndex ? { ...d, places: [...d.places, newPlace] } : d
+    )
+    scheduleRecalc({ ...planRef.current, days: newDays }, true)
+    void onRemoveCandidate(candidateId)
+  }, [scheduleRecalc, onRemoveCandidate])
+
+  // C4：衍生把候選池依地理分到各天（供每天的 ← 建議卡）
+  const candidatesByDay = useMemo(
+    () => groupCandidatesByDay(plan.days, candidates),
+    [plan.days, candidates]
+  )
+
   const buildExcludeIds = useCallback((): string[] => {
     const ids = new Set<string>()
     planRef.current.days.forEach((d) => d.places.forEach((p) => ids.add(p.placeId)))
@@ -526,22 +628,47 @@ export function ItineraryClient({ initial }: Props) {
 
   return (
     <main className="max-w-5xl mx-auto px-4 py-10">
-      <a href="/" className="text-blue-600 text-sm mb-6 inline-block">&#x2190; 重新規劃</a>
+      <div className="flex items-center justify-between mb-6">
+        <a href="/" className="text-clay text-sm inline-block">&#x2190; 重新規劃</a>
+        {tripId ? (
+          <span className="text-sm text-muted">
+            {saveState === 'saving' && '儲存中…'}
+            {saveState === 'saved' && '已儲存'}
+            {saveState === 'error' && (
+              <button
+                onClick={onRetry}
+                className="text-red-600 underline"
+              >
+                儲存失敗，點此重試
+              </button>
+            )}
+          </span>
+        ) : (
+          <span className="flex flex-col items-end gap-1">
+            <button onClick={onSave} className="text-sm border border-clay text-clay-deep rounded-md px-3 py-1 hover:bg-clay-tint">
+              儲存行程
+            </button>
+            {saveState === 'error' && (
+              <span className="text-xs text-red-600">儲存失敗，請稍後再試</span>
+            )}
+          </span>
+        )}
+      </div>
       <section className="mb-6 flex flex-wrap items-end gap-4">
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-gray-500">開始日期</span>
+          <span className="text-xs text-muted">開始日期</span>
           <input type="date" data-testid="trip-start-date" value={plan.startDate}
             onChange={(e) => handleChangeStartDate(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+            className="border border-border rounded-lg px-3 py-1.5 text-sm" />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-gray-500">結束日期</span>
+          <span className="text-xs text-muted">結束日期</span>
           <input type="date" data-testid="trip-end-date" min={plan.startDate}
             value={dayDate(plan.startDate, plan.days.length)}
             onChange={(e) => handleChangeEndDate(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+            className="border border-border rounded-lg px-3 py-1.5 text-sm" />
         </label>
-        <span className="text-sm text-gray-600 pb-1.5">共 {plan.days.length} 天</span>
+        <span className="text-sm text-muted pb-1.5">共 {plan.days.length} 天</span>
       </section>
       {overCount > 0 && (
         <div className="mb-4 px-4 py-2 rounded-lg bg-orange-50 border border-orange-200 text-sm text-orange-700">
@@ -549,9 +676,19 @@ export function ItineraryClient({ initial }: Props) {
         </div>
       )}
       <section className="mb-6 space-y-3">
-        <h2 className="text-sm font-semibold text-gray-700">新增行程</h2>
+        <h2 className="text-sm font-semibold text-ink">新增行程</h2>
         <CombinedInput onAdd={handleAddPlace} onAddPlaces={handleAddPlaces} />
       </section>
+      {tripId && (
+        <div className="mb-6">
+          <CandidatePanel
+            candidates={candidates}
+            onAddPlace={onAddCandidate}
+            onAddPlaces={onAddCandidates}
+            onRemove={onRemoveCandidate}
+          />
+        </div>
+      )}
       <DndContext
         sensors={sensors}
         collisionDetection={multiContainerCollision}
@@ -598,6 +735,8 @@ export function ItineraryClient({ initial }: Props) {
                 draggable
                 recommendations={recsByDay?.[dayIdx]}
                 onAddRecommendation={(rec) => handleAddRecommendation(dayIdx, rec)}
+                candidates={tripId ? candidatesByDay[dayIdx] : undefined}
+                onAddCandidate={tripId ? (candidateId, place) => handleAddCandidateToDay(place, dayIdx, candidateId) : undefined}
                 backfilling={{
                   dessert: backfillKeys.has(`${dayIdx}:dessert`),
                   attraction: backfillKeys.has(`${dayIdx}:attraction`),

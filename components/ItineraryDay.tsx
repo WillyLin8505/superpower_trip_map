@@ -5,8 +5,9 @@ import { ItineraryCard } from './ItineraryCard'
 import { buildDayEmbedUrl } from '@/lib/utils/mapUrl'
 import { dayDate, formatDateLabel } from '@/lib/utils/date'
 import { DayRecommendations } from './DayRecommendations'
+import { DayCandidateSuggestions } from './DayCandidateSuggestions'
 import { freeBlocks, formatGap } from '@/lib/utils/freeTime'
-import type { DayItinerary, TransportMode, PlaceType, CategoryBuckets, DayRecommendation } from '@/lib/types'
+import type { DayItinerary, TransportMode, PlaceType, CategoryBuckets, DayRecommendation, Candidate, Place } from '@/lib/types'
 
 function toMin(t: string): number {
   const [h, m] = t.split(':').map(Number)
@@ -33,6 +34,8 @@ interface Props {
   onChangeWindow?: (field: 'dayStart' | 'dayEnd', value: string) => void
   recommendations?: CategoryBuckets
   onAddRecommendation?: (rec: DayRecommendation) => void
+  candidates?: Candidate[]
+  onAddCandidate?: (candidateId: string, place: Place) => void
   backfilling?: Partial<Record<'dessert' | 'attraction' | 'restaurant', boolean>>
   isLastDay?: boolean
   onSmartArrange?: () => void
@@ -43,23 +46,23 @@ interface Props {
   onDeletePlace?: (placeId: string) => void
 }
 
-export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, backfilling, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId, onDeletePlace }: Props) {
+export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, candidates, onAddCandidate, backfilling, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId, onDeletePlace }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
 
   return (
     <section className="mb-12" data-testid={`day-${dayIdx}`}>
-      <h2 className="text-xl font-bold text-gray-800 mb-1">
+      <h2 className="font-display text-2xl font-semibold text-ink mb-1 text-balance">
         第 {day.day} 天 · {isOverflow ? '超出行程' : formatDateLabel(dayDate(startDate, day.day))}
       </h2>
       {!isLastDay && day.places.length > 0 && !day.places.some((p) => p.type === 'accommodation') && (
-        <p className="text-xs text-orange-600 mb-2">&#x26A0; 這天沒有住宿</p>
+        <p className="text-xs text-warn mb-2">&#x26A0; 這天沒有住宿</p>
       )}
       {isOverflow && (onScatter || onDelete) && (
         <div className="flex gap-2 mb-2">
           {onScatter && (
             <button type="button" onClick={onScatter}
-              className="text-xs px-2 py-1 rounded-full border border-orange-300 text-orange-700 hover:bg-orange-50">
+              className="text-xs px-2 py-1 rounded-full border border-warn text-warn hover:bg-warn/10">
               散到其他天
             </button>
           )}
@@ -72,15 +75,15 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
         </div>
       )}
       {onChangeWindow && (
-        <div className="flex items-center gap-2 mb-2 text-xs text-gray-500">
+        <div className="flex items-center gap-2 mb-2 text-xs text-muted">
           <span>活動</span>
           <input type="time" value={day.dayStart}
             onChange={(e) => onChangeWindow('dayStart', e.target.value)}
-            className="border border-gray-200 rounded px-1 py-0.5" />
+            className="border border-border rounded px-1 py-0.5" />
           <span>–</span>
           <input type="time" value={day.dayEnd}
             onChange={(e) => onChangeWindow('dayEnd', e.target.value)}
-            className="border border-gray-200 rounded px-1 py-0.5" />
+            className="border border-border rounded px-1 py-0.5" />
           <span>（{((toMin(day.dayEnd) - toMin(day.dayStart)) / 60).toFixed(1)} 小時）</span>
         </div>
       )}
@@ -95,7 +98,7 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
                 type="button"
                 disabled={!has}
                 onClick={() => onSetDayStartLock(!allStart)}
-                className="text-xs px-2 py-1 rounded-full border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="text-xs px-2 py-1 rounded-full border border-border hover:bg-paper disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {allStart ? '🔒' : '🔓'} 整天鎖開始
               </button>
@@ -105,7 +108,7 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
                 type="button"
                 disabled={!has}
                 onClick={() => onSetDayDurationLock(!allDur)}
-                className="text-xs px-2 py-1 rounded-full border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="text-xs px-2 py-1 rounded-full border border-border hover:bg-paper disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {allDur ? '🔒' : '🔓'} 整天鎖停留
               </button>
@@ -132,17 +135,17 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
             </label>
             <button type="button" disabled={disabled} onClick={() => onSmartArrange?.()}
               title={(!avoidTraffic && !avoidCrowds) ? '請至少勾一項' : undefined}
-              className="px-2 py-1 rounded-full border border-blue-300 text-blue-700 hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed">
+              className="px-2 py-1 rounded-full border border-clay/40 text-clay-deep hover:bg-clay-tint disabled:opacity-40 disabled:cursor-not-allowed">
               {arranging ? '排程中…' : '智慧排程'}
             </button>
           </div>
         )
       })()}
-      {day.aiSummary && <p className="text-sm text-gray-500 mb-4">{day.aiSummary}</p>}
+      {day.aiSummary && <p className="text-sm text-muted mb-4">{day.aiSummary}</p>}
       <div className="flex gap-6 items-start">
         <div
           ref={setNodeRef}
-          className={`flex-1 space-y-3 rounded-lg transition-colors min-h-[60px] ${isOver ? 'ring-2 ring-blue-400 bg-blue-50' : ''}`}
+          className={`flex-1 space-y-3 rounded-lg transition-colors min-h-[60px] ${isOver ? 'ring-2 ring-clay bg-clay-tint' : ''}`}
         >
           {(() => {
             const byAfter = new Map(
@@ -170,7 +173,7 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
                   {fb && (
                     <div
                       data-testid={`free-block-${fb.afterId}`}
-                      className="text-xs text-gray-500 bg-gray-100 rounded-lg px-3 py-1.5 flex items-center gap-1"
+                      className="text-xs text-muted bg-paper rounded-lg px-3 py-1.5 flex items-center gap-1"
                     >
                       &#x23F1; 空閒 {formatGap(fb.minutes)}{fb.untilTime ? `（到 ${fb.untilTime}）` : ''}
                     </div>
@@ -180,10 +183,10 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
             })
           })()}
         </div>
-        {(embedUrl || (recommendations && onAddRecommendation)) && (
+        {(embedUrl || (recommendations && onAddRecommendation) || (candidates && candidates.length > 0 && onAddCandidate)) && (
           <div className="w-96 shrink-0 sticky top-4">
             {embedUrl && (
-              <div className="rounded-xl overflow-hidden border border-gray-200">
+              <div className="rounded-xl overflow-hidden border border-border">
                 <iframe
                   src={embedUrl}
                   width="100%"
@@ -203,6 +206,9 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
                 onAdd={onAddRecommendation}
                 backfilling={backfilling}
               />
+            )}
+            {candidates && onAddCandidate && (
+              <DayCandidateSuggestions candidates={candidates} onAdd={onAddCandidate} />
             )}
           </div>
         )}

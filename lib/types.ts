@@ -103,3 +103,24 @@ export interface ArrangeOpts {
   avoidTraffic: boolean
   avoidCrowds: boolean
 }
+
+export interface TripSummary {
+  id: string
+  title: string
+  updatedAt: string   // ISO
+}
+
+export interface TripMember {
+  userId: string
+  name: string
+  avatarUrl: string | null
+  role: 'owner' | 'editor'
+  isSelf: boolean
+}
+
+export interface Candidate {
+  id: string
+  place: Place
+  addedBy: string
+  addedByName: string
+}

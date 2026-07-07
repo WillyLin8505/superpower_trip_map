@@ -55,7 +55,7 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
     <div
       ref={setNodeRef}
       style={style}
-      className={`border rounded-xl p-4 ${meta.cardBg} ${place.outsideHours ? 'border-orange-300' : 'border-gray-200'}`}
+      className={`border border-l-4 rounded-xl p-4 ${meta.cardBg} ${meta.accent} ${place.outsideHours ? 'border-warn' : 'border-border'}`}
       data-testid={`card-${place.id}`}
     >
       <div className="flex items-start gap-3">
@@ -75,12 +75,12 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
             data-testid="drag-handle"
           >&#x2807;</span>
         )}
-        <span className="w-7 h-7 rounded-full bg-blue-600 text-white text-sm font-bold flex items-center justify-center shrink-0">
+        <span className="w-7 h-7 rounded-full bg-clay text-white text-sm font-bold flex items-center justify-center shrink-0">
           {index + 1}
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-semibold text-gray-900">{place.name}</h3>
+            <h3 className="font-semibold text-ink">{place.name}</h3>
             {onChangeType ? (
               <TypePicker type={place.type} onChange={(t) => onChangeType(place.id, t)} />
             ) : (
@@ -88,23 +88,23 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
                 {meta.label}
               </span>
             )}
-            {place.nightIndex && <span className="text-xs text-purple-700">第 {place.nightIndex} 晚</span>}
+            {place.nightIndex && <span className="text-xs text-lodging-ink">第 {place.nightIndex} 晚</span>}
             {place.outsideHours && (
-              <span className="text-xs text-orange-600 font-medium">&#x26A0; 請確認營業時間</span>
+              <span className="text-xs text-warn font-medium">&#x26A0; 請確認營業時間</span>
             )}
           </div>
           <div className="flex items-center gap-1 mt-1 flex-wrap">
             {pin.start || !onTimeChange ? (
-              <span className="text-sm text-gray-500">{place.startTime}</span>
+              <span className="text-sm text-clay-deep tabular-nums">{place.startTime}</span>
             ) : (
               <TimeScrollPicker
                 value={place.startTime}
                 onChange={(v) => onTimeChange(place.id, 'startTime', v)}
               />
             )}
-            <span className="text-gray-400 text-sm">→</span>
+            <span className="text-muted text-sm">→</span>
             {pin.end || pin.duration || !onTimeChange ? (
-              <span className="text-sm text-gray-500">{addMinutes(place.startTime, place.durationMin)}</span>
+              <span className="text-sm text-clay-deep tabular-nums">{addMinutes(place.startTime, place.durationMin)}</span>
             ) : (
               <TimeScrollPicker
                 value={addMinutes(place.startTime, place.durationMin)}
@@ -119,33 +119,33 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
             )}
           </div>
           {todayHours && (
-            <p className="text-sm text-gray-500 mt-0.5">營業 {todayHours}</p>
+            <p className="text-sm text-muted mt-0.5">營業 {todayHours}</p>
           )}
           {place.rating && (
-            <p className="text-sm text-gray-500 mt-0.5">評分：{place.rating} &#x2605;</p>
+            <p className="text-sm text-muted mt-0.5">評分：{place.rating} &#x2605;</p>
           )}
           {descriptionText && (
             <p className="text-sm text-gray-600 mt-2 italic">{descriptionText}</p>
           )}
           {place.lateExit && (
-            <p className="text-xs text-orange-600 font-medium mt-1">&#x26A0; 結束時間超出營業時間</p>
+            <p className="text-xs text-warn font-medium mt-1">&#x26A0; 結束時間超出營業時間</p>
           )}
           {(() => {
             const suggested = SUGGESTED_DURATION[place.type]
             if (suggested === undefined) return null
             if (place.durationMin < suggested) return (
-              <p className="text-xs text-orange-600 font-medium mt-1">&#x26A0; 停留少於建議（建議 {suggested} 分）</p>
+              <p className="text-xs text-warn font-medium mt-1">&#x26A0; 停留少於建議（建議 {suggested} 分）</p>
             )
             if (place.durationMin > suggested) return (
-              <p className="text-xs text-orange-600 font-medium mt-1">&#x26A0; 停留超過建議（建議 {suggested} 分）</p>
+              <p className="text-xs text-warn font-medium mt-1">&#x26A0; 停留超過建議（建議 {suggested} 分）</p>
             )
             return null
           })()}
           {dayEnd && toMin(place.startTime) + place.durationMin > toMin(dayEnd) && (
-            <p className="text-xs text-orange-600 font-medium mt-1">&#x26A0; 超出當天活動時間（活動至 {dayEnd}）</p>
+            <p className="text-xs text-warn font-medium mt-1">&#x26A0; 超出當天活動時間（活動至 {dayEnd}）</p>
           )}
           {place.type === 'accommodation' && toMin(place.startTime) < 15 * 60 && (
-            <p className="text-xs text-orange-600 font-medium mt-1">&#x26A0; 早於一般 check-in 時間（15:00）</p>
+            <p className="text-xs text-warn font-medium mt-1">&#x26A0; 早於一般 check-in 時間（15:00）</p>
           )}
         </div>
         {(onToggleStartLock || onToggleDurationLock || onToggleEndLock) && (() => {
@@ -193,7 +193,7 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
         })()}
       </div>
       {place.travelMinToNext !== null && (
-        <div className="text-xs text-gray-400 mt-3 pl-10 flex items-center gap-2 flex-wrap">
+        <div className="text-xs text-muted mt-3 pl-10 flex items-center gap-2 flex-wrap">
           <span>
             &#x2192; {LEG_META[place.legMode ?? 'driving'].icon} {LEG_META[place.legMode ?? 'driving'].label} {place.travelMinToNext} 分{place.travelDistanceToNext != null ? ` · ${(place.travelDistanceToNext / 1000).toFixed(1)} 公里` : ''}
           </span>

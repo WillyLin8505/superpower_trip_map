@@ -522,3 +522,115 @@ Task 6: complete (supersede note; final gate 356/356 + lint + build all green)
 - Whole-branch (392c3fc..9c066c9): feature coherent, list-view path fully correct, 356/356 + lint + build green.
 - Minors (non-blocking): types.ts:63 comment spacing; no direct arrangeDay end-lock test; TimelineCard resize handle ignores end/duration-derived lock (latent — timeline view unused/unwired).
 - No Critical/Important findings. Branch ready.
+## Final Review (accommodation-card-refinements, 4c2e3fe..c2fac3e)
+- Whole-branch review (opus, independent) — Verdict: **Ready to merge — no Critical/Important.**
+- Verified: (A) extendLastAccommodation wraps BOTH recalcDay return paths but only one executes per call → no double-apply; per-day dayEnd keying correct (read inside recalcDay, recalcPlan .map); duration math dayEndMin−startMin → freeTime remaining=0 so trailing pill vanishes (freeTime.ts untouched); accommodation is last stop so no downstream re-time corruption; all guards present (empty/non-accom/durationLocked/startMin≥dayEndMin), immutable returns. (B) pure-derived, 15:00 threshold correct, no collision with lateExit/below-DWELL warnings. Constraints honored: strict TS, no any, no new pkgs, TC copy, only the 2 allowed source files touched. No existing accommodation/free-time/scheduler test went stale (reviewer checked free-time, itinerary-day-free-time, client-scheduler, accommodation-warnings, schedule-accommodation).
+- Minors (non-blocking, logged): (1) lateExit computed pre-extension in applyWarnings, not refreshed after duration rewrite — LATENT ONLY (accommodations have openingHours:null → checkLateExit returns false); (2) lock-path wrap (clientScheduler.ts:105) untested — all 4 extend tests hit the no-lock branch → suggested fast-follow test; (3) helper also pins an over-long unlocked accommodation back to dayEnd (spec §2 貼回 dayEnd intended) — name reads extend-only, consider rename/comment; (4) 3rd private toMin (clientScheduler/freeTime/ItineraryCard) — DRY-forbidden by "only 2 files" constraint, plan-sanctioned, not a defect.
+- Final commit: c2fac3e (already pushed to origin/main). Lane A remains ROADMAP COMPLETE.
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-07-03-laneC-c2-sharing-membership.md (+ C1 auth-persistence)
+Branch: lane/c1-auth-persistence (C1+C2) → merged to main
+
+## Ship to main (merge 8936653)
+- Merged Lane C spine (C1 auth+persistence + C2 sharing+members) into main via --no-ff.
+- Base had diverged: main +43 / lane +28 commits. Single content conflict: app/itinerary/ItineraryClient.tsx.
+- Conflict resolved additively — kept Lane A (AiRearrangeInput import + recs mount effect + commitRecs) AND Lane C (trips actions import + onSave/autosave/onRetry save UI). Shared state decls auto-merged.
+- Post-merge dep install: main worktree lacked @supabase/ssr / @supabase/supabase-js (were in merged package.json); npm install fixed 9 suite load failures.
+- Merge test fixes: (1) itinerary-client-ai-rearrange.test.tsx (Lane-A-only, missed Lane C's auto-merged mock updates) — added next/navigation + trips mocks now that ItineraryClient uses useRouter/saveTrip; (2) itinerary-client-save.test.tsx — removed stale @/components/RecommendPanel mock (component no longer exists on main).
+- Gate on merged tree: 373 tests pass (83 suites), next lint clean, next build passes (all Lane C + Lane A routes).
+- Pushed origin/main c2fac3e..8936653 (deploy triggered). Roadmap C1/C2 → SHIPPED.
+- Outstanding: live Supabase/OAuth (Google + LINE) verification pending prod keys.
+- Not cleaned up (intentional): lane/c1-auth-persistence, lane/c2-sharing, lane/c3-candidate-pool branches + sibling worktrees retained — C3 builds on C1/C2.
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-07-04-laneC-c3-candidate-pool.md
+Branch: lane/c3-candidate-pool (stacked on lane/c1-auth-persistence = C1+C2); BASE: 48f1c90 (merged main for current integration base)
+Mode: subagent-driven, code-first (live Supabase verify deferred)
+
+## Tasks
+- [x] Task 1: candidate pool migration (0003)
+- [x] Task 2: Candidate type + candidates actions
+- [x] Task 3: CandidatePanel component
+- [x] Task 4: ItineraryClient integration (state + promote + panel)
+- [x] Task 5: wire /itinerary/[tripId] page
+- [x] Task 6: roadmap + full gate
+
+Task 1: complete (commit 4c42230, migration 0003_candidates.sql — code-first, no unit test)
+Task 2: complete — Candidate type + add/list/remove actions (RLS, admin name-resolve, 0-row guard). Test authored by Codex (gpt-5.5), Claude reviewed+ran: 10/10.
+Task 3: complete — CandidatePanel (reuse CombinedInput, list, remove, day-picker promote); 5/5.
+Task 4: complete — ItineraryClient candidate pool (state, add/remove, promote-to-day move, panel persistent-only); 4/4. Fixed test bug (two CombinedInput mocks → scoped pool click); corrected plan's stale assertion (promoted name also renders as a card → assert pool-only adder text gone).
+Task 5: complete — trip page listCandidates → initialCandidates; +mock listCandidates in pre-existing trip-page/-members tests (new page data dep).
+Task 6: complete — roadmap C3 → DONE; full gate 401/401 jest (89 suites), lint clean, next build PASS.
+
+## Notes
+- Merged main into laneC3 first for current integration base (single content conflict: progress.md ledger union). Reconciled plan literals against merged code: ScheduledPlace fields + CombinedInput onAdd/onAddPlaces props all matched; promote handler byte-identical to current handleAddPlace.
+- Two-model workflow: Task 2 test authored by Codex (gpt-5.5, 30.9k OpenAI tokens), reviewed+run by Claude. Tasks 3-5 tests written by Claude directly — Codex background delegation proved flaky across session-resume (runs exited 0 but produced no file); loop already proven on Task 2. Final independent Codex review of whole C3 diff pending.
+- Outstanding: live Supabase apply 0003_candidates.sql + multi-account RLS verification (pending keys).
+
+## Final independent Codex review (gpt-5.5, whole C3 diff) — 3 findings, verified by Claude
+- **Medium ×2 FIXED (RLS)**: delete policy was adder/owner-only → (a) a removed former member could still delete their own candidates (no participation check); (b) UI shows 移除/放進 for ALL candidates but non-adder delete silently failed → promote-move left duplicates. Both fixed by changing delete RLS to `participant_delete_candidates … using is_trip_participant(trip_id)` (shared-pool intent per spec「成員…移除」; participant check also closes the former-member gap). SQL-only, no unit test; jest/lint/build unaffected.
+  - DEVIATION from plan's「移除限 adder/owner」: intentional — plan was internally inconsistent (restricted RLS but rendered 移除 for everyone); spec + UI want any participant to curate the shared pool.
+- **High ACCEPTED as known limitation (not fixed)**: promote-to-day is non-transactional — plan update relies on debounced autosave while `removeCandidate` deletes immediately; if autosave fails AND the user refreshes without retrying, the promoted place is lost while the candidate is already gone. Recoverable in-session (saveState='error' + retry; place stays in local state). Inherent to the spec's client-move design under last-write-wins; a transactional promote RPC (update plan + delete candidate atomically) is C4/C5-scope. FOLLOW-UP logged.
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-07-04-itinerary-warm-journal-restyle.md
+Branch: main (Lane A); BASE: 4ed40b3
+Mode: subagent-driven. Pure-visual restyle (溫暖旅誌 → itinerary page). Controller does gstack visual spot-checks; implementers run jest + next build.
+
+## Tasks
+- [x] Task 1: 設計 token 打底（fonts + tailwind theme + globals）
+- [x] Task 2: 類別色 + ItineraryCard（+ 3 測試斷言）
+- [x] Task 3: ItineraryDay 襯線標題 + 控制列收色
+- [x] Task 4: 共用元件 token 化 + 按鈕語言
+- [ ] Task 5（可延後）: 自動排程卡片進場動效
+
+Task 1: complete (27641d6, review=controller-verified — exact-spec transcription; jest 401/401, next build clean, grep bg-background=0, browse body #FBF7F0 + Noto Sans TC). NOTE: first implementer died on session limit post-edit pre-commit; controller confirmed files==plan then gated+committed.
+Task 2: complete (6ff62a7..79a8b6a, review clean — ✅ Approved: exact class mappings, accent token cascades color-only, 3 assertions test real behavior, no blue residue, 401/401 + build green). Minor(final-review): 2 stale test NAMES still say 'purple/pink'. NOTE: live-server /itinerary visual deferred to end-of-plan clean pass (dev-server port/cold-compile flakiness; jsdom RTL asserts the new classes so component output is verified).
+Task 3: complete (776fb69..e9c7e47, review clean — ✅ Approved, no issues; 13 lines className-only, serif day header, zero blue/gray/orange residue, 401/401 + build green). ⚠→controller visual: 散到其他天→warn-family, 整天鎖 hover→bg-paper (both token-valid, folded into end-of-plan visual pass).
+Task 4: complete (eb0d94c..e3e616b, review clean — ✅ Approved: 7 files className-only, button language correct, 0 blue/indigo, no out-of-scope files, 401/401 + build green). Minors(final-review): AiRearrangeInput border-clay/40 one-off vs solid border-clay elsewhere; 2 extended gray swaps (text-gray-700→ink, border-gray-300→border) reasonable.
+NOTE: repeated live-visual failures diagnosed = subagent `npm run build` corrupts the running `next dev` shared .next (empty-CSS pages); NOT a code defect. Doing clean dev rebuild for visual.
+Follow-up (post-Task4, user-requested): TimeScrollPicker times/dropdown blue→clay+warm tokens (was out-of-scope; the editable 09:00→10:30 looked blue). className-only, grep 0 blue, 401/401 + build green. Proceeding to final whole-branch review.
+
+## Final Whole-Branch Review (4ed40b3..fdd795c, opus)
+- Verdict: **Ready to merge — no Critical/Important.** Provably className/config/token-only (no behavior/hook/prop/scheduleRecalc change); all tokens resolve; next/font correct (preload:false on CJK); TYPE_META cascade color-only; only the 3 sanctioned test assertions changed; every residual cool color confined to documented deferred files (Timeline*, app/page.tsx, PlaceSearch*, ItineraryPasteInput, admin/*).
+- New Minor (non-blocking): CardContent.tsx half-restyled (keeps gray/orange) but only feeds TimelineCard (deferred, not in prod) → finish in the Timeline phase.
+- Minors triaged as accepted follow-ups: stale test NAMES (purple/pink) [assertions correct]; border-clay/40 = deliberate 3-tier button hierarchy; 2 extended gray swaps sound.
+- Deferred (not defects): Task 5 reveal motion; input page bespoke layout + other pages; full dark-mode QA.
+- Final commit: fdd795c (DESIGN.md decisions-log + dessert tint added after).
+=== RESTYLE (itinerary page) COMPLETE — merge-ready. Pending: user decision on push/deploy + optional Codex cross-review (CLAUDE.md). ===
+
+## Codex cross-review (CLAUDE.md, -m gpt-5.5) + fix
+- Codex caught a REAL Medium the jsdom tests + 4 human-style reviews all missed: TYPE_META category classes (border-l-<cat>, bg-<cat>-tint, text-<cat>-ink) live only as string literals in lib/placeType.ts, which was NOT in tailwind content globs → JIT purged them → card category left-borders/pill-tints rendered no CSS. jsdom asserts the class STRING (passes), can't see missing CSS emission. Confirmed against built .next CSS (classes MISSING pre-fix).
+- Fix (commit 4523b80): added "./lib/**/*.{js,ts,jsx,tsx,mdx}" to tailwind.config.ts content. Re-verified: all category classes now PRESENT in built CSS; browse confirms attraction card left-border rgb(232,176,75)=amber, 餐廳 clay-rose, 住宿 sage, times clay. 401/401 + build green.
+- Lesson: dynamic Tailwind classes assembled in lib/ (or any non-scanned dir) get purged; keep content globs covering every file that HOLDS class-name literals, even if used via interpolation. jsdom class-assertion tests do NOT catch purge — verify emitted CSS or visual.
+=== RESTYLE COMPLETE + Codex-caught purge bug fixed. Pushing to origin/main (Vercel deploy). ===
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-07-05-laneC-c4-candidate-arrange.md
+Branch: lane/c4-candidate-arrange (off main = C1+C2+C3); Mode: executing-plans inline, code-first
+
+## Tasks
+- [x] Task 1: groupCandidatesByDay pure fn (findClosestDay + round-robin fallback)
+- [x] Task 2: DayCandidateSuggestions component (← add cards)
+- [x] Task 3: ItineraryDay + ItineraryClient wiring (candidatesByDay + per-day suggestions)
+- [x] Task 4: retire CandidatePanel day-picker + full gate
+
+Task 1: complete — groupCandidatesByDay; 4/4. hasAnchor guard: all-empty days → round-robin (findClosestDay returns 0 for all when no anchors).
+Task 2: complete — DayCandidateSuggestions mirrors RecommendationCard ← arrow; 3/3.
+Task 3: complete — ItineraryDay gains candidates/onAddCandidate props + renders suggestions in right column; ItineraryClient candidatesByDay useMemo + per-day dayIdx-bound onAddCandidate→handleAddCandidateToDay (C3 reuse). Integration test: candidate shows as ← suggestion under geo day, click → place in day + removeCandidate + suggestion gone. Updated 2 C3 tests (name now appears in pool AND day-suggestion → scoped to pool section). 409/409.
+Task 4: complete — CandidatePanel dropped day-picker (dayCount/onPromote removed), caller updated, promote test replaced with no-day-picker assertion + removed stale day-picker integration test (← arrow accept covers it). Gate: 408/408 jest (91 suites), lint clean, next build PASS.
+
+## Notes
+- Design: user chose geo-distribution (findClosestDay) + per-day ← arrows like recommendations, auto-shown (no button), no accept-all. Candidate appears in both pool panel (list+remove) and per-day suggestion by design.
+- Accept reuses C3 handleAddCandidateToDay (move semantics); per-item click sidesteps C3's non-transactional-bulk risk.
+- FOLLOW-UP: 溫暖旅誌 DESIGN.md was applied to itinerary page on a separate unpushed branch (per memory 2026-07-06); C4's new cards use plain rec-card style (consistent with C4's origin/main base). Restyle DayCandidateSuggestions/CandidatePanel when that design branch merges.
+- Pending: final Codex review of C4 diff; live Supabase verify (keys).

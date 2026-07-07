@@ -4,6 +4,11 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { ItineraryClient } from '@/app/itinerary/ItineraryClient'
 import type { PlanResult, ScheduledPlace } from '@/lib/types'
 
+jest.mock('next/navigation', () => ({ useRouter: () => ({ push: jest.fn() }) }))
+jest.mock('@/app/actions/trips', () => ({
+  createTrip: jest.fn(), saveTrip: jest.fn(), getTrip: jest.fn(),
+  listTrips: jest.fn(), renameTrip: jest.fn(), deleteTrip: jest.fn(),
+}))
 jest.mock('@/app/actions/arrange', () => ({ fetchDayArrangeInputs: jest.fn() }))
 jest.mock('@/lib/utils/clientScheduler', () => ({
   ...jest.requireActual('@/lib/utils/clientScheduler'),

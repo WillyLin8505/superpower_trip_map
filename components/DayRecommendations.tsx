@@ -33,7 +33,7 @@ export function DayRecommendations({ recommendations, dateIso, onAdd, backfillin
             onClick={() => setTab(c)}
             data-testid={`rec-tab-${c}`}
             className={`text-xs px-2 py-1 rounded-full border ${
-              tab === c ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-500'
+              tab === c ? 'border-clay bg-clay-tint text-clay-deep' : 'border-gray-200 text-gray-500'
             }`}
           >
             {TYPE_META[c].emoji} {TYPE_META[c].label} {recommendations[c].shown.length}

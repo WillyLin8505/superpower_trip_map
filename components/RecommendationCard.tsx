@@ -14,14 +14,14 @@ export function RecommendationCard({ rec, dateIso, onAdd }: Props) {
   const todayHours = getHoursForDate(rec.openingHours, dateIso)
 
   return (
-    <div className={`border border-gray-200 rounded-xl p-3 ${meta.cardBg}`} data-testid={`rec-${rec.placeId}`}>
+    <div className={`border border-border rounded-xl p-3 ${meta.cardBg}`} data-testid={`rec-${rec.placeId}`}>
       <div className="flex items-start gap-2">
         <button
           type="button"
           onClick={onAdd}
           aria-label={`加入 ${rec.name}`}
           data-testid={`rec-add-${rec.placeId}`}
-          className="shrink-0 mt-0.5 w-7 h-7 rounded-full bg-blue-600 text-white text-sm flex items-center justify-center hover:bg-blue-700"
+          className="shrink-0 mt-0.5 w-7 h-7 rounded-full bg-clay text-white text-sm flex items-center justify-center hover:bg-clay-deep"
         >
           &#x2190;
         </button>

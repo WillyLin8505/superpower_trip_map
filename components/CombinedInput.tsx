@@ -143,7 +143,7 @@ export function CombinedInput({ onAdd, onAddPlaces }: Props) {
     return (
       <div className="py-6 text-center space-y-2">
         {detectedCountry && (
-          <span className="inline-block bg-blue-100 text-blue-700 text-xs px-3 py-1 rounded-full">
+          <span className="inline-block bg-clay-tint text-clay-deep text-xs px-3 py-1 rounded-full">
             偵測到：{detectedCountry}
           </span>
         )}
@@ -171,7 +171,7 @@ export function CombinedInput({ onAdd, onAddPlaces }: Props) {
         <button
           onClick={handleConfirmCountry}
           disabled={!selectedCountryName}
-          className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="w-full bg-clay text-white py-2 rounded-lg font-medium hover:bg-clay-deep disabled:opacity-40 disabled:cursor-not-allowed"
         >
           繼續分析
         </button>
@@ -187,7 +187,7 @@ export function CombinedInput({ onAdd, onAddPlaces }: Props) {
         disabled={phase === 'loading'}
         placeholder="搜尋地點、貼上行程文字，或貼上網址..."
         rows={3}
-        className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none disabled:opacity-60"
+        className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-clay resize-none disabled:opacity-60"
       />
       {detectedMode && phase !== 'loading' && (
         <p className="text-xs text-gray-500">{MODE_BADGE[detectedMode]}</p>
@@ -213,7 +213,7 @@ export function CombinedInput({ onAdd, onAddPlaces }: Props) {
       <button
         onClick={handleSubmit}
         disabled={!text.trim() || phase === 'loading'}
-        className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+        className="w-full bg-clay text-white py-2 rounded-lg font-medium hover:bg-clay-deep disabled:opacity-40 disabled:cursor-not-allowed"
       >
         {phase === 'loading' ? '分析中...' : '送出'}
       </button>

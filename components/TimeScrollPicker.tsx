@@ -57,12 +57,12 @@ export function TimeScrollPicker({ value, onChange }: Props) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="text-sm text-blue-600 underline underline-offset-2"
+        className="text-sm text-clay-deep tabular-nums underline underline-offset-2"
       >
         {h}:{m}
       </button>
       {open && (
-        <div className="absolute z-50 top-7 left-0 bg-white border border-gray-200 rounded-lg shadow-lg flex gap-0 overflow-hidden">
+        <div className="absolute z-50 top-7 left-0 bg-surface border border-border rounded-lg shadow-lg flex gap-0 overflow-hidden">
           <ul className="overflow-y-auto h-40 w-12 scroll-smooth" data-testid="hours-col">
             {HOURS.map((hr) => (
               <li
@@ -70,14 +70,14 @@ export function TimeScrollPicker({ value, onChange }: Props) {
                 ref={hr === h ? selHourRef : undefined}
                 onClick={() => selectHour(hr)}
                 className={`h-8 flex items-center justify-center text-sm cursor-pointer select-none ${
-                  hr === h ? 'font-semibold text-blue-700 bg-blue-50 rounded' : 'text-gray-700 hover:bg-gray-50'
+                  hr === h ? 'font-semibold text-clay-deep bg-clay-tint rounded' : 'text-ink hover:bg-paper'
                 }`}
               >
                 {hr}
               </li>
             ))}
           </ul>
-          <div className="w-px bg-gray-100" />
+          <div className="w-px bg-border" />
           <ul className="overflow-y-auto h-40 w-12 scroll-smooth" data-testid="minutes-col">
             {MINUTES.map((mn) => (
               <li
@@ -85,7 +85,7 @@ export function TimeScrollPicker({ value, onChange }: Props) {
                 ref={mn === m ? selMinRef : undefined}
                 onClick={() => selectMin(mn)}
                 className={`h-8 flex items-center justify-center text-sm cursor-pointer select-none ${
-                  mn === m ? 'font-semibold text-blue-700 bg-blue-50 rounded' : 'text-gray-700 hover:bg-gray-50'
+                  mn === m ? 'font-semibold text-clay-deep bg-clay-tint rounded' : 'text-ink hover:bg-paper'
                 }`}
               >
                 {mn}
