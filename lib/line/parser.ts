@@ -7,7 +7,13 @@ export type LineParsedText =
   | { kind: 'place_text'; query: string }
   | { kind: 'ignored' }
 
-const GOOGLE_MAPS_HOSTS = new Set(['maps.app.goo.gl', 'www.google.com', 'google.com', 'goo.gl'])
+const GOOGLE_MAPS_HOSTS = new Set([
+  'maps.app.goo.gl',
+  'maps.google.com',
+  'www.google.com',
+  'google.com',
+  'goo.gl',
+])
 
 export function parseLineText(text: string | null | undefined): LineParsedText {
   const trimmed = text?.trim() ?? ''

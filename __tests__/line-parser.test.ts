@@ -16,6 +16,11 @@ it('classifies Google Maps URLs', () => {
     kind: 'google_maps_url',
     url: 'https://maps.app.goo.gl/abc',
   })
+
+  expect(parseLineText('https://maps.google.com/?q=Taipei%20101')).toEqual({
+    kind: 'google_maps_url',
+    url: 'https://maps.google.com/?q=Taipei%20101',
+  })
 })
 
 it('classifies general article URLs', () => {
