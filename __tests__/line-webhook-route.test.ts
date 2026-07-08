@@ -43,7 +43,7 @@ beforeEach(() => {
   processLineTextMessage.mockResolvedValue({ kind: 'reply', text: '撌脣??亙瘙??啣?101' })
   replyLineMessage.mockResolvedValue(undefined)
   getLineProfile.mockResolvedValue({ displayName: '撠?' })
-  recordLineIngestJob.mockResolvedValue(undefined)
+  recordLineIngestJob.mockResolvedValue('created')
   markLineIngestJob.mockResolvedValue(undefined)
 })
 
@@ -124,6 +124,33 @@ it('processes bound group text and replies', async () => {
   })
   expect(markLineIngestJob).toHaveBeenCalledWith('m2', 'done')
   expect(replyLineMessage).toHaveBeenCalledWith('reply-1', '撌脣??亙瘙??啣?101')
+})
+
+it('returns 200 without processing or replying for duplicate message IDs', async () => {
+  recordLineIngestJob.mockResolvedValue('duplicate')
+  const { POST } = require('@/app/api/line/webhook/route') as typeof import('@/app/api/line/webhook/route')
+
+  const res = await POST(request({
+    events: [{
+      type: 'message',
+      replyToken: 'reply-1',
+      source: { type: 'group', groupId: 'Cg123', userId: 'U123' },
+      message: { type: 'text', id: 'm2', text: '???101' },
+    }],
+  }))
+
+  expect(res.status).toBe(200)
+  expect(recordLineIngestJob).toHaveBeenCalledWith({
+    lineGroupId: 'Cg123',
+    lineUserId: 'U123',
+    messageId: 'm2',
+    messageText: '???101',
+    eventPayload: expect.objectContaining({ type: 'message' }),
+  })
+  expect(getLineProfile).not.toHaveBeenCalled()
+  expect(processLineTextMessage).not.toHaveBeenCalled()
+  expect(replyLineMessage).not.toHaveBeenCalled()
+  expect(markLineIngestJob).not.toHaveBeenCalled()
 })
 
 it('marks processing failures failed and still returns 200', async () => {

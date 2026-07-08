@@ -74,13 +74,14 @@ async function handleEvent(event: LineEvent): Promise<void> {
     return
   }
 
-  await recordLineIngestJob({
+  const jobRecordStatus = await recordLineIngestJob({
     lineGroupId,
     lineUserId: event.source?.userId,
     messageId,
     messageText: text,
     eventPayload: event,
   })
+  if (jobRecordStatus === 'duplicate') return
 
   let profile: Awaited<ReturnType<typeof getLineProfile>> | null = null
   if (event.source?.userId) {

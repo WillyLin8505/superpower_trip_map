@@ -37,13 +37,13 @@ beforeEach(() => {
 it('records a LINE ingest job', async () => {
   const { recordLineIngestJob } = require('@/lib/line/jobs') as typeof import('@/lib/line/jobs')
 
-  await recordLineIngestJob({
+  await expect(recordLineIngestJob({
     lineGroupId: 'Cg123',
     lineUserId: 'U123',
     messageId: 'm1',
     messageText: '?啣?101',
     eventPayload: { type: 'message' },
-  })
+  })).resolves.toBe('created')
 
   expect(lastInsert).toEqual({
     line_group_id: 'Cg123',
@@ -65,7 +65,7 @@ it('treats duplicate message IDs as already recorded', async () => {
     messageId: 'm1',
     messageText: '???101',
     eventPayload: { type: 'message' },
-  })).resolves.toBeUndefined()
+  })).resolves.toBe('duplicate')
 })
 
 it('marks a job as done or failed', async () => {
