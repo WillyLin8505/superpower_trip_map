@@ -17,6 +17,7 @@ type OrderCall = { column: string; options: { ascending: boolean } }
 type TestState = {
   authUser: AuthUser
   insertResult: QueryResult<{ id: string } | null>
+  adminLookupResult: QueryResult<{ id: string } | null>
   listResult: QueryResult<CandidateRow[] | null>
   deleteResult: QueryResult<{ id: string }[] | null>
   profiles: Record<string, UserProfile | undefined>
@@ -78,7 +79,7 @@ function makeAdminCandidatesBuilder() {
     select: jest.fn(() => ({
       eq: jest.fn(() => ({
         eq: jest.fn(() => ({
-          maybeSingle: jest.fn(async () => ({ data: null, error: null })),
+          maybeSingle: jest.fn(async () => state.adminLookupResult),
         })),
       })),
     })),
@@ -138,6 +139,7 @@ beforeEach(() => {
   state = {
     authUser: { id: 'user-self' },
     insertResult: { data: { id: 'candidate-1' }, error: null },
+    adminLookupResult: { data: null, error: null },
     listResult: {
       data: [
         {
@@ -298,6 +300,21 @@ it('addCandidateFromLine inserts with source and writeAsUserId', async () => {
     added_by: 'owner-1',
     source,
   })
+})
+
+it('addCandidateFromLine throws and skips insert when duplicate lookup fails', async () => {
+  state.adminLookupResult = { data: null, error: { message: 'lookup failed' } }
+  const source = { kind: 'line_group' as const, lineGroupId: 'Cg123', messageId: 'm1' }
+  const { addCandidateFromLine } = loadActions()
+
+  await expect(addCandidateFromLine({
+    tripId: 'trip-1',
+    writeAsUserId: 'owner-1',
+    place: placeFixture,
+    source,
+  })).rejects.toThrow('LINE_CANDIDATE_LOOKUP_FAILED')
+
+  expect(state.lastInsert).toBeNull()
 })
 
 it('removeCandidate throws NOT_AUTHENTICATED when logged out', async () => {

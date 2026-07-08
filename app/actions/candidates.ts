@@ -32,13 +32,14 @@ export async function addCandidateFromLine(input: {
 }): Promise<'added' | 'duplicate'> {
   const admin = createAdminClient()
 
-  const { data: existing } = await admin
+  const { data: existing, error: lookupError } = await admin
     .from('trip_candidates')
     .select('id')
     .eq('trip_id', input.tripId)
     .eq('place->>placeId', input.place.placeId)
     .maybeSingle()
 
+  if (lookupError) throw new Error('LINE_CANDIDATE_LOOKUP_FAILED')
   if (existing) return 'duplicate'
 
   const { error } = await admin
