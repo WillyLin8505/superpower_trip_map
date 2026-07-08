@@ -74,10 +74,6 @@ async function handleEvent(event: LineEvent): Promise<void> {
     return
   }
 
-  const profile = event.source?.userId
-    ? await getLineProfile(lineGroupId, event.source.userId)
-    : null
-
   await recordLineIngestJob({
     lineGroupId,
     lineUserId: event.source?.userId,
@@ -85,6 +81,15 @@ async function handleEvent(event: LineEvent): Promise<void> {
     messageText: text,
     eventPayload: event,
   })
+
+  let profile: Awaited<ReturnType<typeof getLineProfile>> | null = null
+  if (event.source?.userId) {
+    try {
+      profile = await getLineProfile(lineGroupId, event.source.userId)
+    } catch {
+      profile = null
+    }
+  }
 
   let result
   try {

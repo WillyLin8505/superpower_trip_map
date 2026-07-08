@@ -125,3 +125,35 @@ it('processes bound group text and replies', async () => {
   expect(markLineIngestJob).toHaveBeenCalledWith('m2', 'done')
   expect(replyLineMessage).toHaveBeenCalledWith('reply-1', '撌脣??亙瘙??啣?101')
 })
+
+it('records and processes a message when profile lookup fails', async () => {
+  getLineProfile.mockRejectedValue(new Error('LINE profile unavailable'))
+  processLineTextMessage.mockResolvedValue({ kind: 'ignored' })
+  const { POST } = require('@/app/api/line/webhook/route') as typeof import('@/app/api/line/webhook/route')
+
+  const res = await POST(request({
+    events: [{
+      type: 'message',
+      replyToken: 'reply-1',
+      source: { type: 'group', groupId: 'Cg123', userId: 'U123' },
+      message: { type: 'text', id: 'm3', text: '???101' },
+    }],
+  }))
+
+  expect(res.status).toBe(200)
+  expect(recordLineIngestJob).toHaveBeenCalledWith({
+    lineGroupId: 'Cg123',
+    lineUserId: 'U123',
+    messageId: 'm3',
+    messageText: '???101',
+    eventPayload: expect.objectContaining({ type: 'message' }),
+  })
+  expect(processLineTextMessage).toHaveBeenCalledWith({
+    lineGroupId: 'Cg123',
+    lineUserId: 'U123',
+    lineDisplayName: undefined,
+    messageId: 'm3',
+    text: '???101',
+  })
+  expect(markLineIngestJob).toHaveBeenCalledWith('m3', 'ignored')
+})
