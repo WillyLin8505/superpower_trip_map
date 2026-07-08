@@ -634,3 +634,13 @@ Task 4: complete — CandidatePanel dropped day-picker (dayCount/onPromote remov
 - Accept reuses C3 handleAddCandidateToDay (move semantics); per-item click sidesteps C3's non-transactional-bulk risk.
 - FOLLOW-UP: 溫暖旅誌 DESIGN.md was applied to itinerary page on a separate unpushed branch (per memory 2026-07-06); C4's new cards use plain rec-card style (consistent with C4's origin/main base). Restyle DayCandidateSuggestions/CandidatePanel when that design branch merges.
 - Pending: final Codex review of C4 diff; live Supabase verify (keys).
+
+Plan: docs/superpowers/plans/2026-07-07-line-group-candidate-ingest.md
+Task 1: complete (commits 9f3dadf..a46b564, review clean after fix)
+Task 2: complete (commits a46b564..6de0759, review clean after fix)
+Task 3: complete (commits 6de0759..34b4836, controller gate clean after reviewer usage limit; npx jest -- line-bindings PASS)
+Task 4: complete (commits 34b4836..598eee4, review clean after fix)
+Task 5: complete (commits 598eee4..9525b8f, review clean)
+Task 6: complete (commits 9525b8f..82b00fa, review clean after fix)
+Task 7: complete (commits 82b00fa..5de7eee, review clean; full gate PASS)
+Final review: ready to merge after fixes (final HEAD 8693bc5); full gate PASS: npx jest 485/485, npm run lint PASS, npm run build PASS

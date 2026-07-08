@@ -1,31 +1,27 @@
-# Task 5 Report: MembersPanel
+ï»¿# Task 5 Report: LINE Client And Ingest Processor
 
-## Summary
-- Added `components/MembersPanel.tsx` as a client-side panel for trip members.
-- Added `__tests__/members-panel.test.tsx` covering owner invite flow, owner remove flow, and non-owner leave flow.
-- Kept UI copy exactly as required: `?å“¡`, `?¢ç??€è«‹é€??`, `è¤‡è£½???`, `?æ–°?¢ç????`, `ç§»é™¤`, `?¢é?è¡Œç?`.
+## Status
+- Complete.
+- Implemented LINE reply/profile client helper and LINE group text ingest processor.
+- Followed TDD red/green flow for the task-specific client and ingest tests.
 
-## TDD Notes
-- Wrote `__tests__/members-panel.test.tsx` first.
-- Verified red with `npx jest -- members-panel`, which failed because the component module was missing.
-- Implemented the minimal component to satisfy the tests.
-- Verified green with `npx jest -- members-panel`.
+## Commit Hashes
+- `9525b8f0a4837ee37ccf0cc1996d96865d3eb1a6` - `feat(laneC-line): process line messages into candidates`
 
-## Test Results
-- `npx jest -- members-panel` ??- `npx jest` ??(`67` suites passed, `305` tests passed)
+## Tests Run
+- `npx jest -- line-client line-ingest` - RED before implementation: failed because `@/lib/line/client` and `@/lib/line/ingest` did not exist.
+- `npx jest -- line-client line-ingest` - PASS after implementation: 2 suites passed, 4 tests passed.
+- `npx jest -- line-client line-ingest` - PASS pre-commit verification: 2 suites passed, 4 tests passed.
 
-## Concerns
-- `npx jest -- members-panel` works in this repo once the filename exists, but earlier on Windows it surfaced module-missing behavior rather than a clean path-filter failure; the targeted suite still provided the required red/green signal.
+## Files Changed
+- `lib/line/client.ts`
+- `lib/line/ingest.ts`
+- `__tests__/line-client.test.ts`
+- `__tests__/line-ingest.test.ts`
 
-## Review Fixes (2026-07-03)
-- Updated `components/MembersPanel.tsx` so owner and self suffixes render inline without replacing the member name.
-- Expanded `__tests__/members-panel.test.tsx` to cover `½Æ»s³sµ²` clipboard behavior and `­«·s²£¥Í³sµ²` token rotation plus visible URL updates.
-
-## Commands Run
-- `npx jest -- members-panel`
-- `npx jest`
-
-## Results
-- `npx jest -- members-panel` PASS (`1` suite passed, `7` tests passed)
-- `npx jest` PASS (`67` suites passed, `307` tests passed)
-
+## Self-Review Notes
+- Kept implementation scoped to the four owned task files for the commit.
+- Used existing `parseLineText`, `getActiveLineGroupBinding`, `searchPlace`, `scrapeText`, `extractItinerary`, and `addCandidateFromLine` interfaces.
+- Preserved the exact reply text values required by the task brief where they are asserted by tests.
+- Fixed only syntax issues in the brief-provided test snippets, such as unterminated string literals caused by mojibake.
+- Left pre-existing unrelated working-tree edits untouched: `.superpowers/sdd/progress.md` and `.superpowers/sdd/task-2-report.md`.
