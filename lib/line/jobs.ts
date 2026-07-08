@@ -2,6 +2,10 @@ import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { LineIngestJobStatus } from '@/lib/types'
 
+function hasPostgresCode(error: unknown, code: string): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === code
+}
+
 export async function recordLineIngestJob(input: {
   lineGroupId: string
   lineUserId?: string
@@ -18,6 +22,7 @@ export async function recordLineIngestJob(input: {
     event_payload: input.eventPayload,
     status: 'queued',
   })
+  if (hasPostgresCode(error, '23505')) return
   if (error) throw new Error('LINE_JOB_RECORD_FAILED')
 }
 

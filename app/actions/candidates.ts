@@ -11,6 +11,10 @@ type CandidateRow = {
   source?: CandidateSource | null
 }
 
+function hasPostgresCode(error: unknown, code: string): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === code
+}
+
 export async function addCandidate(tripId: string, place: Place): Promise<{ id: string }> {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -51,6 +55,7 @@ export async function addCandidateFromLine(input: {
       source: input.source,
     })
 
+  if (hasPostgresCode(error, '23505')) return 'duplicate'
   if (error) throw new Error('LINE_CANDIDATE_INSERT_FAILED')
   return 'added'
 }

@@ -18,6 +18,7 @@ type TestState = {
   authUser: AuthUser
   insertResult: QueryResult<{ id: string } | null>
   adminLookupResult: QueryResult<{ id: string } | null>
+  adminInsertError: unknown
   listResult: QueryResult<CandidateRow[] | null>
   deleteResult: QueryResult<{ id: string }[] | null>
   profiles: Record<string, UserProfile | undefined>
@@ -85,7 +86,7 @@ function makeAdminCandidatesBuilder() {
     })),
     insert: jest.fn((payload: InsertPayload) => {
       state.lastInsert = payload
-      return Promise.resolve({ data: null, error: null })
+      return Promise.resolve({ data: null, error: state.adminInsertError })
     }),
   }
 }
@@ -140,6 +141,7 @@ beforeEach(() => {
     authUser: { id: 'user-self' },
     insertResult: { data: { id: 'candidate-1' }, error: null },
     adminLookupResult: { data: null, error: null },
+    adminInsertError: null,
     listResult: {
       data: [
         {
@@ -315,6 +317,19 @@ it('addCandidateFromLine throws and skips insert when duplicate lookup fails', a
   })).rejects.toThrow('LINE_CANDIDATE_LOOKUP_FAILED')
 
   expect(state.lastInsert).toBeNull()
+})
+
+it('addCandidateFromLine treats insert unique violations as duplicate', async () => {
+  state.adminInsertError = { code: '23505', message: 'duplicate candidate' }
+  const source = { kind: 'line_group' as const, lineGroupId: 'Cg123', messageId: 'm1' }
+  const { addCandidateFromLine } = loadActions()
+
+  await expect(addCandidateFromLine({
+    tripId: 'trip-1',
+    writeAsUserId: 'owner-1',
+    place: placeFixture,
+    source,
+  })).resolves.toBe('duplicate')
 })
 
 it('removeCandidate throws NOT_AUTHENTICATED when logged out', async () => {

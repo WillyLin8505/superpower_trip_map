@@ -100,13 +100,22 @@ async function handleEvent(event: LineEvent): Promise<void> {
       messageId,
       text,
     })
-    await markLineIngestJob(messageId, result.kind === 'ignored' ? 'ignored' : 'done')
   } catch (error) {
     await markLineIngestJob(messageId, 'failed', error instanceof Error ? error.message : 'unknown error')
-    throw error
+    return
   }
 
-  if (result.kind === 'reply') {
-    await replyLineMessage(replyToken, result.text)
+  if (result.kind === 'ignored') {
+    await markLineIngestJob(messageId, 'ignored')
+    return
   }
+
+  try {
+    await replyLineMessage(replyToken, result.text)
+  } catch (error) {
+    await markLineIngestJob(messageId, 'failed', error instanceof Error ? error.message : 'LINE_REPLY_FAILED')
+    return
+  }
+
+  await markLineIngestJob(messageId, 'done')
 }

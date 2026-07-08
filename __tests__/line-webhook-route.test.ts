@@ -126,6 +126,43 @@ it('processes bound group text and replies', async () => {
   expect(replyLineMessage).toHaveBeenCalledWith('reply-1', '撌脣??亙瘙??啣?101')
 })
 
+it('marks processing failures failed and still returns 200', async () => {
+  processLineTextMessage.mockRejectedValue(new Error('candidate insert failed'))
+  const { POST } = require('@/app/api/line/webhook/route') as typeof import('@/app/api/line/webhook/route')
+
+  const res = await POST(request({
+    events: [{
+      type: 'message',
+      replyToken: 'reply-1',
+      source: { type: 'group', groupId: 'Cg123', userId: 'U123' },
+      message: { type: 'text', id: 'm4', text: '???101' },
+    }],
+  }))
+
+  expect(res.status).toBe(200)
+  expect(markLineIngestJob).toHaveBeenCalledWith('m4', 'failed', 'candidate insert failed')
+  expect(replyLineMessage).not.toHaveBeenCalled()
+})
+
+it('marks reply failures failed and still returns 200 without reprocessing', async () => {
+  replyLineMessage.mockRejectedValue(new Error('reply failed'))
+  const { POST } = require('@/app/api/line/webhook/route') as typeof import('@/app/api/line/webhook/route')
+
+  const res = await POST(request({
+    events: [{
+      type: 'message',
+      replyToken: 'reply-1',
+      source: { type: 'group', groupId: 'Cg123', userId: 'U123' },
+      message: { type: 'text', id: 'm5', text: '???101' },
+    }],
+  }))
+
+  expect(res.status).toBe(200)
+  expect(processLineTextMessage).toHaveBeenCalledTimes(1)
+  expect(markLineIngestJob).toHaveBeenCalledWith('m5', 'failed', 'reply failed')
+  expect(markLineIngestJob).not.toHaveBeenCalledWith('m5', 'done')
+})
+
 it('records and processes a message when profile lookup fails', async () => {
   getLineProfile.mockRejectedValue(new Error('LINE profile unavailable'))
   processLineTextMessage.mockResolvedValue({ kind: 'ignored' })

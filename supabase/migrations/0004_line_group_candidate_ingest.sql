@@ -3,6 +3,10 @@
 alter table public.trip_candidates
   add column if not exists source jsonb;
 
+create unique index if not exists trip_candidates_trip_place_id_unique_idx
+  on public.trip_candidates(trip_id, ((place->>'placeId')))
+  where (place->>'placeId') is not null;
+
 create table if not exists public.trip_line_groups (
   id uuid primary key default gen_random_uuid(),
   line_group_id text not null,
@@ -52,6 +56,8 @@ create table if not exists public.line_ingest_jobs (
   created_at timestamptz not null default now(),
   processed_at timestamptz
 );
+
+alter table public.line_ingest_jobs enable row level security;
 
 do $$
 begin

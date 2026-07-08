@@ -1,6 +1,7 @@
 let lastInsert: Record<string, unknown> | null
 let lastUpdate: Record<string, unknown> | null
 let lastPredicate: { column: string; value: string } | null
+let insertError: unknown
 
 jest.mock('@/lib/supabase/admin', () => ({
   createAdminClient: () => ({
@@ -9,7 +10,7 @@ jest.mock('@/lib/supabase/admin', () => ({
       return {
         insert: (payload: Record<string, unknown>) => {
           lastInsert = payload
-          return Promise.resolve({ error: null })
+          return Promise.resolve({ error: insertError })
         },
         update: (payload: Record<string, unknown>) => {
           lastUpdate = payload
@@ -30,6 +31,7 @@ beforeEach(() => {
   lastInsert = null
   lastUpdate = null
   lastPredicate = null
+  insertError = null
 })
 
 it('records a LINE ingest job', async () => {
@@ -51,6 +53,19 @@ it('records a LINE ingest job', async () => {
     event_payload: { type: 'message' },
     status: 'queued',
   })
+})
+
+it('treats duplicate message IDs as already recorded', async () => {
+  insertError = { code: '23505', message: 'duplicate key value violates unique constraint' }
+  const { recordLineIngestJob } = require('@/lib/line/jobs') as typeof import('@/lib/line/jobs')
+
+  await expect(recordLineIngestJob({
+    lineGroupId: 'Cg123',
+    lineUserId: 'U123',
+    messageId: 'm1',
+    messageText: '???101',
+    eventPayload: { type: 'message' },
+  })).resolves.toBeUndefined()
 })
 
 it('marks a job as done or failed', async () => {
