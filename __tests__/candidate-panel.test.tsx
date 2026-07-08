@@ -29,6 +29,28 @@ it('lists candidates with name and adder', () => {
   expect(screen.getByText(/小明/)).toBeInTheDocument()
 })
 
+
+it('shows LINE source text when candidate came from LINE', () => {
+  render(
+    <CandidatePanel
+      candidates={[{
+        ...cand('c1', '???101'),
+        source: {
+          kind: 'line_group',
+          lineGroupId: 'Cg123',
+          lineDisplayName: '小明',
+          messageId: 'm1',
+        },
+      }]}
+      onAddPlace={noop}
+      onAddPlaces={noop}
+      onRemove={noop}
+    />,
+  )
+
+  expect(screen.getByText('LINE 群組 / 小明 加入')).toBeInTheDocument()
+})
+
 it('search add calls onAddPlace', () => {
   const onAddPlace = jest.fn()
   render(<CandidatePanel candidates={[]} onAddPlace={onAddPlace} onAddPlaces={noop} onRemove={noop} />)

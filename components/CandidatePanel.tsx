@@ -9,6 +9,15 @@ interface CandidatePanelProps {
   onRemove: (candidateId: string) => void
 }
 
+function candidateSourceLabel(candidate: Candidate): string {
+  if (candidate.source?.kind === 'line_group') {
+    return candidate.source.lineDisplayName
+      ? `LINE 群組 / ${candidate.source.lineDisplayName} 加入`
+      : 'LINE 群組加入'
+  }
+  return `${candidate.addedByName} 加入`
+}
+
 export function CandidatePanel({ candidates, onAddPlace, onAddPlaces, onRemove }: CandidatePanelProps) {
   return (
     <section className="border border-border rounded-lg p-4 bg-surface flex flex-col gap-3">
@@ -20,7 +29,7 @@ export function CandidatePanel({ candidates, onAddPlace, onAddPlaces, onRemove }
         <ul className="flex flex-col gap-2">
           {candidates.map((c) => (
             <li key={c.id} className="flex items-center justify-between gap-2 text-sm border border-border rounded px-2 py-1 text-ink">
-              <span className="flex-1">{c.place.name}<span className="text-muted ml-2">由 {c.addedByName} 加入</span></span>
+              <span className="flex-1">{c.place.name}<span className="text-xs text-gray-500">{candidateSourceLabel(c)}</span></span>
               <button onClick={() => onRemove(c.id)} className="text-error hover:underline">移除</button>
             </li>
           ))}

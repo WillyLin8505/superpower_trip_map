@@ -2,8 +2,8 @@ import type { Candidate, Place } from '@/lib/types'
 
 type AuthUser = { id: string } | null
 type QueryResult<T> = { data: T; error: unknown }
-type InsertPayload = { trip_id: string; place: Place; added_by: string }
-type CandidateRow = { id: string; place: Place; added_by: string; created_at: string }
+type InsertPayload = { trip_id: string; place: Place; added_by: string; source?: unknown }
+type CandidateRow = { id: string; place: Place; added_by: string; created_at: string; source?: unknown }
 type UserProfile = {
   email?: string
   user_metadata?: {
@@ -66,8 +66,28 @@ jest.mock('@/lib/supabase/admin', () => ({
         })),
       },
     },
+    from: jest.fn((table: string) => {
+      if (table === 'trip_candidates') return makeAdminCandidatesBuilder()
+      throw new Error(`Unexpected admin table ${table}`)
+    }),
   }),
 }))
+
+function makeAdminCandidatesBuilder() {
+  return {
+    select: jest.fn(() => ({
+      eq: jest.fn(() => ({
+        eq: jest.fn(() => ({
+          maybeSingle: jest.fn(async () => ({ data: null, error: null })),
+        })),
+      })),
+    })),
+    insert: jest.fn((payload: InsertPayload) => {
+      state.lastInsert = payload
+      return Promise.resolve({ data: null, error: null })
+    }),
+  }
+}
 
 function makeCandidatesBuilder() {
   return {
@@ -221,9 +241,63 @@ it('listCandidates maps rows to Candidate[] with names from user_metadata.name',
 
   await expect(listCandidates('trip-1')).resolves.toEqual(expected)
 
-  expect(state.lastListSelect).toBe('id, place, added_by, created_at')
+  expect(state.lastListSelect).toBe('id, place, added_by, created_at, source')
   expect(state.lastListPredicate).toEqual({ column: 'trip_id', value: 'trip-1' })
   expect(state.lastListOrder).toEqual({ column: 'created_at', options: { ascending: true } })
+})
+
+it('listCandidates maps source metadata when present', async () => {
+  state.listResult = {
+    data: [{
+      id: 'candidate-1',
+      place: placeFixture,
+      added_by: 'user-a',
+      created_at: '2026-07-04T01:00:00.000Z',
+      source: {
+        kind: 'line_group',
+        lineGroupId: 'Cg123',
+        lineDisplayName: '小明',
+        messageId: 'm1',
+      },
+    } as CandidateRow & { source: unknown }],
+    error: null,
+  }
+
+  const { listCandidates } = loadActions()
+
+  await expect(listCandidates('trip-1')).resolves.toEqual([{
+    id: 'candidate-1',
+    place: placeFixture,
+    addedBy: 'user-a',
+    addedByName: 'Alice',
+    source: {
+      kind: 'line_group',
+      lineGroupId: 'Cg123',
+      lineDisplayName: '小明',
+      messageId: 'm1',
+    },
+  }])
+
+  expect(state.lastListSelect).toBe('id, place, added_by, created_at, source')
+})
+
+it('addCandidateFromLine inserts with source and writeAsUserId', async () => {
+  const source = { kind: 'line_group' as const, lineGroupId: 'Cg123', messageId: 'm1' }
+  const { addCandidateFromLine } = loadActions()
+
+  await expect(addCandidateFromLine({
+    tripId: 'trip-1',
+    writeAsUserId: 'owner-1',
+    place: placeFixture,
+    source,
+  })).resolves.toBe('added')
+
+  expect(state.lastInsert).toEqual({
+    trip_id: 'trip-1',
+    place: placeFixture,
+    added_by: 'owner-1',
+    source,
+  })
 })
 
 it('removeCandidate throws NOT_AUTHENTICATED when logged out', async () => {
