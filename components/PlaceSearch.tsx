@@ -19,10 +19,18 @@ export function PlaceSearch({ onAdd }: Props) {
         id: crypto.randomUUID(),
         placeId: p.place_id,
         name: p.name ?? '',
+        localizedName: {
+          zhTw: p.name ?? null,
+          original: p.name ?? null,
+        },
         type: 'attraction',
         lat: p.geometry.location.lat(),
         lng: p.geometry.location.lng(),
         address: p.formatted_address ?? '',
+        localizedAddress: {
+          zhTw: p.formatted_address ?? null,
+          original: p.formatted_address ?? null,
+        },
         openingHours: null,
         rating: null,
         photoUrl: null,

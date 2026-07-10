@@ -1,4 +1,4 @@
-import { searchPlace } from '@/app/actions/places'
+import { searchPlace, verifyPlace } from '@/app/actions/places'
 
 const mockFetch = jest.fn()
 global.fetch = mockFetch
@@ -57,5 +57,45 @@ describe('searchPlace with country', () => {
 
     const result = await searchPlace('不存在的地方', 'Taiwan')
     expect(result).toBeNull()
+  })
+
+  it('returns localized fields from the single zh-TW details response', async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        json: async () => ({ candidates: [{ place_id: 'place123' }] }),
+      })
+      .mockResolvedValueOnce({
+        json: async () => PLACE_DETAILS_RESPONSE,
+      })
+
+    const result = await searchPlace('淺草寺', 'Japan')
+
+    expect(result).toEqual(expect.objectContaining({
+      name: '淺草寺',
+      localizedName: { zhTw: '淺草寺', original: '淺草寺' },
+      address: '東京都台東区浅草',
+      localizedAddress: { zhTw: '東京都台東区浅草', original: '東京都台東区浅草' },
+    }))
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+    expect((mockFetch.mock.calls[1][0] as string)).toContain('language=zh-TW')
+    expect((mockFetch.mock.calls[1][0] as string)).not.toContain('language=en')
+  })
+
+  it('verifyPlace preserves localized fields from searchPlace', async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        json: async () => ({ candidates: [{ place_id: 'place123' }] }),
+      })
+      .mockResolvedValueOnce({
+        json: async () => PLACE_DETAILS_RESPONSE,
+      })
+
+    const result = await verifyPlace('淺草寺')
+
+    expect(result).toEqual(expect.objectContaining({
+      placeId: 'place123',
+      localizedName: { zhTw: '淺草寺', original: '淺草寺' },
+      localizedAddress: { zhTw: '東京都台東区浅草', original: '東京都台東区浅草' },
+    }))
   })
 })

@@ -16,3 +16,24 @@ it('lets the user change a place to accommodation via the four-option picker', (
   fireEvent.click(screen.getByText('🏨 住宿'))
   expect(onTypeChange).toHaveBeenCalledWith('p1', 'accommodation')
 })
+
+it('shows localized primary and secondary names', () => {
+  render(
+    <PlaceList
+      places={[{
+        ...PLACE,
+        name: 'National Palace Museum',
+        localizedName: {
+          zhTw: '國立故宮博物院',
+          en: 'National Palace Museum',
+          original: 'National Palace Museum',
+        },
+      }]}
+      onTypeChange={jest.fn()}
+      onRemove={jest.fn()}
+    />
+  )
+
+  expect(screen.getByText('國立故宮博物院')).toBeInTheDocument()
+  expect(screen.getByText('National Palace Museum')).toBeInTheDocument()
+})
