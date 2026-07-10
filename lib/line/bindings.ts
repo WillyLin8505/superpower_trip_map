@@ -92,12 +92,13 @@ export async function unbindLineGroup(input: {
 
 async function resolveTrip(tripLinkOrToken: string): Promise<TripRow | null> {
   const lookup = extractTripLookupValue(tripLinkOrToken)
+  if (!lookup) return null
+
   const admin = createAdminClient()
-  const column = lookup.kind === 'invite' ? 'invite_token' : 'id'
   const { data, error } = await admin
     .from('trips')
     .select('id, owner_id')
-    .eq(column, lookup.value)
+    .eq('invite_token', lookup.value)
     .single()
 
   if (error) {
@@ -109,25 +110,25 @@ async function resolveTrip(tripLinkOrToken: string): Promise<TripRow | null> {
   return data as TripRow
 }
 
-function extractTripLookupValue(input: string): { kind: 'invite' | 'trip'; value: string } {
+function extractTripLookupValue(input: string): { kind: 'invite'; value: string } | null {
+  const trimmed = input.trim()
+
   try {
-    const url = new URL(input)
+    const url = new URL(trimmed)
     const parts = url.pathname.split('/').filter(Boolean)
     const joinIndex = parts.indexOf('join')
-    const itineraryIndex = parts.indexOf('itinerary')
 
     if (joinIndex >= 0 && parts[joinIndex + 1]) {
       return { kind: 'invite', value: parts[joinIndex + 1] }
     }
 
-    if (itineraryIndex >= 0 && parts[itineraryIndex + 1]) {
-      return { kind: 'trip', value: parts[itineraryIndex + 1] }
-    }
+    return null
   } catch {
-    // Plain tokens fall back to invite tokens.
-  }
+    if (!trimmed || trimmed.includes('/')) return null
 
-  return { kind: 'invite', value: input.trim() }
+    // Plain tokens fall back to invite tokens.
+    return { kind: 'invite', value: trimmed }
+  }
 }
 
 function isDuplicateKeyError(error: unknown): boolean {

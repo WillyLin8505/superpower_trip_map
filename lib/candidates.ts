@@ -41,7 +41,10 @@ export async function addCandidateFromLine(input: {
     source: input.source,
   })
 
-  if (error) throw new Error('ADD_LINE_CANDIDATE_FAILED')
+  if (error) {
+    if (isDuplicateKeyError(error)) return 'duplicate'
+    throw new Error('ADD_LINE_CANDIDATE_FAILED')
+  }
 
   return 'added'
 }
@@ -66,4 +69,8 @@ export async function listCandidates(tripId: string): Promise<TripCandidate[]> {
     source: row.source,
     createdAt: row.added_at,
   }))
+}
+
+function isDuplicateKeyError(error: unknown): boolean {
+  return (error as { code?: string } | null)?.code === '23505'
 }

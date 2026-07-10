@@ -169,6 +169,22 @@ it('returns duplicate when an existing candidate has the same trip_id and place_
   expect(adminState.lastInsert).toBeNull()
 })
 
+it('returns duplicate when insert loses a race on the unique candidate index', async () => {
+  adminState.insertResult = {
+    error: { code: '23505', message: 'duplicate key value violates unique constraint' },
+  }
+  const { addCandidateFromLine } = loadCandidates()
+
+  await expect(
+    addCandidateFromLine({
+      tripId: 'trip-1',
+      writeAsUserId: 'user-1',
+      place: makePlace(),
+      source: makeSource(),
+    }),
+  ).resolves.toBe('duplicate')
+})
+
 it('does not treat null placeId candidates as duplicates', async () => {
   const { addCandidateFromLine } = loadCandidates()
 

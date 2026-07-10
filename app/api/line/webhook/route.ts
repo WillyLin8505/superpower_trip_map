@@ -23,9 +23,7 @@ export async function POST(req: NextRequest) {
   }
 
   const payload = JSON.parse(body) as { events?: LineWebhookEvent[] }
-  void Promise.all((payload.events ?? []).map((event) => handleEvent(event))).catch((error) => {
-    console.error('LINE_WEBHOOK_EVENT_FAILED', error)
-  })
+  await Promise.all((payload.events ?? []).map((event) => handleEvent(event)))
 
   return Response.json({ ok: true })
 }

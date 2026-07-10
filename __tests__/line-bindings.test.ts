@@ -25,6 +25,7 @@ type AdminState = {
   lastInsert: BindingRow | null
   lastUpdate: { status: 'disabled'; updated_at: string } | null
   updatePredicates: Array<{ column: string; value: string }>
+  tripPredicates: Array<{ column: string; value: string }>
 }
 
 let adminState: AdminState
@@ -115,6 +116,7 @@ function makeTripsBuilder() {
     select: jest.fn((_columns: string) => ({
       eq: jest.fn((column: string, value: string) => ({
         single: jest.fn(async () => {
+          adminState.tripPredicates.push({ column, value })
           if (adminState.tripLookup.error && !adminState.tripLookup.data) {
             return adminState.tripLookup
           }
@@ -123,7 +125,6 @@ function makeTripsBuilder() {
           if (!row) return adminState.tripLookup
 
           if (column === 'invite_token' && row.invite_token === value) return adminState.tripLookup
-          if (column === 'id' && row.id === value) return adminState.tripLookup
           return { data: null, error: NOT_FOUND_ERROR }
         }),
       })),
@@ -147,6 +148,7 @@ beforeEach(() => {
     lastInsert: null,
     lastUpdate: null,
     updatePredicates: [],
+    tripPredicates: [],
   }
   jest.resetModules()
   jest.restoreAllMocks()
@@ -170,7 +172,7 @@ it('resolves /join/<token> links and binds the LINE group to the trip owner', as
   })
 })
 
-it('resolves /itinerary/<tripId> links and binds the LINE group to the trip owner', async () => {
+it('rejects /itinerary/<tripId> links because LINE binding requires an invite token', async () => {
   adminState.tripLookup = {
     data: { id: 'trip-99', owner_id: 'owner-99', invite_token: 'invite-99' },
     error: null,
@@ -182,14 +184,10 @@ it('resolves /itinerary/<tripId> links and binds the LINE group to the trip owne
       lineGroupId: 'group-2',
       tripLinkOrToken: 'https://food-map.test/itinerary/trip-99',
     }),
-  ).resolves.toEqual({ tripId: 'trip-99' })
+  ).resolves.toBe('not_found')
 
-  expect(adminState.lastInsert).toEqual({
-    line_group_id: 'group-2',
-    trip_id: 'trip-99',
-    write_as_user_id: 'owner-99',
-    status: 'active',
-  })
+  expect(adminState.tripPredicates).toEqual([])
+  expect(adminState.lastInsert).toBeNull()
 })
 
 it('returns already_bound when the group has an active binding', async () => {

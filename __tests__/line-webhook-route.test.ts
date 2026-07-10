@@ -40,11 +40,6 @@ function makeRequest(body: string, signature = 'valid-signature') {
   })
 }
 
-async function flushEventWork() {
-  await Promise.resolve()
-  await Promise.resolve()
-}
-
 describe('POST /api/line/webhook', () => {
   beforeEach(() => {
     jest.clearAllMocks()
@@ -89,7 +84,6 @@ describe('POST /api/line/webhook', () => {
     )
 
     expect(response.status).toBe(200)
-    await flushEventWork()
     expect(bindLineGroupToTrip).toHaveBeenCalledWith({
       lineGroupId: 'group-1',
       tripLinkOrToken: 'invite-123',
@@ -112,7 +106,6 @@ describe('POST /api/line/webhook', () => {
     )
 
     expect(response.status).toBe(200)
-    await flushEventWork()
     expect(bindLineGroupToTrip).not.toHaveBeenCalled()
     expect(replyLineMessage).toHaveBeenCalledWith('reply-token-1', LINE_MESSAGES.bindUsage)
   })
@@ -133,7 +126,6 @@ describe('POST /api/line/webhook', () => {
     )
 
     expect(response.status).toBe(200)
-    await flushEventWork()
     expect(unbindLineGroup).toHaveBeenCalledWith({ lineGroupId: 'group-1' })
     expect(replyLineMessage).toHaveBeenCalledWith('reply-token-1', LINE_MESSAGES.unbindSuccess)
   })
@@ -150,7 +142,6 @@ describe('POST /api/line/webhook', () => {
     )
 
     expect(response.status).toBe(200)
-    await flushEventWork()
     expect(processLineTextMessage).toHaveBeenCalledWith({
       lineGroupId: 'group-1',
       lineUserId: 'user-1',
@@ -175,7 +166,6 @@ describe('POST /api/line/webhook', () => {
     )
 
     expect(response.status).toBe(200)
-    await flushEventWork()
     expect(processLineTextMessage).toHaveBeenCalledWith({
       lineGroupId: 'group-1',
       lineUserId: 'user-1',
@@ -188,17 +178,31 @@ describe('POST /api/line/webhook', () => {
     )
   })
 
-  it('acknowledges valid webhook before slow ingest work finishes', async () => {
+  it('waits for ingest work before acknowledging a valid webhook', async () => {
     const { verifyLineSignature } = require('@/lib/line/signature') as typeof import('@/lib/line/signature')
     const { processLineTextMessage } = require('@/lib/line/ingest') as typeof import('@/lib/line/ingest')
     const { replyLineMessage } = require('@/lib/line/client') as typeof import('@/lib/line/client')
+    let resolveIngest!: (value: { reply: string | null; status: 'done' }) => void
+    const slowIngest = new Promise<{ reply: string | null; status: 'done' }>((resolve) => {
+      resolveIngest = resolve
+    })
     ;(verifyLineSignature as jest.Mock).mockReturnValue(true)
-    ;(processLineTextMessage as jest.Mock).mockReturnValue(new Promise(() => {}))
+    ;(processLineTextMessage as jest.Mock).mockReturnValue(slowIngest)
 
-    const response = await POST(
+    const responsePromise = POST(
       makeRequest(JSON.stringify({ events: [makeEvent({ message: { type: 'text', id: 'msg-1', text: 'https://example.com/slow' } })] })) as NextRequest,
     )
+    await Promise.resolve()
 
+    let settled = false
+    responsePromise.then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+    expect(settled).toBe(false)
+
+    resolveIngest({ reply: null, status: 'done' })
+    const response = await responsePromise
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({ ok: true })
     expect(processLineTextMessage).toHaveBeenCalledWith({
