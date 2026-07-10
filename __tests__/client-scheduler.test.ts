@@ -1,5 +1,5 @@
 import { recalcPlan } from '@/lib/utils/clientScheduler'
-import type { PlanResult, ScheduledPlace } from '@/lib/types'
+import type { PlanResult, ScheduledPlace, RecommendationCenter } from '@/lib/types'
 
 function makePlace(overrides: Partial<ScheduledPlace> = {}): ScheduledPlace {
   return {
@@ -133,4 +133,27 @@ test('multiple days each recalculated independently', () => {
   const result = recalcPlan(plan)
   expect(result.days[0].places[0].startTime).toBe('09:00')
   expect(result.days[1].places[0].startTime).toBe('09:00')
+})
+
+// --- TASK-009: recommendationCenter must survive recalc untouched (center affects recommendations only) ---
+test('recalcPlan preserves a day\'s manual recommendationCenter untouched', () => {
+  const center: RecommendationCenter = {
+    placeId: 'ctr1', name: '中心點', lat: 25.03, lng: 121.56, address: '台北市', source: 'manual',
+  }
+  const plan = makePlan([makePlace({ durationMin: 60, travelMinToNext: 0 })])
+  plan.days[0].recommendationCenter = center
+  const result = recalcPlan(plan)
+  expect(result.days[0].recommendationCenter).toEqual(center)
+})
+
+test('recalcPlan leaves a day with no recommendationCenter as undefined', () => {
+  const result = recalcPlan(makePlan([makePlace({ durationMin: 60, travelMinToNext: 0 })]))
+  expect(result.days[0].recommendationCenter).toBeUndefined()
+})
+
+test('recalcPlan preserves an explicitly cleared (null) recommendationCenter', () => {
+  const plan = makePlan([makePlace({ durationMin: 60, travelMinToNext: 0 })])
+  plan.days[0].recommendationCenter = null
+  const result = recalcPlan(plan)
+  expect(result.days[0].recommendationCenter).toBeNull()
 })

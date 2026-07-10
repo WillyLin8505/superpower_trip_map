@@ -41,6 +41,16 @@ export interface ScheduledPlace extends Place {
   legManualNext?: string     // 有值＝手動指定段，值為當時下一站的 place.id
 }
 
+// 該天的推薦中心（DEC-303/304）：只影響推薦查詢，不影響智慧排程／路線／地圖
+export interface RecommendationCenter {
+  placeId: string | null
+  name: string
+  lat: number
+  lng: number
+  address: string | null
+  source: 'manual' | 'fallback'
+}
+
 export interface DayItinerary {
   day: number               // 1-indexed
   places: ScheduledPlace[]
@@ -49,6 +59,7 @@ export interface DayItinerary {
   dayEnd: string            // "HH:MM" 該天活動結束，預設 '21:00'
   avoidTraffic?: boolean    // 智慧排程：避開壅塞，讀取時 ?? true
   avoidCrowds?: boolean     // 智慧排程：避開人潮，讀取時 ?? true
+  recommendationCenter?: RecommendationCenter | null // 未設定的既有行程視為 null（DEC-303）
 }
 
 export interface PlanResult {
