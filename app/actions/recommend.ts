@@ -5,7 +5,7 @@ import type { Source } from '@/lib/types'
 import { scrapeText } from './scrape'
 import { searchPlace, getPlaceDetails, nearbySearch } from './places'
 import { validateType } from '@/lib/placeType'
-import { REC_CATEGORIES, centroidOf, dedupeAndExclude, assignToDays, bucketByCategory, splitShownReserve } from '@/lib/utils/dayRecommend'
+import { REC_CATEGORIES, resolveDayCenter, centroidOf, dedupeAndExclude, assignToDays, bucketByCategory, splitShownReserve } from '@/lib/utils/dayRecommend'
 import type { DayItinerary, DayRecommendation, RecommendationsByDay, CategoryBuckets } from '@/lib/types'
 import { callClaude } from '@/lib/claude'
 
@@ -76,7 +76,7 @@ export async function getDayRecommendations(
       attraction: splitShownReserve(websiteBuckets.attraction, REC_LIMIT),
       restaurant: splitShownReserve(websiteBuckets.restaurant, REC_LIMIT),
     }
-    const centroid = centroidOf(days[i].places) ?? centroidOf(days.flatMap((d) => d.places))
+    const centroid = resolveDayCenter(days, i)
 
     if (centroid) {
       try {
@@ -110,6 +110,32 @@ export async function getDayRecommendations(
   }
 
   return result
+}
+
+// TASK-010: 換一批 — replace the current shown set for one day/category.
+// Separate from fetchReplacementRecommendation (fills one opened backfill slot).
+export async function refreshDayCategoryRecommendations(args: {
+  category: 'dessert' | 'attraction' | 'restaurant'
+  center: { lat: number; lng: number }
+  excludeIds: string[]
+}): Promise<DayRecommendation[]> {
+  const { category, center, excludeIds } = args
+  const exclude = new Set(excludeIds)
+  const out: DayRecommendation[] = []
+  try {
+    const candidates = await nearbySearch(center.lat, center.lng, category)
+    for (const c of candidates) {
+      if (out.length >= REC_LIMIT) break
+      if (exclude.has(c.placeId)) continue
+      const detailed = await getPlaceDetails(c.placeId)
+      const filled = detailed ? { ...detailed, type: category } : c
+      out.push({ ...filled, reason: 'Google 高評分推薦', sourceLabel: 'Google 推薦' })
+      exclude.add(c.placeId)
+    }
+  } catch {
+    return []   // recoverable: caller preserves previous shown cards on empty result
+  }
+  return out
 }
 
 export async function fetchReplacementRecommendation(
