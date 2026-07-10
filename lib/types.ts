@@ -100,3 +100,49 @@ export interface TripMember {
   role: 'owner' | 'editor'
   isSelf: boolean
 }
+export interface LineCandidateSource {
+  kind: 'line_group'
+  lineGroupId: string
+  lineUserId?: string
+  lineDisplayName?: string
+  messageId: string
+  messageText?: string
+  sourceUrl?: string
+}
+
+export type CandidateSource = LineCandidateSource
+
+export interface TripCandidate {
+  id: string
+  tripId: string
+  placeId: string | null
+  place: Place
+  addedBy: string
+  addedByName: string | null
+  source: CandidateSource | null
+  createdAt: string
+}
+
+export interface LineGroupBinding {
+  id: string
+  lineGroupId: string
+  tripId: string
+  writeAsUserId: string
+  status: 'active' | 'disabled'
+  createdAt: string
+  updatedAt: string
+  lastMessageAt: string | null
+}
+
+export interface LineIngestJob {
+  id: string
+  lineGroupId: string | null
+  lineUserId: string | null
+  messageId: string
+  messageText: string | null
+  eventPayload: unknown
+  status: 'queued' | 'processing' | 'done' | 'ignored' | 'failed'
+  error: string | null
+  createdAt: string
+  processedAt: string | null
+}
