@@ -7,7 +7,7 @@ jest.mock('@/app/actions/places', () => ({
   nearbySearch: jest.fn(),
 }))
 
-import { getDayRecommendations } from '@/app/actions/recommend'
+import { getDayRecommendations, refreshDayCategoryRecommendations } from '@/app/actions/recommend'
 import { readFile } from 'fs/promises'
 import { scrapeText } from '@/app/actions/scrape'
 import { callClaude } from '@/lib/claude'
@@ -152,4 +152,66 @@ it('keeps website extractions beyond 5 in reserve', async () => {
   expect(result[0].dessert.reserve).toHaveLength(2)
   // reserve items are website-sourced, not Google
   expect(result[0].dessert.reserve.every((x) => x.sourceLabel === '部落格')).toBe(true)
+})
+
+// --- TASK-010: getDayRecommendations must resolve centers via DEC-304, not just day-or-trip centroid ---
+it('an empty day walks backward to the previous day centroid, not straight to the trip mean', async () => {
+  function scheduledPlace(id: string, lat: number, lng: number) {
+    return {
+      ...place(id, 'attraction'), lat, lng,
+      startTime: '09:00', durationMin: 90, travelMinToNext: null as null, aiDescription: null as null,
+      outsideHours: false, lateExit: false, startLocked: false, durationLocked: false,
+    }
+  }
+  const day0: DayItinerary = { day: 1, aiSummary: null, dayStart: '09:00', dayEnd: '21:00', places: [scheduledPlace('p0', 10, 10)] }
+  const day1: DayItinerary = { day: 2, aiSummary: null, dayStart: '09:00', dayEnd: '21:00', places: [scheduledPlace('p1', 50, 50)] }
+  const day2: DayItinerary = { day: 3, aiSummary: null, dayStart: '09:00', dayEnd: '21:00', places: [] } // empty — no centroid of its own
+
+  r.mockResolvedValue('[]')
+  ns.mockResolvedValue([])
+  gd.mockImplementation(async (id: string) => place(id, 'attraction'))
+
+  await getDayRecommendations([day0, day1, day2])
+
+  // day2's nearbySearch calls must use day1's centroid (50,50) — the trip mean of (10,10)+(50,50) would be (30,30)
+  const day2Calls = ns.mock.calls.filter(([lat, lng]: [number, number]) => lat === 50 && lng === 50)
+  expect(day2Calls.length).toBeGreaterThan(0)
+  const wrongCalls = ns.mock.calls.filter(([lat, lng]: [number, number]) => lat === 30 && lng === 30)
+  expect(wrongCalls).toHaveLength(0)
+})
+
+// --- TASK-010: refreshDayCategoryRecommendations (換一批) ---
+describe('refreshDayCategoryRecommendations', () => {
+  it('returns up to 5 fresh candidates for one category, excluding given ids', async () => {
+    ns.mockResolvedValue(Array.from({ length: 6 }, (_, i) => place(`dessert-${i}`, 'dessert')))
+    gd.mockImplementation(async (id: string) => place(id, 'dessert'))
+
+    const result = await refreshDayCategoryRecommendations({
+      category: 'dessert',
+      center: { lat: 25, lng: 121 },
+      excludeIds: ['dessert-0'],
+    })
+
+    expect(result.length).toBeLessThanOrEqual(5)
+    expect(result.map((r) => r.placeId)).not.toContain('dessert-0')
+    expect(result.every((r) => r.sourceLabel === 'Google 推薦')).toBe(true)
+  })
+
+  it('returns fewer than 5 when Google has fewer available candidates', async () => {
+    ns.mockResolvedValue([place('only-1', 'dessert')])
+    gd.mockImplementation(async (id: string) => place(id, 'dessert'))
+
+    const result = await refreshDayCategoryRecommendations({
+      category: 'dessert', center: { lat: 25, lng: 121 }, excludeIds: [],
+    })
+    expect(result).toHaveLength(1)
+  })
+
+  it('returns an empty array when nearbySearch throws (recoverable, preserves previous cards upstream)', async () => {
+    ns.mockRejectedValue(new Error('network'))
+    const result = await refreshDayCategoryRecommendations({
+      category: 'dessert', center: { lat: 25, lng: 121 }, excludeIds: [],
+    })
+    expect(result).toEqual([])
+  })
 })

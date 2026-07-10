@@ -104,6 +104,8 @@ it('scatter moves the over-count day\'s places into the nearest kept day and rem
   await waitFor(() => screen.getByText(/大於設定天數/))
   fireEvent.click(screen.getByRole('button', { name: '散到其他天' }))
   // 'b' moved into day 1; only one day remains
-  await waitFor(() => expect(screen.queryAllByTestId(/^day-/)).toHaveLength(1))
+  // /^day-\d+$/, not /^day-/: DayRecommendations' own data-testid="day-recommendations" (always
+  // rendered per DEC-301) would otherwise incidentally match a loose "day-" prefix too.
+  await waitFor(() => expect(screen.queryAllByTestId(/^day-\d+$/)).toHaveLength(1))
   expect(screen.getByText('b')).toBeInTheDocument()
 })

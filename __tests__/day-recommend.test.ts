@@ -1,7 +1,8 @@
 import {
   centroidOf, dedupeAndExclude, assignToDays, bucketByCategory, splitShownReserve, removeRecsDay,
+  resolveDayCenter,
 } from '@/lib/utils/dayRecommend'
-import type { CategoryList, DayItinerary, DayRecommendation, PlaceType, RecommendationsByDay } from '@/lib/types'
+import type { CategoryList, DayItinerary, DayRecommendation, PlaceType, RecommendationsByDay, RecommendationCenter } from '@/lib/types'
 
 function rec(placeId: string, type: PlaceType, lat = 25, lng = 121): DayRecommendation {
   return {
@@ -89,4 +90,59 @@ test('splitShownReserve reserve is empty when items <= limit', () => {
   const { shown, reserve } = splitShownReserve(items, 5)
   expect(shown).toHaveLength(2)
   expect(reserve).toEqual([])
+})
+
+// --- TASK-010: resolveDayCenter — DEC-304 fallback order ---
+function emptyDay(center?: RecommendationCenter | null): DayItinerary {
+  return { day: 1, aiSummary: null, dayStart: '09:00', dayEnd: '21:00', places: [], recommendationCenter: center }
+}
+
+function dayWithCenter(lat: number, lng: number, center?: RecommendationCenter | null): DayItinerary {
+  return { ...day(lat, lng), recommendationCenter: center }
+}
+
+const manualCenter = (lat: number, lng: number): RecommendationCenter => ({
+  placeId: 'm1', name: '手動中心', lat, lng, address: null, source: 'manual',
+})
+
+test('resolveDayCenter: manual center on the day itself wins over everything', () => {
+  const days = [dayWithCenter(25.0, 121.5, manualCenter(30, 130))]
+  expect(resolveDayCenter(days, 0)).toEqual({ lat: 30, lng: 130 })
+})
+
+test('resolveDayCenter: no manual center falls back to same-day itinerary centroid', () => {
+  const days = [day(24.0, 120.0)]
+  expect(resolveDayCenter(days, 0)).toEqual({ lat: 24.0, lng: 120.0 })
+})
+
+test('resolveDayCenter: empty day falls back to previous day manual center first', () => {
+  const days = [dayWithCenter(25.0, 121.5, manualCenter(10, 10)), emptyDay()]
+  expect(resolveDayCenter(days, 1)).toEqual({ lat: 10, lng: 10 })
+})
+
+test('resolveDayCenter: empty day with no previous manual center falls back to previous day centroid', () => {
+  const days = [day(24.0, 120.0), emptyDay()]
+  expect(resolveDayCenter(days, 1)).toEqual({ lat: 24.0, lng: 120.0 })
+})
+
+test('resolveDayCenter: walks backward past multiple empty days', () => {
+  const days = [day(24.0, 120.0), emptyDay(), emptyDay()]
+  expect(resolveDayCenter(days, 2)).toEqual({ lat: 24.0, lng: 120.0 })
+})
+
+test('resolveDayCenter: day 1 manual center reused by later empty days walking backward', () => {
+  const days = [dayWithCenter(25.0, 121.5, manualCenter(5, 5)), emptyDay(), emptyDay()]
+  expect(resolveDayCenter(days, 2)).toEqual({ lat: 5, lng: 5 })
+})
+
+test('resolveDayCenter: no usable previous day falls back to trip centroid', () => {
+  const days = [emptyDay(), emptyDay(), day(20.0, 100.0)]
+  // day 1 (idx 1) has no manual/centroid/previous-day usable center → trip centroid of all places (only day 2's place)
+  expect(resolveDayCenter(days, 1)).toEqual({ lat: 20.0, lng: 100.0 })
+})
+
+test('resolveDayCenter: completely empty trip with no manual centers returns null', () => {
+  const days = [emptyDay(), emptyDay()]
+  expect(resolveDayCenter(days, 0)).toBeNull()
+  expect(resolveDayCenter(days, 1)).toBeNull()
 })

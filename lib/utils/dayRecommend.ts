@@ -1,6 +1,31 @@
 import type { CategoryArrays, CategoryList, DayItinerary, DayRecommendation, RecommendationsByDay } from '@/lib/types'
 import { findClosestDay } from './geo'
 
+// DEC-304 fallback order: manual center -> same-day centroid -> previous day
+// (manual first, then its centroid) walking backward -> trip centroid -> null.
+export function resolveDayCenter(
+  days: DayItinerary[],
+  dayIdx: number
+): { lat: number; lng: number } | null {
+  const day = days[dayIdx]
+  if (day.recommendationCenter) {
+    return { lat: day.recommendationCenter.lat, lng: day.recommendationCenter.lng }
+  }
+  const sameDay = centroidOf(day.places)
+  if (sameDay) return sameDay
+
+  for (let i = dayIdx - 1; i >= 0; i--) {
+    const prev = days[i]
+    if (prev.recommendationCenter) {
+      return { lat: prev.recommendationCenter.lat, lng: prev.recommendationCenter.lng }
+    }
+    const prevCentroid = centroidOf(prev.places)
+    if (prevCentroid) return prevCentroid
+  }
+
+  return centroidOf(days.flatMap((d) => d.places))
+}
+
 export const REC_CATEGORIES = ['dessert', 'attraction', 'restaurant'] as const
 
 // Keep the per-day recommendations array index-aligned with plan.days when a day

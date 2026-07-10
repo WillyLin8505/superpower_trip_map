@@ -1,10 +1,11 @@
 /** @jest-environment jsdom */
 import React from 'react'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 
 jest.mock('@/app/actions/recommend', () => ({
   getDayRecommendations: jest.fn(),
   fetchReplacementRecommendation: jest.fn(),
+  refreshDayCategoryRecommendations: jest.fn(),
 }))
 
 // Adding a recommendation now auto smart-arranges the day; stub the arrange
@@ -75,7 +76,7 @@ jest.mock('@/lib/utils/hours', () => ({
 }))
 
 import { ItineraryClient } from '@/app/itinerary/ItineraryClient'
-import { getDayRecommendations, fetchReplacementRecommendation } from '@/app/actions/recommend'
+import { getDayRecommendations, fetchReplacementRecommendation, refreshDayCategoryRecommendations } from '@/app/actions/recommend'
 import type { PlanResult, RecommendationsByDay, DayRecommendation } from '@/lib/types'
 
 function drec(placeId: string): DayRecommendation {
@@ -151,4 +152,78 @@ it('leaves the slot empty when Google returns nothing (no crash)', async () => {
   await waitFor(() => expect(fetchReplacementRecommendation).toHaveBeenCalledTimes(1))
   expect(screen.queryByTestId('rec-add-d1')).not.toBeInTheDocument()
   expect(screen.getByText('d1')).toBeInTheDocument()   // added place still in itinerary
+})
+
+// --- TASK-010: manual recommendation center + 換一批 ---
+describe('recommendation center and refresh', () => {
+  beforeEach(() => {
+    // Minimal google.maps.places.Autocomplete stub so RecommendationCenterPicker can be driven in jsdom.
+    ;(window as unknown as { google: unknown }).google = {
+      maps: {
+        places: {
+          Autocomplete: jest.fn().mockImplementation(() => ({
+            addListener: (_event: string, cb: () => void) => {
+              (window as unknown as { __acCallback: () => void }).__acCallback = cb
+            },
+            getPlace: () => (window as unknown as { __acPlace: unknown }).__acPlace,
+          })),
+        },
+      },
+    }
+  })
+
+  it('selecting a center persists it to the day and refetches only that day', async () => {
+    ;(getDayRecommendations as jest.Mock)
+      .mockResolvedValueOnce(recsNoReserve)   // initial mount fetch (all days)
+      .mockResolvedValueOnce([recsWithReserve[0]])   // refetch after center set (single-day array)
+    render(<ItineraryClient initial={plan} />)
+    await waitFor(() => expect(getDayRecommendations).toHaveBeenCalledTimes(1))
+
+    await screen.findByTestId('rec-center-input')
+    ;(window as unknown as { __acPlace: unknown }).__acPlace = {
+      place_id: 'ctr1', name: '台北車站', formatted_address: '台北市',
+      geometry: { location: { lat: () => 25.05, lng: () => 121.52 } },
+    }
+    act(() => { (window as unknown as { __acCallback: () => void }).__acCallback() })
+
+    await waitFor(() => expect(getDayRecommendations).toHaveBeenCalledTimes(2))
+    const secondCallArg = (getDayRecommendations as jest.Mock).mock.calls[1][0]
+    expect(secondCallArg[0].recommendationCenter).toEqual({
+      placeId: 'ctr1', name: '台北車站', lat: 25.05, lng: 121.52, address: '台北市', source: 'manual',
+    })
+    expect(screen.getByText('📍 台北車站')).toBeInTheDocument()
+  })
+
+  it('clearing a manual center persists null and refetches that day', async () => {
+    const planWithCenter: PlanResult = {
+      ...plan,
+      days: [{ ...plan.days[0], recommendationCenter: { placeId: 'ctr1', name: '台北車站', lat: 25, lng: 121, address: null, source: 'manual' } }],
+    }
+    ;(getDayRecommendations as jest.Mock)
+      .mockResolvedValueOnce(recsNoReserve)
+      .mockResolvedValueOnce([recsNoReserve[0]])
+    render(<ItineraryClient initial={planWithCenter} />)
+    await waitFor(() => expect(getDayRecommendations).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(await screen.findByTestId('rec-center-clear'))
+
+    await waitFor(() => expect(getDayRecommendations).toHaveBeenCalledTimes(2))
+    const secondCallArg = (getDayRecommendations as jest.Mock).mock.calls[1][0]
+    expect(secondCallArg[0].recommendationCenter).toBeNull()
+  })
+
+  it('換一批 replaces only the active category, preserving other categories', async () => {
+    ;(getDayRecommendations as jest.Mock).mockResolvedValue(recsWithReserve)
+    ;(refreshDayCategoryRecommendations as jest.Mock).mockResolvedValue([
+      { id: 'new1', placeId: 'new1', name: 'new1', type: 'dessert', lat: 25, lng: 121, address: '', openingHours: null, rating: null, photoUrl: null, description: null, reason: 'r', sourceLabel: 'Google 推薦' },
+    ])
+    render(<ItineraryClient initial={plan} />)
+    await waitFor(() => expect(getDayRecommendations).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(await screen.findByTestId('rec-refresh'))
+
+    await waitFor(() => expect(refreshDayCategoryRecommendations).toHaveBeenCalledTimes(1))
+    expect(await screen.findByTestId('rec-add-new1')).toBeInTheDocument()
+    expect(screen.queryByTestId('rec-add-d1')).not.toBeInTheDocument()   // replaced, not appended
+  })
 })
