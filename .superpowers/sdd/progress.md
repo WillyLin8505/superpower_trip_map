@@ -608,3 +608,12 @@ Task 4: complete — CandidatePanel dropped day-picker (dayCount/onPromote remov
 - Accept reuses C3 handleAddCandidateToDay (move semantics); per-item click sidesteps C3's non-transactional-bulk risk.
 - FOLLOW-UP: 溫暖旅誌 DESIGN.md was applied to itinerary page on a separate unpushed branch (per memory 2026-07-06); C4's new cards use plain rec-card style (consistent with C4's origin/main base). Restyle DayCandidateSuggestions/CandidatePanel when that design branch merges.
 - Pending: final Codex review of C4 diff; live Supabase verify (keys).
+
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-07-09-itinerary-editor-day-count-stepper.md
+Branch: task-014-day-count-stepper (off main); BASE: 1233bd1
+
+## Tasks
+- [ ] Task 1: Add day-count stepper buttons to the itinerary editor
