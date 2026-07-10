@@ -53,6 +53,47 @@ test('shows opening hours', () => {
   expect(screen.getByText(/營業.*9:00 AM/)).toBeInTheDocument()
 })
 
+test('shows localized primary and secondary place names', () => {
+  render(
+    <ItineraryCard
+      place={{
+        ...BASE_PLACE,
+        name: 'National Palace Museum',
+        localizedName: {
+          zhTw: '國立故宮博物院',
+          en: 'National Palace Museum',
+          original: 'National Palace Museum',
+        },
+      }}
+      index={0}
+      dateIso="2026-06-30"
+    />
+  )
+
+  expect(screen.getByRole('heading', { name: '國立故宮博物院' })).toBeInTheDocument()
+  expect(screen.getByText('National Palace Museum')).toBeInTheDocument()
+})
+
+test('hides duplicate localized secondary place name', () => {
+  render(
+    <ItineraryCard
+      place={{
+        ...BASE_PLACE,
+        localizedName: {
+          zhTw: '測試景點',
+          en: '測試景點',
+          original: '測試景點',
+        },
+      }}
+      index={0}
+      dateIso="2026-06-30"
+    />
+  )
+
+  expect(screen.getByRole('heading', { name: '測試景點' })).toBeInTheDocument()
+  expect(screen.getAllByText('測試景點')).toHaveLength(1)
+})
+
 test('shows Google description when available', () => {
   render(<ItineraryCard place={{ ...BASE_PLACE, description: 'Google 說明' }} index={0} dateIso="2026-06-30" />)
   expect(screen.getByText('Google 說明')).toBeInTheDocument()

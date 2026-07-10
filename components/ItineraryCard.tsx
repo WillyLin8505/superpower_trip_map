@@ -5,6 +5,7 @@ import { TimeScrollPicker } from './TimeScrollPicker'
 import { TypePicker } from './TypePicker'
 import { getHoursForDate } from '@/lib/utils/hours'
 import { addMinutes } from '@/lib/utils/time'
+import { resolveLocalizedText } from '@/lib/utils/localizedPlace'
 import type { PlaceType, ScheduledPlace, TransportMode } from '@/lib/types'
 import { SUGGESTED_DURATION, TYPE_META } from '@/lib/placeType'
 import { effectivePinned, isDerived } from '@/lib/utils/lockDerive'
@@ -50,6 +51,7 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
   const descriptionText = place.description || place.aiDescription
   const meta = TYPE_META[place.type]
   const pin = effectivePinned(place)
+  const displayName = resolveLocalizedText(place.localizedName, place.name)
 
   return (
     <div
@@ -80,7 +82,7 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-semibold text-ink">{place.name}</h3>
+            <h3 className="font-semibold text-ink">{displayName.primary}</h3>
             {onChangeType ? (
               <TypePicker type={place.type} onChange={(t) => onChangeType(place.id, t)} />
             ) : (
@@ -93,6 +95,9 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
               <span className="text-xs text-warn font-medium">&#x26A0; 請確認營業時間</span>
             )}
           </div>
+          {displayName.secondary && (
+            <p className="text-sm text-gray-500 mt-0.5">{displayName.secondary}</p>
+          )}
           <div className="flex items-center gap-1 mt-1 flex-wrap">
             {pin.start || !onTimeChange ? (
               <span className="text-sm text-clay-deep tabular-nums">{place.startTime}</span>

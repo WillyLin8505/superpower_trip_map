@@ -20,10 +20,18 @@ export async function getPlaceDetails(placeId: string): Promise<Place | null> {
     id: randomUUID(),
     placeId,
     name: r.name,
+    localizedName: {
+      zhTw: r.name ?? null,
+      original: r.name ?? null,
+    },
     type: 'attraction',  // caller sets the correct type
     lat: r.geometry.location.lat,
     lng: r.geometry.location.lng,
     address: r.formatted_address ?? '',
+    localizedAddress: {
+      zhTw: r.formatted_address ?? null,
+      original: r.formatted_address ?? null,
+    },
     openingHours: r.opening_hours?.weekday_text ?? null,
     rating: r.rating ?? null,
     photoUrl: r.photos?.[0]
@@ -48,10 +56,16 @@ export async function searchPlace(query: string, countryName?: string): Promise<
 
 export async function verifyPlace(
   name: string
-): Promise<{ placeId: string; lat: number; lng: number } | null> {
+): Promise<Pick<Place, 'placeId' | 'lat' | 'lng' | 'localizedName' | 'localizedAddress'> | null> {
   const place = await searchPlace(name)
   if (!place) return null
-  return { placeId: place.placeId, lat: place.lat, lng: place.lng }
+  return {
+    placeId: place.placeId,
+    lat: place.lat,
+    lng: place.lng,
+    localizedName: place.localizedName,
+    localizedAddress: place.localizedAddress,
+  }
 }
 
 const NEARBY_QUERY: Record<'attraction' | 'restaurant' | 'dessert', { type?: string; keyword?: string }> = {

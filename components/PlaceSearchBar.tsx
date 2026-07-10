@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { searchPlace } from '@/app/actions/places'
 import type { Place } from '@/lib/types'
 import { inferType, TYPE_META } from '@/lib/placeType'
+import { resolveLocalizedAddress, resolveLocalizedText } from '@/lib/utils/localizedPlace'
 
 interface Props {
   onAdd: (place: Place) => void
@@ -12,6 +13,12 @@ export function PlaceSearchBar({ onAdd }: Props) {
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<Place | null | 'not-found'>(null)
+  const resultName = result && result !== 'not-found'
+    ? resolveLocalizedText(result.localizedName, result.name)
+    : null
+  const resultAddress = result && result !== 'not-found'
+    ? resolveLocalizedAddress(result.localizedAddress, result.address)
+    : null
 
   const handleSearch = async () => {
     if (!query.trim()) return
@@ -58,12 +65,17 @@ export function PlaceSearchBar({ onAdd }: Props) {
           className="mt-2 w-full text-left border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors"
         >
           <div className="flex items-center gap-2">
-            <span className="font-medium text-gray-900 text-sm">{result.name}</span>
+            <span className="font-medium text-gray-900 text-sm">{resultName?.primary}</span>
             <span className={`text-xs px-2 py-0.5 rounded-full ${TYPE_META[inferType(query)].badge}`}>
               {TYPE_META[inferType(query)].label}
             </span>
           </div>
-          <p className="text-xs text-gray-500 mt-0.5 truncate">{result.address}</p>
+          {resultName?.secondary && (
+            <p className="text-xs text-gray-500 mt-0.5 truncate">{resultName.secondary}</p>
+          )}
+          {resultAddress && (
+            <p className="text-xs text-gray-500 mt-0.5 truncate">{resultAddress}</p>
+          )}
         </button>
       )}
     </div>

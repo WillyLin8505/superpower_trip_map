@@ -35,6 +35,24 @@ describe('CombinedInput', () => {
     expect(mockSearch).toHaveBeenCalledWith('淺草寺')
   })
 
+  it('short text search result shows localized primary and secondary names', async () => {
+    mockSearch.mockResolvedValue({
+      ...MOCK_PLACE,
+      name: 'National Palace Museum',
+      localizedName: {
+        zhTw: '國立故宮博物院',
+        en: 'National Palace Museum',
+        original: 'National Palace Museum',
+      },
+    })
+    render(<CombinedInput onAdd={jest.fn()} onAddPlaces={jest.fn()} />)
+    fireEvent.change(screen.getByPlaceholderText(PLACEHOLDER), { target: { value: '故宮' } })
+    fireEvent.click(screen.getByText('送出'))
+
+    await waitFor(() => expect(screen.getByText('國立故宮博物院')).toBeInTheDocument())
+    expect(screen.getByText('National Palace Museum')).toBeInTheDocument()
+  })
+
   it('shows 找不到此地點 when search returns null', async () => {
     mockSearch.mockResolvedValue(null)
     render(<CombinedInput onAdd={jest.fn()} onAddPlaces={jest.fn()} />)
