@@ -1,8 +1,19 @@
 import { getSources } from '@/app/actions/sources'
+import { requireAdmin } from '@/lib/admin'
 import { SourceList } from '@/components/admin/SourceList'
 import { SourceForm } from '@/components/admin/SourceForm'
 
 export default async function AdminPage() {
+  try {
+    await requireAdmin()
+  } catch {
+    return (
+      <main className="max-w-3xl mx-auto px-4 py-10">
+        <p className="text-gray-500 text-sm">此頁需要管理員權限</p>
+      </main>
+    )
+  }
+
   const sources = await getSources()
 
   return (
