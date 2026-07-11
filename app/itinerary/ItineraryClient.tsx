@@ -829,6 +829,26 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
             </SortableContext>
           ))}
         </div>
+        <div className="flex gap-3 mt-6">
+          <button
+            type="button"
+            aria-label="增加一天"
+            data-testid="bottom-add-day"
+            onClick={() => handleChangeEndDate(addDays(dayDate(plan.startDate, N), 1))}
+            className="border border-border rounded-lg px-3 py-1.5 text-sm hover:bg-paper"
+          >
+            + 加一天
+          </button>
+          <button
+            type="button"
+            aria-label="回到頂部"
+            data-testid="scroll-to-top"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="border border-border rounded-lg px-3 py-1.5 text-sm hover:bg-paper"
+          >
+            ↑ 回到頂部
+          </button>
+        </div>
         <DragOverlay>
           {activePlace ? (
             <div className="shadow-2xl rotate-1 opacity-95">

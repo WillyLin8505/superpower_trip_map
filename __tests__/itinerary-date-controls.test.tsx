@@ -154,3 +154,38 @@ it('clicking ▲ after a pending shrink cancels it instead of growing past the r
   )
   expect(screen.getByText(/共 3 天/)).toBeInTheDocument() // still 3 — target reset to match, no day appended
 })
+
+// --- TASK-015: bottom add-day and scroll-to-top buttons ---
+it('clicking bottom "+ 加一天" appends an empty day, same as the top ▲', async () => {
+  render(<ItineraryClient initial={planWithDays(3)} />)
+  fireEvent.click(screen.getByTestId('bottom-add-day'))
+  await waitFor(() => expect(screen.getByText(/共 4 天/)).toBeInTheDocument())
+  expect(screen.getByText('第 4 天 · 7/1（三）')).toBeInTheDocument()
+})
+
+it('clicking bottom "+ 加一天" while a shrink is pending cancels it, same as the top ▲', async () => {
+  render(<ItineraryClient initial={planWithDays(3)} />)
+  fireEvent.click(screen.getByTestId('day-count-stepper-down'))
+  await waitFor(() =>
+    expect(screen.getByText('行程天數（3）大於設定天數（2），請處理超出的天。')).toBeInTheDocument()
+  )
+  fireEvent.click(screen.getByTestId('bottom-add-day'))
+  await waitFor(() =>
+    expect(screen.queryByText(/行程天數（3）大於設定天數/)).not.toBeInTheDocument()
+  )
+  expect(screen.getByText(/共 3 天/)).toBeInTheDocument()
+})
+
+it('clicking "↑ 回到頂部" calls window.scrollTo(0,0) smoothly', () => {
+  const scrollToMock = jest.fn()
+  window.scrollTo = scrollToMock
+  render(<ItineraryClient initial={planWithDays(2)} />)
+  fireEvent.click(screen.getByTestId('scroll-to-top'))
+  expect(scrollToMock).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
+})
+
+it('bottom add-day and scroll-to-top buttons carry the correct accessible labels', () => {
+  render(<ItineraryClient initial={planWithDays(1)} />)
+  expect(screen.getByTestId('bottom-add-day')).toHaveAccessibleName('增加一天')
+  expect(screen.getByTestId('scroll-to-top')).toHaveAccessibleName('回到頂部')
+})
