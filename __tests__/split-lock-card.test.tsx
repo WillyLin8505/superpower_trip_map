@@ -33,28 +33,74 @@ const BASE: ScheduledPlace = {
   lateExit: false, startLocked: false, durationLocked: false,
 }
 
-it('renders two lock buttons (start + duration) when handlers provided', () => {
+it('renders three time facets and editable duration', () => {
+  const onTimeChange = jest.fn()
+  render(
+    <ItineraryCard place={BASE} index={0} dateIso="2026-06-30" onTimeChange={onTimeChange} />
+  )
+
+  expect(screen.getByText('開始')).toBeInTheDocument()
+  expect(screen.getByText('停留')).toBeInTheDocument()
+  expect(screen.getByText('結束')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '09:00' })).toBeInTheDocument()
+  expect(screen.getByRole('spinbutton', { name: '停留分鐘' })).toHaveValue(90)
+  expect(screen.getByRole('button', { name: '10:30' })).toBeInTheDocument()
+
+  fireEvent.change(screen.getByRole('spinbutton', { name: '停留分鐘' }), { target: { value: '120' } })
+  expect(onTimeChange).toHaveBeenCalledWith('p1', 'durationMin', 120)
+})
+
+it('renders three lock buttons when handlers provided', () => {
   render(
     <ItineraryCard place={BASE} index={0} dateIso="2026-06-30"
-      onToggleStartLock={jest.fn()} onToggleDurationLock={jest.fn()} />
+      onToggleStartLock={jest.fn()} onToggleDurationLock={jest.fn()} onToggleEndLock={jest.fn()} />
   )
   expect(screen.getByRole('button', { name: '鎖定開始時間' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: '鎖定停留時間' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '鎖定結束時間' })).toBeInTheDocument()
 })
 
-it('clicking start lock calls onToggleStartLock; duration lock calls onToggleDurationLock', () => {
-  const onStart = jest.fn(); const onDur = jest.fn()
-  render(<ItineraryCard place={BASE} index={0} dateIso="2026-06-30" onToggleStartLock={onStart} onToggleDurationLock={onDur} />)
+it('clicking lock buttons calls their handlers', () => {
+  const onStart = jest.fn(); const onDur = jest.fn(); const onEnd = jest.fn()
+  render(
+    <ItineraryCard
+      place={BASE}
+      index={0}
+      dateIso="2026-06-30"
+      onToggleStartLock={onStart}
+      onToggleDurationLock={onDur}
+      onToggleEndLock={onEnd}
+    />
+  )
   fireEvent.click(screen.getByRole('button', { name: '鎖定開始時間' }))
   fireEvent.click(screen.getByRole('button', { name: '鎖定停留時間' }))
+  fireEvent.click(screen.getByRole('button', { name: '鎖定結束時間' }))
   expect(onStart).toHaveBeenCalledWith('p1')
   expect(onDur).toHaveBeenCalledWith('p1')
+  expect(onEnd).toHaveBeenCalledWith('p1')
+})
+
+it('disables the derived third lock when two time facets are locked', () => {
+  render(
+    <ItineraryCard
+      place={{ ...BASE, startLocked: true, durationLocked: true, endLocked: false }}
+      index={0}
+      dateIso="2026-06-30"
+      onToggleStartLock={jest.fn()}
+      onToggleDurationLock={jest.fn()}
+      onToggleEndLock={jest.fn()}
+    />
+  )
+
+  expect(screen.getByRole('button', { name: '解鎖開始時間' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: '解鎖停留時間' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: '解鎖結束時間' })).toBeDisabled()
 })
 
 it('startLocked → start time static (no start picker) but drag handle still shown (drag decoupled from locks)', () => {
   render(
     <ItineraryCard place={{ ...BASE, startLocked: true }} index={0} dateIso="2026-06-30" draggable
-      onTimeChange={jest.fn()} onToggleStartLock={jest.fn()} onToggleDurationLock={jest.fn()} />
+      onTimeChange={jest.fn()} onToggleStartLock={jest.fn()} onToggleDurationLock={jest.fn()} onToggleEndLock={jest.fn()} />
   )
   // aria-label flips to 解鎖開始時間 when locked
   expect(screen.getByRole('button', { name: '解鎖開始時間' })).toBeInTheDocument()
@@ -66,7 +112,7 @@ it('startLocked → start time static (no start picker) but drag handle still sh
 it('durationLocked → end time static but start still editable; card still draggable', () => {
   render(
     <ItineraryCard place={{ ...BASE, durationLocked: true }} index={0} dateIso="2026-06-30" draggable
-      onTimeChange={jest.fn()} onToggleStartLock={jest.fn()} onToggleDurationLock={jest.fn()} />
+      onTimeChange={jest.fn()} onToggleStartLock={jest.fn()} onToggleDurationLock={jest.fn()} onToggleEndLock={jest.fn()} />
   )
   expect(screen.getByTestId('drag-handle')).toBeInTheDocument()
   // start picker present (09:00 button), end is static (10:30 not a button)

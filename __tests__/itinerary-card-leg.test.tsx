@@ -34,5 +34,5 @@ it('shows 計算中… while legBusy', () => {
 })
 it('renders no leg row for the last place (travelMinToNext null)', () => {
   render(<ItineraryCard place={sp({ travelMinToNext: null, legMode: undefined })} index={0} dateIso="2026-07-01" />)
-  expect(screen.queryByText(/分$/)).not.toBeInTheDocument()
+  expect(screen.queryByText(/開車 18 分/)).not.toBeInTheDocument()
 })

@@ -52,6 +52,7 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
   const meta = TYPE_META[place.type]
   const pin = effectivePinned(place)
   const displayName = resolveLocalizedText(place.localizedName, place.name)
+  const endTime = addMinutes(place.startTime, place.durationMin)
 
   return (
     <div
@@ -98,30 +99,56 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
           {displayName.secondary && (
             <p className="text-sm text-gray-500 mt-0.5">{displayName.secondary}</p>
           )}
-          <div className="flex items-center gap-1 mt-1 flex-wrap">
-            {pin.start || !onTimeChange ? (
-              <span className="text-sm text-clay-deep tabular-nums">{place.startTime}</span>
-            ) : (
-              <TimeScrollPicker
-                value={place.startTime}
-                onChange={(v) => onTimeChange(place.id, 'startTime', v)}
-              />
-            )}
-            <span className="text-muted text-sm">→</span>
-            {pin.end || pin.duration || !onTimeChange ? (
-              <span className="text-sm text-clay-deep tabular-nums">{addMinutes(place.startTime, place.durationMin)}</span>
-            ) : (
-              <TimeScrollPicker
-                value={addMinutes(place.startTime, place.durationMin)}
-                onChange={(v) => {
-                  const [eh, em] = v.split(':').map(Number)
-                  const [sh, sm] = place.startTime.split(':').map(Number)
-                  const rawDur = (eh * 60 + em) - (sh * 60 + sm)
-                  const dur = rawDur > 0 ? rawDur : rawDur + 1440
-                  if (dur > 0) onTimeChange(place.id, 'durationMin', dur)
-                }}
-              />
-            )}
+          <div className="grid grid-cols-3 gap-2 mt-2 max-w-md">
+            <TimeFacet label="開始">
+              {pin.start || !onTimeChange ? (
+                <span className="text-sm text-clay-deep tabular-nums">{place.startTime}</span>
+              ) : (
+                <TimeScrollPicker
+                  value={place.startTime}
+                  onChange={(v) => onTimeChange(place.id, 'startTime', v)}
+                />
+              )}
+            </TimeFacet>
+            <TimeFacet label="停留">
+              {pin.duration || !onTimeChange ? (
+                <span className="text-sm text-clay-deep tabular-nums">{place.durationMin} 分</span>
+              ) : (
+                <label className="inline-flex items-center gap-1">
+                  <input
+                    aria-label="停留分鐘"
+                    type="number"
+                    min={5}
+                    step={5}
+                    value={place.durationMin}
+                    onChange={(event) => {
+                      const duration = Number(event.target.value)
+                      if (Number.isFinite(duration) && duration > 0) {
+                        onTimeChange(place.id, 'durationMin', duration)
+                      }
+                    }}
+                    className="w-16 rounded border border-border bg-surface px-1 py-0.5 text-sm text-clay-deep tabular-nums"
+                  />
+                  <span className="text-xs text-muted">分</span>
+                </label>
+              )}
+            </TimeFacet>
+            <TimeFacet label="結束">
+              {pin.end || pin.duration || !onTimeChange ? (
+                <span className="text-sm text-clay-deep tabular-nums">{endTime}</span>
+              ) : (
+                <TimeScrollPicker
+                  value={endTime}
+                  onChange={(v) => {
+                    const [eh, em] = v.split(':').map(Number)
+                    const [sh, sm] = place.startTime.split(':').map(Number)
+                    const rawDur = (eh * 60 + em) - (sh * 60 + sm)
+                    const dur = rawDur > 0 ? rawDur : rawDur + 1440
+                    if (dur > 0) onTimeChange(place.id, 'durationMin', dur)
+                  }}
+                />
+              )}
+            </TimeFacet>
           </div>
           {todayHours && (
             <p className="text-sm text-muted mt-0.5">營業 {todayHours}</p>
@@ -220,6 +247,15 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+function TimeFacet({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-[11px] text-muted leading-tight">{label}</div>
+      <div className="mt-0.5 min-h-6 flex items-center">{children}</div>
     </div>
   )
 }
