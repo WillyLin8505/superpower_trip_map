@@ -91,8 +91,8 @@ test('shows 甜點 badge with pink style for dessert type', () => {
   render(<ItineraryCard place={{ ...BASE_PLACE, type: 'dessert' }} index={0} dateIso="2026-06-30" />)
   const badge = screen.getByText('甜點')
   expect(badge).toBeInTheDocument()
-  expect(badge.className).toContain('bg-pink-100')
-  expect(badge.className).toContain('text-pink-700')
+  expect(badge.className).toContain('bg-dessert-tint')
+  expect(badge.className).toContain('text-dessert-ink')
 })
 
 test('shows start→end time for read-only card (no onTimeChange)', () => {

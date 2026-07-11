@@ -3,12 +3,12 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
-import { TypePicker } from './TypePicker'
 import { TimeScrollPicker } from './TimeScrollPicker'
+import { TypePicker } from './TypePicker'
 import type { PlaceType, ScheduledPlace, TransportMode } from '@/lib/types'
 import { DWELL, TYPE_META } from '@/lib/placeType'
 import { getHoursForDate } from '@/lib/utils/hours'
-import { effectivePinned } from '@/lib/utils/lockDerive'
+import { effectivePinned, isDerived } from '@/lib/utils/lockDerive'
 import { addMinutes } from '@/lib/utils/time'
 
 interface Props {
@@ -44,9 +44,9 @@ export function ItineraryCard({
   onChangeLegMode,
   legBusy,
 }: Props) {
-  const pinned = effectivePinned(place)
+  const pin = effectivePinned(place)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: place.id, disabled: !draggable || pinned.start })
+    useSortable({ id: place.id, disabled: !draggable || pin.start })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -64,11 +64,11 @@ export function ItineraryCard({
     <div
       ref={setNodeRef}
       style={style}
-      className={`border rounded-xl p-4 ${meta.cardBg} ${place.outsideHours ? 'border-orange-300' : 'border-gray-200'}`}
+      className={`border border-l-4 rounded-xl p-4 ${meta.cardBg} ${meta.accent} ${place.outsideHours ? 'border-warn' : 'border-border'}`}
       data-testid={`card-${place.id}`}
     >
       <div className="flex items-start gap-3">
-        {draggable && !pinned.start && (
+        {draggable && !pin.start && (
           <span
             {...attributes}
             {...listeners}
@@ -78,12 +78,12 @@ export function ItineraryCard({
             &#x2807;
           </span>
         )}
-        <span className="w-7 h-7 rounded-full bg-blue-600 text-white text-sm font-bold flex items-center justify-center shrink-0">
+        <span className="w-7 h-7 rounded-full bg-clay text-white text-sm font-bold flex items-center justify-center shrink-0">
           {index + 1}
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-semibold text-gray-900">{displayName.primary}</h3>
+            <h3 className="font-semibold text-ink">{displayName.primary}</h3>
             {onChangeType ? (
               <TypePicker type={place.type} onChange={(type) => onChangeType(place.id, type)} />
             ) : (
@@ -91,49 +91,73 @@ export function ItineraryCard({
                 {meta.label}
               </span>
             )}
-            {place.nightIndex && <span className="text-xs text-purple-700">第 {place.nightIndex} 晚</span>}
+            {place.nightIndex && <span className="text-xs text-lodging-ink">第 {place.nightIndex} 晚</span>}
             {place.outsideHours && (
-              <span className="text-xs text-orange-600 font-medium">&#x26A0; 請確認營業時間</span>
+              <span className="text-xs text-warn font-medium">&#x26A0; 請確認營業時間</span>
             )}
           </div>
           {displayName.secondary && (
-            <p className="text-sm text-gray-500 mt-0.5">{displayName.secondary}</p>
+            <p className="text-sm text-muted mt-0.5">{displayName.secondary}</p>
           )}
-          <div className="flex items-center gap-1 mt-1 flex-wrap">
-            {pinned.start || !onTimeChange ? (
-              <span className="text-sm text-gray-500">{place.startTime}</span>
-            ) : (
-              <TimeScrollPicker
-                value={place.startTime}
-                onChange={(value) => onTimeChange(place.id, 'startTime', value)}
-              />
-            )}
-            <span className="text-gray-400 text-sm">→</span>
-            {pinned.duration || pinned.end || !onTimeChange ? (
-              <span className="text-sm text-gray-500">{endTime}</span>
-            ) : (
-              <TimeScrollPicker
-                value={endTime}
-                onChange={(value) => {
-                  const [endHour, endMinute] = value.split(':').map(Number)
-                  const [startHour, startMinute] = place.startTime.split(':').map(Number)
-                  const rawDuration = endHour * 60 + endMinute - (startHour * 60 + startMinute)
-                  const duration = rawDuration > 0 ? rawDuration : rawDuration + 1440
-                  if (duration > 0) onTimeChange(place.id, 'durationMin', duration)
-                }}
-              />
-            )}
+          <div className="grid grid-cols-3 gap-2 mt-2 max-w-md">
+            <TimeFacet label="開始">
+              {pin.start || !onTimeChange ? (
+                <span className="text-sm text-clay-deep tabular-nums">{place.startTime}</span>
+              ) : (
+                <TimeScrollPicker
+                  value={place.startTime}
+                  onChange={(value) => onTimeChange(place.id, 'startTime', value)}
+                />
+              )}
+            </TimeFacet>
+            <TimeFacet label="停留">
+              {pin.duration || !onTimeChange ? (
+                <span className="text-sm text-clay-deep tabular-nums">{place.durationMin} 分</span>
+              ) : (
+                <label className="inline-flex items-center gap-1">
+                  <input
+                    aria-label="停留分鐘"
+                    type="number"
+                    min={5}
+                    step={5}
+                    value={place.durationMin}
+                    onChange={(event) => {
+                      const duration = Number(event.target.value)
+                      if (Number.isFinite(duration) && duration > 0) {
+                        onTimeChange(place.id, 'durationMin', duration)
+                      }
+                    }}
+                    className="w-16 rounded border border-border bg-surface px-1 py-0.5 text-sm text-clay-deep tabular-nums"
+                  />
+                  <span className="text-xs text-muted">分</span>
+                </label>
+              )}
+            </TimeFacet>
+            <TimeFacet label="結束">
+              {pin.end || pin.duration || !onTimeChange ? (
+                <span className="text-sm text-clay-deep tabular-nums">{endTime}</span>
+              ) : (
+                <TimeScrollPicker
+                  value={endTime}
+                  onChange={(value) => {
+                    const [endHour, endMinute] = value.split(':').map(Number)
+                    const [startHour, startMinute] = place.startTime.split(':').map(Number)
+                    const rawDuration = endHour * 60 + endMinute - (startHour * 60 + startMinute)
+                    const duration = rawDuration > 0 ? rawDuration : rawDuration + 1440
+                    if (duration > 0) onTimeChange(place.id, 'durationMin', duration)
+                  }}
+                />
+              )}
+            </TimeFacet>
           </div>
-          {todayHours && <p className="text-sm text-gray-500 mt-0.5">營業 {todayHours}</p>}
-          {place.rating && <p className="text-sm text-gray-500 mt-0.5">評分：{place.rating} &#x2605;</p>}
+          {todayHours && <p className="text-sm text-muted mt-1">營業 {todayHours}</p>}
+          {place.rating && <p className="text-sm text-muted mt-0.5">評分：{place.rating} &#x2605;</p>}
           {descriptionText && <p className="text-sm text-gray-600 mt-2 italic">{descriptionText}</p>}
           {place.lateExit && (
-            <p className="text-xs text-orange-600 font-medium mt-1">&#x26A0; 結束時間超出營業時間</p>
+            <p className="text-xs text-warn font-medium mt-1">&#x26A0; 結束時間超出營業時間</p>
           )}
           {place.durationMin < DWELL[place.type] && (
-            <p className="text-xs text-orange-600 font-medium mt-1">
-              &#x26A0; 停留少於建議：{DWELL[place.type]} 分鐘
-            </p>
+            <p className="text-xs text-warn font-medium mt-1">&#x26A0; 停留少於建議：{DWELL[place.type]} 分鐘</p>
           )}
         </div>
         {(onToggleStartLock || onToggleDurationLock || onToggleEndLock) && (
@@ -141,24 +165,24 @@ export function ItineraryCard({
             {onToggleStartLock && (
               <LockButton
                 label="開始時間"
-                locked={pinned.start}
-                derived={pinned.start && !place.startLocked}
+                locked={pin.start}
+                derived={isDerived(place, 'start')}
                 onClick={() => onToggleStartLock(place.id)}
               />
             )}
             {onToggleDurationLock && (
               <LockButton
                 label="停留時間"
-                locked={pinned.duration}
-                derived={pinned.duration && !place.durationLocked}
+                locked={pin.duration}
+                derived={isDerived(place, 'duration')}
                 onClick={() => onToggleDurationLock(place.id)}
               />
             )}
             {onToggleEndLock && (
               <LockButton
                 label="結束時間"
-                locked={pinned.end}
-                derived={pinned.end && !(place.endLocked ?? false)}
+                locked={pin.end}
+                derived={isDerived(place, 'end')}
                 onClick={() => onToggleEndLock(place.id)}
               />
             )}
@@ -166,7 +190,7 @@ export function ItineraryCard({
         )}
       </div>
       {place.travelMinToNext !== null && (
-        <div className="text-xs text-gray-400 mt-3 pl-10 flex items-center gap-2 flex-wrap">
+        <div className="text-xs text-muted mt-3 pl-10 flex items-center gap-2 flex-wrap">
           <span>
             &#x2192; {LEG_META[place.legMode ?? 'driving'].icon} {LEG_META[place.legMode ?? 'driving'].label}{' '}
             {place.travelMinToNext} 分
@@ -179,7 +203,7 @@ export function ItineraryCard({
                 aria-label="交通工具"
                 value={place.legMode ?? 'driving'}
                 onChange={(event) => onChangeLegMode(place.id, event.target.value as TransportMode)}
-                className="border border-gray-200 rounded px-1 py-0.5 text-xs"
+                className="border border-border rounded px-1 py-0.5 text-xs bg-surface"
               >
                 <option value="driving">開車</option>
                 <option value="walking">步行</option>
@@ -193,14 +217,13 @@ export function ItineraryCard({
   )
 }
 
-function resolvePlaceName(place: ScheduledPlace): { primary: string; secondary: string | null } {
-  const localized = (place as ScheduledPlace & {
-    localizedName?: { zhTw?: string | null; en?: string | null; original?: string | null } | null
-  }).localizedName
-  const primary = localized?.zhTw || localized?.original || localized?.en || place.name
-  const secondary = [localized?.original, localized?.en, place.name].find((name) => name && name !== primary) ?? null
-
-  return { primary, secondary }
+function TimeFacet({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-[11px] text-muted leading-tight">{label}</div>
+      <div className="mt-0.5 min-h-6 flex items-center">{children}</div>
+    </div>
+  )
 }
 
 function LockButton({
@@ -219,11 +242,21 @@ function LockButton({
       type="button"
       onClick={onClick}
       disabled={derived}
-      title={derived ? '已由另外兩個時間鎖定' : undefined}
-      className="text-xs leading-none opacity-60 hover:opacity-100 transition-opacity whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-40"
+      title={derived ? '由另外兩個鎖自動決定' : undefined}
+      className="text-xs leading-none opacity-60 hover:opacity-100 transition-opacity whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-30"
       aria-label={`${locked ? '解鎖' : '鎖定'}${label}`}
     >
       {locked ? '🔒' : '🔓'} {label.replace('時間', '')}
     </button>
   )
+}
+
+function resolvePlaceName(place: ScheduledPlace): { primary: string; secondary: string | null } {
+  const localized = (place as ScheduledPlace & {
+    localizedName?: { zhTw?: string | null; en?: string | null; original?: string | null } | null
+  }).localizedName
+  const primary = localized?.zhTw || localized?.original || localized?.en || place.name
+  const secondary = [localized?.original, localized?.en, place.name].find((name) => name && name !== primary) ?? null
+
+  return { primary, secondary }
 }

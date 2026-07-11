@@ -1,5 +1,7 @@
 import type { ScheduledPlace } from '@/lib/types'
 
+export type LockFacet = 'start' | 'duration' | 'end'
+
 export type EffectivePinned = {
   start: boolean
   duration: boolean
@@ -21,4 +23,18 @@ export function effectivePinned(
   }
 
   return explicit
+}
+
+export function isDerived(
+  place: Pick<ScheduledPlace, 'startLocked' | 'durationLocked' | 'endLocked'>,
+  facet: LockFacet,
+): boolean {
+  const explicit =
+    facet === 'start'
+      ? place.startLocked
+      : facet === 'duration'
+        ? place.durationLocked
+        : place.endLocked ?? false
+
+  return effectivePinned(place)[facet] && !explicit
 }

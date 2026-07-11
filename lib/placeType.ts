@@ -1,24 +1,47 @@
 import type { PlaceType } from '@/lib/types'
 
-// 顯示與 UI 排序用的固定順序（彈出選單依此順序）
+// Display order for type picker and card metadata.
 export const PLACE_TYPES: PlaceType[] = ['accommodation', 'restaurant', 'dessert', 'attraction']
 
 export interface TypeMeta {
-  label: string        // 中文標籤
+  label: string
   emoji: string
-  badge: string        // 徽章 Tailwind 類別（背景+文字）
-  cardBg: string       // 卡片底色 Tailwind 類別
+  badge: string
+  cardBg: string
+  accent: string
 }
 
 export const TYPE_META: Record<PlaceType, TypeMeta> = {
-  attraction:    { label: '景點', emoji: '🏔', badge: 'bg-blue-100 text-blue-700',     cardBg: 'bg-blue-50' },
-  accommodation: { label: '住宿', emoji: '🏨', badge: 'bg-purple-100 text-purple-700', cardBg: 'bg-purple-50' },
-  restaurant:    { label: '餐廳', emoji: '🍽', badge: 'bg-amber-100 text-amber-700',   cardBg: 'bg-amber-50' },
-  dessert:       { label: '甜點', emoji: '🍰', badge: 'bg-pink-100 text-pink-700',     cardBg: 'bg-pink-50' },
+  attraction: {
+    label: '景點',
+    emoji: '📷',
+    badge: 'bg-attraction-tint text-attraction-ink',
+    cardBg: 'bg-surface',
+    accent: 'border-l-attraction',
+  },
+  accommodation: {
+    label: '住宿',
+    emoji: '🏨',
+    badge: 'bg-lodging-tint text-lodging-ink',
+    cardBg: 'bg-surface',
+    accent: 'border-l-lodging',
+  },
+  restaurant: {
+    label: '餐廳',
+    emoji: '🍴',
+    badge: 'bg-restaurant-tint text-restaurant-ink',
+    cardBg: 'bg-surface',
+    accent: 'border-l-restaurant',
+  },
+  dessert: {
+    label: '甜點',
+    emoji: '🍰',
+    badge: 'bg-dessert-tint text-dessert-ink',
+    cardBg: 'bg-surface',
+    accent: 'border-l-dessert',
+  },
 }
 
-// 預設停留時間（分鐘）。accommodation 暫定 60，僅為佔位避免排程出錯；
-// 真正的住宿排程語意由子專案 #3 定義。
 export const DWELL: Record<PlaceType, number> = {
   attraction: 90,
   restaurant: 60,
