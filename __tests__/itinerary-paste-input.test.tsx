@@ -104,4 +104,47 @@ describe('ItineraryPasteInput', () => {
     })
     expect(onPlacesFound.mock.calls[0][0]).toHaveLength(1)
   })
+
+  it('shows an error message instead of a silent blank when the AI analysis fails', async () => {
+    mockExtract.mockResolvedValue({ country: null, countryCode: null, places: [], error: 'ai_failed' })
+
+    render(<ItineraryPasteInput onPlacesFound={jest.fn()} />)
+    fireEvent.change(screen.getByPlaceholderText(/貼上旅遊/), { target: { value: '去東京旅遊' } })
+    fireEvent.click(screen.getByText('分析行程'))
+
+    await waitFor(() => {
+      expect(screen.getByText(/分析.*失敗|無法.*分析|API/)).toBeInTheDocument()
+    })
+    // back to an editable textarea, not stuck on a spinner
+    expect(screen.getByPlaceholderText(/貼上旅遊/)).toBeInTheDocument()
+  })
+
+  it('shows a "no places found" message when analysis returns zero places', async () => {
+    mockExtract.mockResolvedValue({ country: null, countryCode: null, places: [] })
+
+    render(<ItineraryPasteInput onPlacesFound={jest.fn()} />)
+    fireEvent.change(screen.getByPlaceholderText(/貼上旅遊/), { target: { value: '沒有地點' } })
+    fireEvent.click(screen.getByText('分析行程'))
+
+    await waitFor(() => {
+      expect(screen.getByText(/找不到.*地點/)).toBeInTheDocument()
+    })
+  })
+
+  it('shows a verify-failed message when no extracted place can be verified', async () => {
+    mockExtract.mockResolvedValue({
+      country: 'Taiwan', countryCode: 'tw',
+      places: [{ name: '不存在的地方', type: 'attraction' }],
+    })
+    mockSearch.mockResolvedValue(null)
+
+    const onPlacesFound = jest.fn()
+    render(<ItineraryPasteInput onPlacesFound={onPlacesFound} />)
+    fireEvent.change(screen.getByPlaceholderText(/貼上旅遊/), { target: { value: '台灣行程' } })
+    fireEvent.click(screen.getByText('分析行程'))
+
+    await waitFor(() => {
+      expect(screen.getByText(/無法.*驗證/)).toBeInTheDocument()
+    })
+  })
 })
