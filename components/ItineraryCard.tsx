@@ -8,6 +8,7 @@ import { TypePicker } from './TypePicker'
 import type { PlaceType, ScheduledPlace, TransportMode } from '@/lib/types'
 import { DWELL, TYPE_META } from '@/lib/placeType'
 import { getHoursForDate } from '@/lib/utils/hours'
+import { resolveLocalizedText } from '@/lib/utils/localizedPlace'
 import { effectivePinned, isDerived } from '@/lib/utils/lockDerive'
 import { addMinutes } from '@/lib/utils/time'
 
@@ -57,7 +58,7 @@ export function ItineraryCard({
   const todayHours = getHoursForDate(place.openingHours, dateIso)
   const descriptionText = place.description || place.aiDescription
   const meta = TYPE_META[place.type]
-  const displayName = resolvePlaceName(place)
+  const displayName = resolveLocalizedText(place.localizedName, place.name)
   const endTime = addMinutes(place.startTime, place.durationMin)
 
   return (
@@ -249,14 +250,4 @@ function LockButton({
       {locked ? '🔒' : '🔓'} {label.replace('時間', '')}
     </button>
   )
-}
-
-function resolvePlaceName(place: ScheduledPlace): { primary: string; secondary: string | null } {
-  const localized = (place as ScheduledPlace & {
-    localizedName?: { zhTw?: string | null; en?: string | null; original?: string | null } | null
-  }).localizedName
-  const primary = localized?.zhTw || localized?.original || localized?.en || place.name
-  const secondary = [localized?.original, localized?.en, place.name].find((name) => name && name !== primary) ?? null
-
-  return { primary, secondary }
 }

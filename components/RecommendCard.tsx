@@ -1,5 +1,6 @@
 'use client'
 import type { Recommendation } from '@/lib/types'
+import { resolveLocalizedText } from '@/lib/utils/localizedPlace'
 
 interface Props {
   rec: Recommendation
@@ -8,6 +9,8 @@ interface Props {
 }
 
 export function RecommendCard({ rec, selected, onToggle }: Props) {
+  const displayName = resolveLocalizedText(rec.localizedName, rec.name)
+
   return (
     <label className={`flex items-start gap-3 bg-white border rounded-xl p-4 cursor-pointer transition-colors ${
       selected ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
@@ -21,7 +24,7 @@ export function RecommendCard({ rec, selected, onToggle }: Props) {
       />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-gray-900">{rec.name}</span>
+          <span className="font-semibold text-gray-900">{displayName.primary}</span>
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
             rec.type === 'attraction' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'
           }`}>
@@ -29,6 +32,9 @@ export function RecommendCard({ rec, selected, onToggle }: Props) {
           </span>
           {!rec.verified && <span className="text-xs text-gray-400">無法驗證位置</span>}
         </div>
+        {displayName.secondary && (
+          <p className="text-xs text-gray-500 mt-0.5">{displayName.secondary}</p>
+        )}
         <p className="text-sm text-gray-600 mt-0.5">{rec.reason}</p>
         <p className="text-xs text-gray-400 mt-0.5">來源：{rec.sourceLabel}</p>
       </div>

@@ -47,12 +47,14 @@ export async function getRecommendations(
       const result = await verifyPlace(r.name)
       return {
         name: r.name,
+        localizedName: result?.localizedName ?? null,
         type: r.type === 'restaurant' ? 'restaurant' : 'attraction',
         reason: r.reason,
         sourceLabel: r.sourceLabel,
         placeId: result?.placeId ?? null,
         lat: result?.lat ?? null,
         lng: result?.lng ?? null,
+        localizedAddress: result?.localizedAddress ?? null,
         verified: !!result,
       } satisfies Recommendation
     })

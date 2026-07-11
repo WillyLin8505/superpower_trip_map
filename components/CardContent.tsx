@@ -3,6 +3,7 @@ import { TimeScrollPicker } from './TimeScrollPicker'
 import { TypePicker } from './TypePicker'
 import { getHoursForDate } from '@/lib/utils/hours'
 import { addMinutes } from '@/lib/utils/time'
+import { resolveLocalizedText } from '@/lib/utils/localizedPlace'
 import type { PlaceType, ScheduledPlace } from '@/lib/types'
 import { TYPE_META } from '@/lib/placeType'
 
@@ -19,12 +20,13 @@ export function CardContent({ place, dateIso, onTimeChange, onToggleStartLock, o
   const todayHours = getHoursForDate(place.openingHours, dateIso)
   const descriptionText = place.description || place.aiDescription
   const meta = TYPE_META[place.type]
+  const displayName = resolveLocalizedText(place.localizedName, place.name)
 
   return (
     <>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <h3 className="font-semibold text-gray-900">{place.name}</h3>
+          <h3 className="font-semibold text-gray-900">{displayName.primary}</h3>
           {onChangeType ? (
             <TypePicker type={place.type} onChange={(t) => onChangeType(place.id, t)} />
           ) : (
@@ -34,6 +36,7 @@ export function CardContent({ place, dateIso, onTimeChange, onToggleStartLock, o
             <span className="text-xs text-orange-600 font-medium">&#x26A0; 請確認營業時間</span>
           )}
         </div>
+        {displayName.secondary && <p className="text-sm text-gray-500 mt-0.5">{displayName.secondary}</p>}
         <div className="flex items-center gap-1 mt-1 flex-wrap">
           {place.startLocked || !onTimeChange ? (
             <span className="text-sm text-gray-500">{place.startTime}</span>
