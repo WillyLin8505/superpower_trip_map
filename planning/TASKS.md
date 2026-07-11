@@ -1,11 +1,15 @@
 # Task Registry
 
-Last updated: 2026-07-08
-Manager-owned status registry. Worker Sessions may mark a task `in_progress` when claiming it and may mark only their own current task `done` or `blocked` during `$multi-handoff-task`. Workers must avoid conflicts described here and in `PARALLEL_WORK_PLAN.md`.
+Last updated: 2026-07-11
+Manager-owned status registry and single source of truth. Worker Sessions may mark a task `in_progress` when claiming it and may mark only their own current task `done` or `blocked` during `$multi-handoff-task`.
 
 Status values: `todo`, `in_progress`, `blocked`, `done`.
 
 Source of truth path: `D:\vibe_coding_project\food_map\superpowers_food_map\planning\TASKS.md`.
+
+Worker flow: `$multi-new-session` -> `$multi-claim-task` -> Superpowers implement/debug/test -> `$multi-handoff-task`.
+
+Product flow: GStack Product Discovery -> Superpowers Engineering Planning -> GSD Project Management -> Parallel Worker Assignment -> Worker Execution -> GStack Review -> Manager Decision.
 
 ## Required Task Fields
 
@@ -13,12 +17,59 @@ Every Manager-created task should define:
 
 - Task ID and Description in the task heading.
 - Priority.
+- Spec for every implementation task.
 - Dependencies.
 - Estimated scope.
 - Files likely to change.
 - Conflict risk.
 - Can run in parallel?
 - Required review.
+
+Implementation task invariant: if `Task type` is `frontend` or `backend`, and `Spec:` is `none`/missing or points to a missing file under `docs/superpowers/specs/`, the task is Un Spec and not claimable.
+
+## Locked Files
+
+- `lib/types.ts` — TASK-011, claimed 2026-07-11 (`$multi-auto-session` SPEC: Place Photos Lightbox).
+- `app/actions/places.ts` — TASK-011, claimed 2026-07-11.
+- `app/api/photo/route.ts` — TASK-011, claimed 2026-07-11.
+- `components/ItineraryCard.tsx` — TASK-011, claimed 2026-07-11.
+- `components/RecommendationCard.tsx` — TASK-011, claimed 2026-07-11.
+- `components/PhotoLightbox.tsx` — TASK-011, claimed 2026-07-11.
+- `photo/card tests` — TASK-011, claimed 2026-07-11.
+
+## Spec Trees
+
+- SPEC: Manager Workflow — TASK-001, TASK-005, TASK-017, TASK-018, TASK-019, TASK-020
+- SPEC: Card Duration / Lock UI — TASK-002, TASK-006, TASK-007
+- SPEC: Place Localization — TASK-003, TASK-008
+- SPEC: Recommendation Centers — TASK-004, TASK-009, TASK-010
+- SPEC: Place Photos Lightbox — TASK-011
+- SPEC: Place Drawer — TASK-012
+- SPEC: Admin Source Management — TASK-013
+- SPEC: Itinerary Editor Day Count — TASK-014
+- SPEC: Bottom Add-Day Flow — TASK-015
+- SPEC: README Onboarding — TASK-016
+- SPEC: LINE Group Candidate Ingest — TASK-021
+
+## Conflicts
+
+- TASK-006 <> TASK-007: both modify card time/lock behavior.
+- TASK-006 <> TASK-011: both modify itinerary card internals and media/time layout.
+- TASK-006 <> TASK-012: both modify itinerary card interaction surfaces.
+- TASK-007 <> TASK-014: both may touch itinerary day/time handlers in `app/itinerary/ItineraryClient.tsx`.
+- TASK-007 <> TASK-015: both may touch itinerary day/time handlers in `app/itinerary/ItineraryClient.tsx`.
+- TASK-008 <> TASK-009: both may modify `lib/types.ts`.
+- TASK-008 <> TASK-011: both may modify `lib/types.ts` and place photo data.
+- TASK-008 <> TASK-010: both affect recommendation cards and place data.
+- TASK-009 <> TASK-010: TASK-010 depends on TASK-009's recommendation center data model.
+- TASK-010 <> TASK-014: both modify `app/itinerary/ItineraryClient.tsx`.
+- TASK-010 <> TASK-015: both modify `app/itinerary/ItineraryClient.tsx`.
+- TASK-011 <> TASK-012: both modify itinerary/recommendation card surfaces.
+- TASK-014 <> TASK-015: same day-count/add-day control area; run sequentially.
+
+## Un Spec
+
+- None currently derived for non-done implementation tasks. If a future frontend/backend task has `Spec: none`, `Spec: TBD`, or a missing spec file, run `$multi-auto-spec` before `$multi-auto-session`.
 
 ## TASK-001 - Create multi-session planning and orchestration docs
 
@@ -99,7 +150,7 @@ Every Manager-created task should define:
 ## TASK-005 - Continue brainstorm and formalize remaining roadmap items
 
 - Task type: docs
-- Status: todo
+- Status: done
 - Priority: medium
 - Estimated scope: medium
 - Files likely to change:
@@ -118,8 +169,9 @@ Every Manager-created task should define:
 ## TASK-006 - Implement card duration-first time UI
 
 - Task type: frontend
-- Status: in_progress
+- Status: done
 - Priority: high
+- Spec: `docs/superpowers/specs/2026-06-26-time-picker-lock-scheduler-itinerary-input-design.md`
 - Estimated scope: medium
 - Files likely to change:
   - `components/ItineraryCard.tsx`
@@ -135,13 +187,14 @@ Every Manager-created task should define:
 - Required review: GStack review/challenge after implementation
 - Suggested session count: 1
 - Safe to assign to any session: no
-- Notes: High-conflict shared card UI. Should be done alone after spec review. Claimed in worktree `superpowers_food_map-laneB` on 2026-07-09 after `$multi-claim-task` found no locked-file conflict with current in-progress docs work.
+- Notes: High-conflict shared card UI. Handoff accepted as completed by Manager direction; review is optional unless explicitly reopened or blocked.
 
 ## TASK-007 - Implement lock enforcement and lodging-specific time UI
 
 - Task type: frontend
-- Status: todo
+- Status: done
 - Priority: high
+- Spec: `docs/superpowers/specs/2026-07-05-three-lock-model-design.md`
 - Estimated scope: medium
 - Files likely to change:
   - `components/ItineraryCard.tsx`
@@ -164,6 +217,7 @@ Every Manager-created task should define:
 - Task type: backend
 - Status: done
 - Priority: high
+- Spec: `docs/superpowers/specs/2026-07-01-laneC-c1-auth-persistence-design.md`
 - Estimated scope: large
 - Files likely to change:
   - `lib/types.ts`
@@ -186,8 +240,9 @@ Every Manager-created task should define:
 ## TASK-009 - Implement per-day recommendation center data model and persistence
 
 - Task type: backend
-- Status: todo
+- Status: done
 - Priority: high
+- Spec: `docs/superpowers/specs/2026-06-30-per-day-recommendations-design.md`
 - Estimated scope: medium
 - Files likely to change:
   - `lib/types.ts`
@@ -206,8 +261,9 @@ Every Manager-created task should define:
 ## TASK-010 - Implement recommendation center UI, fallback, and refresh
 
 - Task type: frontend
-- Status: todo
+- Status: done
 - Priority: high
+- Spec: `docs/superpowers/specs/2026-06-30-per-day-recommendations-design.md`
 - Estimated scope: large
 - Files likely to change:
   - `components/DayRecommendations.tsx`
@@ -228,8 +284,9 @@ Every Manager-created task should define:
 ## TASK-011 - Implement four Google photos per place and lightbox
 
 - Task type: frontend
-- Status: todo
+- Status: in_progress
 - Priority: medium
+- Spec: `docs/superpowers/specs/2026-07-10-place-photos-lightbox-design.md`
 - Estimated scope: large
 - Files likely to change:
   - `lib/types.ts`
@@ -239,7 +296,7 @@ Every Manager-created task should define:
   - `components/RecommendationCard.tsx`
   - possibly new `components/PhotoLightbox.tsx`
   - photo/card tests
-- Dependencies: TASK-003, likely TASK-008
+- Dependencies: TASK-003, TASK-008
 - Blocking tasks: none
 - Conflict risk: high
 - Can run in parallel: no
@@ -253,6 +310,7 @@ Every Manager-created task should define:
 - Task type: frontend
 - Status: todo
 - Priority: medium
+- Spec: `docs/superpowers/specs/2026-07-10-place-drawer-design.md`
 - Estimated scope: medium
 - Files likely to change:
   - `components/ItineraryCard.tsx`
@@ -260,7 +318,7 @@ Every Manager-created task should define:
   - possibly new `components/MapPlaceDrawer.tsx`
   - `app/itinerary/ItineraryClient.tsx`
   - drawer/card tests
-- Dependencies: TASK-003, likely TASK-008
+- Dependencies: TASK-003, TASK-008
 - Blocking tasks: none
 - Conflict risk: high
 - Can run in parallel: no
@@ -272,8 +330,9 @@ Every Manager-created task should define:
 ## TASK-013 - Improve admin source management
 
 - Task type: frontend
-- Status: todo
+- Status: done
 - Priority: medium
+- Spec: `docs/superpowers/specs/2026-07-10-admin-source-management-design.md`
 - Estimated scope: medium
 - Files likely to change:
   - `app/admin/page.tsx`
@@ -281,50 +340,52 @@ Every Manager-created task should define:
   - `components/admin/SourceList.tsx`
   - `app/actions/sources.ts`
   - `config/sources.json` or source storage tests
-- Dependencies: TASK-005 or additional admin brainstorm decisions
+- Dependencies: none
 - Blocking tasks: none
 - Conflict risk: medium
 - Can run in parallel: yes
 - Required review: GStack review if production code changes are non-trivial
 - Suggested session count: 1
 - Safe to assign to any session: yes, after spec is written
-- Notes: Relatively isolated from itinerary editor. Do not run concurrently with another admin/source task.
+- Notes: Relatively isolated from itinerary editor. Spec exists at `docs/superpowers/specs/2026-07-10-admin-source-management-design.md`; do not run concurrently with another admin/source task.
 
 ## TASK-014 - Top itinerary day-count stepper
 
 - Task type: frontend
-- Status: in_progress
+- Status: done
 - Priority: medium
+- Spec: `docs/superpowers/specs/2026-07-09-itinerary-editor-day-count-stepper-design.md`
 - Estimated scope: small (revised down after spec — reuses existing `handleChangeEndDate`/`handleDeleteDay`/`handleScatterDay`/overCount banner wholesale; no new state, action, or deletion logic)
 - Files likely to change:
   - `app/itinerary/ItineraryClient.tsx`
   - `__tests__/itinerary-date-controls.test.tsx`
-- Dependencies: TASK-005 (resolved for this slice — see spec/plan below), TASK-006/TASK-007 lock release recommended as a safety margin even though neither currently locks `ItineraryClient.tsx`
+- Dependencies: none
 - Blocking tasks: TASK-015
 - Conflict risk: medium (file is on the shared conflict matrix, but current diff is small and isolated to one JSX block + two imports)
 - Can run in parallel: no
 - Required review: GStack review/challenge after implementation
 - Suggested session count: 1
-- Safe to assign to any session: no (claimed, in progress in this Manager session — subagent-driven execution)
-- Notes: Spec formalized via `$multi-auto-spec` (office-hours -> superpowers:brainstorming): `docs/superpowers/specs/2026-07-09-itinerary-editor-day-count-stepper-design.md`. Implementation plan: `docs/superpowers/plans/2026-07-09-itinerary-editor-day-count-stepper.md`. Claimed 2026-07-10 for subagent-driven execution in the Manager workspace (not a lane worktree).
+- Safe to assign to any session: yes, if no current `ItineraryClient.tsx` lock exists
+- Notes: Spec formalized via `$multi-auto-spec` (office-hours -> superpowers:brainstorming): `docs/superpowers/specs/2026-07-09-itinerary-editor-day-count-stepper-design.md`. Implementation plan: `docs/superpowers/plans/2026-07-09-itinerary-editor-day-count-stepper.md`. Previous `in_progress` claim was stale; no active session owns this task.
 
 ## TASK-015 - Bottom add-day button
 
 - Task type: frontend
-- Status: todo
+- Status: done
 - Priority: medium
+- Spec: `docs/superpowers/specs/2026-07-10-bottom-add-day-flow-design.md`
 - Estimated scope: small
 - Files likely to change:
   - `app/itinerary/ItineraryClient.tsx`
   - day/date tests
-- Dependencies: TASK-005, likely TASK-014
+- Dependencies: TASK-014
 - Blocking tasks: none
 - Conflict risk: high
 - Can run in parallel: no
 - Required review: GStack review if production code changes are non-trivial
 - Suggested session count: 1
 - Safe to assign to any session: no
-- Notes: Shares add/remove day logic with TASK-014; should be same session or after TASK-014.
+- Notes: Shares add/remove day logic with TASK-014; run after TASK-014 unless Manager explicitly combines both in one selected spec. DONE 2026-07-11: implemented in worktree `claude_lane_a`, branch `task-015-bottom-add-day` off current `origin/main` (includes TASK-014's merged stepper, `6815eb5`). Added "+ 加一天" / "↑ 回到頂部" buttons after the last day card, reusing `handleChangeEndDate(addDays(dayDate(plan.startDate, N), 1))` verbatim (zero new state/logic) plus a native `window.scrollTo`. TDD: 4 new tests in `__tests__/itinerary-date-controls.test.tsx`, RED confirmed before implementation, GREEN after (11/11 in file). Full suite 113/113 suites, 571/571 tests. `tsc --noEmit` clean (no new errors). `next build` succeeds. Pushed and opened **PR #12** (https://github.com/WillyLin8505/superpower_trip_map/pull/12).
 
 ## TASK-016 - Review and refresh README for project-specific onboarding
 
@@ -433,7 +494,7 @@ Every Manager-created task should define:
 ## TASK-021 - Formalize Lane C / C5 LINE group candidate ingest as Superpowers-ready design doc
 
 - Task type: docs
-- Status: in_progress
+- Status: done
 - Priority: medium
 - Estimated scope: small
 - Files likely to change:
@@ -446,4 +507,4 @@ Every Manager-created task should define:
 - Required review: Manager review; GStack optional because docs-only
 - Suggested session count: 1
 - Safe to assign to any session: yes
-- Notes: Merged into the registry 2026-07-08 by Manager from a previously un-tracked draft in worktree `superpowers_food_map-laneB` (`lane/ai-research`); spec drafted, not yet committed. LINE bot ingests group-shared places / Google Maps links / article URLs into C3 `trip_candidates` after a group is bound to a trip.
+- Notes: Merged into the registry 2026-07-08 by Manager from a previously un-tracked draft. Previous `in_progress` claim was stale; no active session owns this task. LINE bot ingests group-shared places / Google Maps links / article URLs into C3 `trip_candidates` after a group is bound to a trip.
