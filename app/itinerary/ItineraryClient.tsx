@@ -144,7 +144,7 @@ export function ItineraryClient({ initial, tripId }: Props) {
     }, 2000)
   }, [])
 
-  const toggleLockField = useCallback((dayIdx: number, placeId: string, field: 'startLocked' | 'durationLocked') => {
+  const toggleLockField = useCallback((dayIdx: number, placeId: string, field: 'startLocked' | 'durationLocked' | 'endLocked') => {
     const newDays = planRef.current.days.map((d, i) => {
       if (i !== dayIdx) return d
       return {
@@ -165,6 +165,10 @@ export function ItineraryClient({ initial, tripId }: Props) {
   )
   const handleToggleDurationLock = useCallback(
     (dayIdx: number, placeId: string) => toggleLockField(dayIdx, placeId, 'durationLocked'),
+    [toggleLockField]
+  )
+  const handleToggleEndLock = useCallback(
+    (dayIdx: number, placeId: string) => toggleLockField(dayIdx, placeId, 'endLocked'),
     [toggleLockField]
   )
 
@@ -305,6 +309,7 @@ export function ItineraryClient({ initial, tripId }: Props) {
       lateExit: false,
       startLocked: false,
       durationLocked: false,
+      endLocked: false,
     }
     const targetDayIdx = findClosestDay(planRef.current.days, place)
     const newDays = planRef.current.days.map((d, i) =>
@@ -326,6 +331,7 @@ export function ItineraryClient({ initial, tripId }: Props) {
         lateExit: false,
         startLocked: false,
         durationLocked: false,
+        endLocked: false,
       }
       const targetDayIdx = findClosestDay(next.days, place)
       next = {
@@ -526,6 +532,7 @@ export function ItineraryClient({ initial, tripId }: Props) {
                 }
                 onToggleStartLock={(placeId) => handleToggleStartLock(dayIdx, placeId)}
                 onToggleDurationLock={(placeId) => handleToggleDurationLock(dayIdx, placeId)}
+                onToggleEndLock={(placeId) => handleToggleEndLock(dayIdx, placeId)}
                 onChangeType={(placeId, type) => handleChangeType(dayIdx, placeId, type)}
                 onSetDayStartLock={(locked) => handleSetDayStartLock(dayIdx, locked)}
                 onSetDayDurationLock={(locked) => handleSetDayDurationLock(dayIdx, locked)}

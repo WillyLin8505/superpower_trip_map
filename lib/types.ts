@@ -27,6 +27,7 @@ export interface ScheduledPlace extends Place {
   lateExit: boolean         // startTime + durationMin exceeds today's closing time
   startLocked: boolean      // 鎖開始時間：排程錨點 + 不可拖
   durationLocked: boolean   // 鎖停留時間
+  endLocked?: boolean       // end time lock; two locked time facets imply the third is effectively locked
   legMode?: TransportMode    // 到下一站的交通工具（最後一站 undefined）
   legManualNext?: string     // 有值＝手動指定段，值為當時下一站的 place.id
 }

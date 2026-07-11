@@ -33,22 +33,44 @@ const BASE: ScheduledPlace = {
   lateExit: false, startLocked: false, durationLocked: false,
 }
 
-it('renders two lock buttons (start + duration) when handlers provided', () => {
+it('renders three lock buttons (start + duration + end) when handlers provided', () => {
   render(
     <ItineraryCard place={BASE} index={0} dateIso="2026-06-30"
-      onToggleStartLock={jest.fn()} onToggleDurationLock={jest.fn()} />
+      onToggleStartLock={jest.fn()} onToggleDurationLock={jest.fn()} onToggleEndLock={jest.fn()} />
   )
   expect(screen.getByRole('button', { name: '鎖定開始時間' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: '鎖定停留時間' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '鎖定結束時間' })).toBeInTheDocument()
 })
 
-it('clicking start lock calls onToggleStartLock; duration lock calls onToggleDurationLock', () => {
-  const onStart = jest.fn(); const onDur = jest.fn()
-  render(<ItineraryCard place={BASE} index={0} dateIso="2026-06-30" onToggleStartLock={onStart} onToggleDurationLock={onDur} />)
+it('clicking start, duration, and end locks calls each lock handler', () => {
+  const onStart = jest.fn(); const onDur = jest.fn(); const onEnd = jest.fn()
+  render(<ItineraryCard place={BASE} index={0} dateIso="2026-06-30" onToggleStartLock={onStart} onToggleDurationLock={onDur} onToggleEndLock={onEnd} />)
   fireEvent.click(screen.getByRole('button', { name: '鎖定開始時間' }))
   fireEvent.click(screen.getByRole('button', { name: '鎖定停留時間' }))
+  fireEvent.click(screen.getByRole('button', { name: '鎖定結束時間' }))
   expect(onStart).toHaveBeenCalledWith('p1')
   expect(onDur).toHaveBeenCalledWith('p1')
+  expect(onEnd).toHaveBeenCalledWith('p1')
+})
+
+it('disables the derived third lock when start and duration are already locked', () => {
+  const onEnd = jest.fn()
+  render(
+    <ItineraryCard
+      place={{ ...BASE, startLocked: true, durationLocked: true }}
+      index={0}
+      dateIso="2026-06-30"
+      onToggleStartLock={jest.fn()}
+      onToggleDurationLock={jest.fn()}
+      onToggleEndLock={onEnd}
+    />,
+  )
+
+  const endButton = screen.getByRole('button', { name: '解鎖結束時間' })
+  expect(endButton).toBeDisabled()
+  fireEvent.click(endButton)
+  expect(onEnd).not.toHaveBeenCalled()
 })
 
 it('startLocked → start time static (no start picker) and no drag handle', () => {
