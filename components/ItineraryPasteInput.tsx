@@ -36,6 +36,7 @@ export function ItineraryPasteInput({ onPlacesFound }: Props) {
   const [detectedCountry, setDetectedCountry] = useState<string | null>(null)
   const [verifyProgress, setVerifyProgress] = useState({ done: 0, total: 0 })
   const [selectedCountryName, setSelectedCountryName] = useState('')
+  const [error, setError] = useState<string | null>(null)
 
   const runVerify = async (places: ExtractedPlace[], countryName: string) => {
     setPhase('verifying')
@@ -52,6 +53,9 @@ export function ItineraryPasteInput({ onPlacesFound }: Props) {
     )
     const valid = results.filter((p): p is Place => p !== null)
     onPlacesFound(valid)
+    if (places.length > 0 && valid.length === 0) {
+      setError('找到地點，但都無法在 Google 驗證。請確認名稱或稍後再試。')
+    }
     setPhase('idle')
     setText('')
     setDetectedCountry(null)
@@ -60,9 +64,15 @@ export function ItineraryPasteInput({ onPlacesFound }: Props) {
 
   const handleAnalyze = async () => {
     if (!text.trim()) return
+    setError(null)
     setPhase('analyzing')
     try {
       const result = await extractItinerary(text)
+      if (result.error === 'ai_failed') {
+        setError('分析服務暫時無法使用（請確認 API 設定或稍後再試）。')
+        setPhase('idle')
+        return
+      }
       setExtracted(result.places)
       if (result.country && result.places.length > 0) {
         setDetectedCountry(result.country)
@@ -70,18 +80,22 @@ export function ItineraryPasteInput({ onPlacesFound }: Props) {
       } else if (result.places.length > 0) {
         setPhase('confirm-country')
       } else {
+        setError('找不到可辨識的地點，請換一段行程文字再試。')
         setPhase('idle')
       }
     } catch {
+      setError('分析失敗，請稍後再試。')
       setPhase('idle')
     }
   }
 
   const handleConfirmCountry = async () => {
     if (!selectedCountryName) return
+    setError(null)
     try {
       await runVerify(extracted, selectedCountryName)
     } catch {
+      setError('驗證地點失敗，請稍後再試。')
       setPhase('idle')
     }
   }
@@ -132,6 +146,11 @@ export function ItineraryPasteInput({ onPlacesFound }: Props) {
 
   return (
     <div className="space-y-3">
+      {error && (
+        <p role="alert" className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          {error}
+        </p>
+      )}
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}

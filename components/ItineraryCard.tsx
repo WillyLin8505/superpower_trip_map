@@ -5,8 +5,10 @@ import { TimeScrollPicker } from './TimeScrollPicker'
 import { TypePicker } from './TypePicker'
 import { getHoursForDate } from '@/lib/utils/hours'
 import { addMinutes } from '@/lib/utils/time'
+import { resolveLocalizedText } from '@/lib/utils/localizedPlace'
 import type { PlaceType, ScheduledPlace, TransportMode } from '@/lib/types'
-import { DWELL, TYPE_META } from '@/lib/placeType'
+import { SUGGESTED_DURATION, TYPE_META } from '@/lib/placeType'
+import { effectivePinned, isDerived } from '@/lib/utils/lockDerive'
 
 function toMin(t: string): number {
   const [h, m] = t.split(':').map(Number)
@@ -21,14 +23,17 @@ interface Props {
   onTimeChange?: (placeId: string, field: 'startTime' | 'durationMin', value: string | number) => void
   onToggleStartLock?: (placeId: string) => void
   onToggleDurationLock?: (placeId: string) => void
+  onToggleEndLock?: (placeId: string) => void
   onChangeType?: (placeId: string, type: PlaceType) => void
   onChangeLegMode?: (placeId: string, mode: TransportMode) => void
   legBusy?: boolean
+  onDeletePlace?: (placeId: string) => void
+  dayEnd?: string
 }
 
-export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onChangeLegMode, legBusy }: Props) {
+export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType, onChangeLegMode, legBusy, onDeletePlace, dayEnd }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: place.id, disabled: !draggable || place.startLocked })
+    useSortable({ id: place.id, disabled: !draggable })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -45,6 +50,8 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
   const todayHours = getHoursForDate(place.openingHours, dateIso)
   const descriptionText = place.description || place.aiDescription
   const meta = TYPE_META[place.type]
+  const pin = effectivePinned(place)
+  const displayName = resolveLocalizedText(place.localizedName, place.name)
 
   return (
     <div
@@ -54,7 +61,15 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
       data-testid={`card-${place.id}`}
     >
       <div className="flex items-start gap-3">
-        {draggable && !place.startLocked && (
+        {onDeletePlace && (
+          <button
+            type="button"
+            onClick={() => onDeletePlace(place.id)}
+            aria-label="刪除地點"
+            className="text-gray-300 hover:text-red-500 transition-colors mt-1 shrink-0 leading-none"
+          >&#x2715;</button>
+        )}
+        {draggable && (
           <span
             {...attributes}
             {...listeners}
@@ -67,7 +82,7 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-semibold text-ink">{place.name}</h3>
+            <h3 className="font-semibold text-ink">{displayName.primary}</h3>
             {onChangeType ? (
               <TypePicker type={place.type} onChange={(t) => onChangeType(place.id, t)} />
             ) : (
@@ -80,8 +95,11 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
               <span className="text-xs text-warn font-medium">&#x26A0; 請確認營業時間</span>
             )}
           </div>
+          {displayName.secondary && (
+            <p className="text-sm text-gray-500 mt-0.5">{displayName.secondary}</p>
+          )}
           <div className="flex items-center gap-1 mt-1 flex-wrap">
-            {place.startLocked || !onTimeChange ? (
+            {pin.start || !onTimeChange ? (
               <span className="text-sm text-clay-deep tabular-nums">{place.startTime}</span>
             ) : (
               <TimeScrollPicker
@@ -90,7 +108,7 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
               />
             )}
             <span className="text-muted text-sm">→</span>
-            {place.durationLocked || !onTimeChange ? (
+            {pin.end || pin.duration || !onTimeChange ? (
               <span className="text-sm text-clay-deep tabular-nums">{addMinutes(place.startTime, place.durationMin)}</span>
             ) : (
               <TimeScrollPicker
@@ -117,42 +135,72 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
           {place.lateExit && (
             <p className="text-xs text-warn font-medium mt-1">&#x26A0; 結束時間超出營業時間</p>
           )}
-          {place.durationMin < DWELL[place.type] && (
-            <p className="text-xs text-warn font-medium mt-1">&#x26A0; 停留少於建議（建議 {DWELL[place.type]} 分）</p>
+          {(() => {
+            const suggested = SUGGESTED_DURATION[place.type]
+            if (suggested === undefined) return null
+            if (place.durationMin < suggested) return (
+              <p className="text-xs text-warn font-medium mt-1">&#x26A0; 停留少於建議（建議 {suggested} 分）</p>
+            )
+            if (place.durationMin > suggested) return (
+              <p className="text-xs text-warn font-medium mt-1">&#x26A0; 停留超過建議（建議 {suggested} 分）</p>
+            )
+            return null
+          })()}
+          {dayEnd && toMin(place.startTime) + place.durationMin > toMin(dayEnd) && (
+            <p className="text-xs text-warn font-medium mt-1">&#x26A0; 超出當天活動時間（活動至 {dayEnd}）</p>
           )}
           {place.type === 'accommodation' && toMin(place.startTime) < 15 * 60 && (
             <p className="text-xs text-warn font-medium mt-1">&#x26A0; 早於一般 check-in 時間（15:00）</p>
           )}
         </div>
-        {(onToggleStartLock || onToggleDurationLock) && (
-          <div className="flex flex-col gap-1 shrink-0 mt-0.5">
-            {onToggleStartLock && (
-              <button
-                type="button"
-                onClick={() => onToggleStartLock(place.id)}
-                className="text-xs leading-none opacity-60 hover:opacity-100 transition-opacity whitespace-nowrap"
-                aria-label={place.startLocked ? '解鎖開始時間' : '鎖定開始時間'}
-              >
-                {place.startLocked ? '🔒' : '🔓'} 開始
-              </button>
-            )}
-            {onToggleDurationLock && (
-              <button
-                type="button"
-                onClick={() => onToggleDurationLock(place.id)}
-                className="text-xs leading-none opacity-60 hover:opacity-100 transition-opacity whitespace-nowrap"
-                aria-label={place.durationLocked ? '解鎖停留時間' : '鎖定停留時間'}
-              >
-                {place.durationLocked ? '🔒' : '🔓'} 停留
-              </button>
-            )}
-          </div>
-        )}
+        {(onToggleStartLock || onToggleDurationLock || onToggleEndLock) && (() => {
+          const pin = effectivePinned(place)
+          return (
+            <div className="flex flex-col gap-1 shrink-0 mt-0.5">
+              {onToggleStartLock && (
+                <button
+                  type="button"
+                  onClick={() => onToggleStartLock(place.id)}
+                  disabled={isDerived(place, 'start')}
+                  className="text-xs leading-none opacity-60 hover:opacity-100 transition-opacity whitespace-nowrap disabled:opacity-30 disabled:cursor-not-allowed"
+                  title={isDerived(place, 'start') ? '由另外兩個鎖自動決定' : undefined}
+                  aria-label={pin.start ? '解鎖開始時間' : '鎖定開始時間'}
+                >
+                  {pin.start ? '🔒' : '🔓'} 開始
+                </button>
+              )}
+              {onToggleDurationLock && (
+                <button
+                  type="button"
+                  onClick={() => onToggleDurationLock(place.id)}
+                  disabled={isDerived(place, 'duration')}
+                  className="text-xs leading-none opacity-60 hover:opacity-100 transition-opacity whitespace-nowrap disabled:opacity-30 disabled:cursor-not-allowed"
+                  title={isDerived(place, 'duration') ? '由另外兩個鎖自動決定' : undefined}
+                  aria-label={pin.duration ? '解鎖停留時間' : '鎖定停留時間'}
+                >
+                  {pin.duration ? '🔒' : '🔓'} 停留
+                </button>
+              )}
+              {onToggleEndLock && (
+                <button
+                  type="button"
+                  onClick={() => onToggleEndLock(place.id)}
+                  disabled={isDerived(place, 'end')}
+                  className="text-xs leading-none opacity-60 hover:opacity-100 transition-opacity whitespace-nowrap disabled:opacity-30 disabled:cursor-not-allowed"
+                  title={isDerived(place, 'end') ? '由另外兩個鎖自動決定' : undefined}
+                  aria-label={pin.end ? '解鎖結束時間' : '鎖定結束時間'}
+                >
+                  {pin.end ? '🔒' : '🔓'} 結束
+                </button>
+              )}
+            </div>
+          )
+        })()}
       </div>
       {place.travelMinToNext !== null && (
         <div className="text-xs text-muted mt-3 pl-10 flex items-center gap-2 flex-wrap">
           <span>
-            &#x2192; {LEG_META[place.legMode ?? 'driving'].icon} {LEG_META[place.legMode ?? 'driving'].label} {place.travelMinToNext} 分
+            &#x2192; {LEG_META[place.legMode ?? 'driving'].icon} {LEG_META[place.legMode ?? 'driving'].label} {place.travelMinToNext} 分{place.travelDistanceToNext != null ? ` · ${(place.travelDistanceToNext / 1000).toFixed(1)} 公里` : ''}
           </span>
           {onChangeLegMode && (
             legBusy ? (

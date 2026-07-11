@@ -64,3 +64,30 @@ it('callClaude throws → ok:false', async () => {
   callClaude.mockRejectedValue(new Error('network'))
   expect((await rearrangeItinerary(plan(), 'x')).ok).toBe(false)
 })
+
+it('out-of-range hour in activity window (24:00) → ok:false', async () => {
+  callClaude.mockResolvedValue(JSON.stringify({
+    summary: 'x',
+    days: [ { day: 1, dayStart: '24:00', dayEnd: '21:00', places: [{ ref: 1, durationMin: 90 }, { ref: 2, durationMin: 90 }] },
+            { day: 2, dayStart: '09:00', dayEnd: '21:00', places: [{ ref: 3, durationMin: 90 }] } ],
+  }))
+  expect((await rearrangeItinerary(plan(), 'x')).ok).toBe(false)
+})
+
+it('out-of-range minute in activity window (12:60) → ok:false', async () => {
+  callClaude.mockResolvedValue(JSON.stringify({
+    summary: 'x',
+    days: [ { day: 1, dayStart: '09:00', dayEnd: '12:60', places: [{ ref: 1, durationMin: 90 }, { ref: 2, durationMin: 90 }] },
+            { day: 2, dayStart: '09:00', dayEnd: '21:00', places: [{ ref: 3, durationMin: 90 }] } ],
+  }))
+  expect((await rearrangeItinerary(plan(), 'x')).ok).toBe(false)
+})
+
+it('durationMin beyond a full day (99999) → ok:false', async () => {
+  callClaude.mockResolvedValue(JSON.stringify({
+    summary: 'x',
+    days: [ { day: 1, dayStart: '09:00', dayEnd: '21:00', places: [{ ref: 1, durationMin: 90 }, { ref: 2, durationMin: 99999 }] },
+            { day: 2, dayStart: '09:00', dayEnd: '21:00', places: [{ ref: 3, durationMin: 90 }] } ],
+  }))
+  expect((await rearrangeItinerary(plan(), 'x')).ok).toBe(false)
+})

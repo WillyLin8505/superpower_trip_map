@@ -2,6 +2,7 @@ import type { DayItinerary, ScheduledPlace, DayArrangeInputs, ArrangeOpts } from
 import { recalcDay } from '@/lib/utils/clientScheduler'
 import { levelAt } from '@/lib/crowd'
 import { weekdayIndex } from '@/lib/utils/date'
+import { isTimeAnchored } from '@/lib/utils/lockDerive'
 
 const CROWD_PENALTY: Record<'low' | 'medium' | 'high', number> = { low: 0, medium: 600, high: 1800 }
 const W_TRAVEL_WHEN_CROWD_ONLY = 0.2
@@ -67,14 +68,14 @@ export function arrangeDayOrder(
   opts: ArrangeOpts
 ): ScheduledPlace[] {
   const places = day.places
-  const unlocked = places.filter((p) => !p.startLocked)
+  const unlocked = places.filter((p) => !isTimeAnchored(p))
   if (unlocked.length < 2 || (!opts.avoidTraffic && !opts.avoidCrowds)) {
     return withRefreshedTravel(places, inputs)
   }
 
   // 鎖定站固定於原索引；只在未鎖序列上做局部搜尋
   const lockedAt = new Map<number, ScheduledPlace>()
-  places.forEach((p, i) => { if (p.startLocked) lockedAt.set(i, p) })
+  places.forEach((p, i) => { if (isTimeAnchored(p)) lockedAt.set(i, p) })
   const reconstruct = (unlockedOrder: ScheduledPlace[]): ScheduledPlace[] => {
     const out: ScheduledPlace[] = []
     let u = 0

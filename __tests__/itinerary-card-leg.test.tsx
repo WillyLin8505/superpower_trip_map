@@ -14,6 +14,14 @@ it('shows the leg mode label + minutes', () => {
   render(<ItineraryCard place={sp()} index={0} dateIso="2026-07-01" />)
   expect(screen.getByText(/開車 18 分/)).toBeInTheDocument()
 })
+it('shows the leg distance in km when travelDistanceToNext is set', () => {
+  render(<ItineraryCard place={sp({ travelDistanceToNext: 5200 })} index={0} dateIso="2026-07-01" />)
+  expect(screen.getByText(/開車 18 分 · 5\.2 公里/)).toBeInTheDocument()
+})
+it('omits the km suffix when travelDistanceToNext is null', () => {
+  render(<ItineraryCard place={sp({ travelDistanceToNext: null })} index={0} dateIso="2026-07-01" />)
+  expect(screen.queryByText(/公里/)).not.toBeInTheDocument()
+})
 it('changing the mode dropdown calls onChangeLegMode', () => {
   const onChangeLegMode = jest.fn()
   render(<ItineraryCard place={sp()} index={0} dateIso="2026-07-01" onChangeLegMode={onChangeLegMode} />)

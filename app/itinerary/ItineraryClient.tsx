@@ -15,17 +15,18 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import type { PlanResult, ScheduledPlace, Place, PlaceType, TransportMode, RecommendationsByDay, DayRecommendation, Candidate } from '@/lib/types'
+import type { PlanResult, ScheduledPlace, Place, PlaceType, TransportMode, RecommendationsByDay, DayRecommendation, RecommendationCenter, Candidate } from '@/lib/types'
 import { recalcPlan } from '@/lib/utils/clientScheduler'
 import { daysBetween, dayDate } from '@/lib/utils/date'
-import { legDuration, computeLegPlan } from '@/app/actions/legs'
+import { legInfo, computeLegPlan } from '@/app/actions/legs'
+import { applyTimeEdit } from '@/lib/utils/timeEdit'
 import { legMerge } from '@/lib/utils/legMerge'
 import { ItineraryDay } from '@/components/ItineraryDay'
 import { ItineraryCard } from '@/components/ItineraryCard'
-import { getDayRecommendations, fetchReplacementRecommendation } from '@/app/actions/recommend'
+import { getDayRecommendations, fetchReplacementRecommendation, refreshDayCategoryRecommendations } from '@/app/actions/recommend'
 import { applyDragResult, findContainer } from '@/lib/utils/dragContainers'
 import { findClosestDay } from '@/lib/utils/geo'
-import { removeRecsDay } from '@/lib/utils/dayRecommend'
+import { removeRecsDay, resolveDayCenter } from '@/lib/utils/dayRecommend'
 import { CombinedInput } from '@/components/CombinedInput'
 import { DWELL } from '@/lib/placeType'
 import { fetchDayArrangeInputs } from '@/app/actions/arrange'
@@ -61,7 +62,9 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
   const [targetDays, setTargetDays] = useState<number | null>(null)
   const [recsByDay, setRecsByDay] = useState<RecommendationsByDay | null>(null)
   const recsRef = useRef<RecommendationsByDay | null>(null)
+  const [recsError, setRecsError] = useState<string | null>(null)
   const [backfillKeys, setBackfillKeys] = useState<Set<string>>(new Set())
+  const [refreshingKeys, setRefreshingKeys] = useState<Set<string>>(new Set())
   const [arrangingDay, setArrangingDay] = useState<number | null>(null)
   const [arrangeError, setArrangeError] = useState<string | null>(null)
   const [legBusy, setLegBusy] = useState<{ dayIdx: number; placeId: string } | null>(null)
@@ -89,8 +92,8 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
   useEffect(() => {
     let active = true
     getDayRecommendations(planRef.current.days)
-      .then((r) => { if (active) { recsRef.current = r; setRecsByDay(r) } })
-      .catch(() => { if (active) { recsRef.current = null; setRecsByDay(null) } })
+      .then((r) => { if (active) { recsRef.current = r; setRecsByDay(r); setRecsError(null) } })
+      .catch(() => { if (active) { recsRef.current = null; setRecsByDay(null); setRecsError('推薦載入失敗，請稍後再試') } })
     return () => { active = false }
   // run once on mount
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -169,7 +172,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
     }, 2000)
   }, [])
 
-  const toggleLockField = useCallback((dayIdx: number, placeId: string, field: 'startLocked' | 'durationLocked') => {
+  const toggleLockField = useCallback((dayIdx: number, placeId: string, field: 'startLocked' | 'durationLocked' | 'endLocked') => {
     const newDays = planRef.current.days.map((d, i) => {
       if (i !== dayIdx) return d
       return {
@@ -190,6 +193,10 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
   )
   const handleToggleDurationLock = useCallback(
     (dayIdx: number, placeId: string) => toggleLockField(dayIdx, placeId, 'durationLocked'),
+    [toggleLockField]
+  )
+  const handleToggleEndLock = useCallback(
+    (dayIdx: number, placeId: string) => toggleLockField(dayIdx, placeId, 'endLocked'),
     [toggleLockField]
   )
 
@@ -235,12 +242,12 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
     setLegError(null)
     setLegBusy({ dayIdx, placeId })
     try {
-      const min = await legDuration(day.places[idx], next, mode)
+      const { travelMin, travelDistanceM } = await legInfo(day.places[idx], next, mode)
       const newDays = planRef.current.days.map((d, i) =>
         i !== dayIdx ? d : {
           ...d,
           places: d.places.map((p) =>
-            p.id === placeId ? { ...p, legMode: mode, travelMinToNext: min, legManualNext: next.id } : p
+            p.id === placeId ? { ...p, legMode: mode, travelMinToNext: travelMin, travelDistanceToNext: travelDistanceM, legManualNext: next.id } : p
           ),
         }
       )
@@ -310,7 +317,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
         return {
           ...d,
           places: d.places.map((p) =>
-            p.id === placeId ? { ...p, [field]: value } : p
+            p.id === placeId ? applyTimeEdit(p, field, value) : p
           ),
         }
       })
@@ -424,6 +431,26 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
     return Array.from(ids)
   }, [])
 
+  // 抽出可重用的「智慧排程單日」核心;智慧排程按鈕與新增推薦後自動排程共用。
+  const arrangeDay = useCallback(async (dayIdx: number) => {
+    const current = planRef.current
+    const day = current.days[dayIdx]
+    const inputs = await fetchDayArrangeInputs(
+      day.places, current.transportMode, day.avoidCrowds ?? true
+    )
+    const reordered = arrangeDayOrder(
+      day,
+      dayDate(current.startDate, day.day),
+      inputs,
+      { avoidTraffic: day.avoidTraffic ?? true, avoidCrowds: day.avoidCrowds ?? true }
+    )
+    const newDays = planRef.current.days.map((d, i) => (i === dayIdx ? { ...d, places: reordered } : d))
+    const recalced = recalcPlan({ ...planRef.current, days: newDays })
+    planRef.current = recalced
+    setPlan(recalced)
+    scheduleRecalc(recalced, true)
+  }, [scheduleRecalc])
+
   const handleAddRecommendation = useCallback((dayIdx: number, rec: DayRecommendation) => {
     const cat = rec.type as 'dessert' | 'attraction' | 'restaurant'
 
@@ -453,6 +480,10 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
       i === dayIdx ? { ...d, places: [...d.places, newPlace] } : d
     )
     scheduleRecalc({ ...planRef.current, days: newDays })
+
+    // 1b. 新增後自動智慧排程該天(讓新地點被排到合理位置);失敗則沿用已附加、非重排的結果。
+    setArrangingDay(dayIdx)
+    arrangeDay(dayIdx).catch(() => {}).finally(() => setArrangingDay(null))
 
     // 2. remove the card; promote a reserve item if available
     const prev = recsRef.current
@@ -492,7 +523,52 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
         .catch(() => { /* leave slot empty */ })
         .finally(() => setBackfillKeys((s) => { const n = new Set(s); n.delete(key); return n }))
     }
-  }, [scheduleRecalc, commitRecs, buildExcludeIds])
+  }, [scheduleRecalc, commitRecs, buildExcludeIds, arrangeDay])
+
+  // TASK-010: manual recommendation center — persists to the day, then refetches that day's 3 categories.
+  const setDayRecommendationCenter = useCallback((dayIdx: number, center: RecommendationCenter | null) => {
+    const newDays = planRef.current.days.map((d, i) => (i === dayIdx ? { ...d, recommendationCenter: center } : d))
+    const newPlan = { ...planRef.current, days: newDays }
+    planRef.current = newPlan
+    setPlan(newPlan)
+
+    getDayRecommendations([newDays[dayIdx]])
+      .then((r) => {
+        const cur = recsRef.current
+        if (!cur || !cur[dayIdx]) return
+        commitRecs(cur.map((b, i) => (i === dayIdx ? r[0] : b)))
+      })
+      .catch(() => { /* recoverable: keep previous cards on refetch failure */ })
+  }, [commitRecs])
+
+  const handleSetRecommendationCenter = useCallback(
+    (dayIdx: number, center: RecommendationCenter) => setDayRecommendationCenter(dayIdx, center),
+    [setDayRecommendationCenter]
+  )
+  const handleClearRecommendationCenter = useCallback(
+    (dayIdx: number) => setDayRecommendationCenter(dayIdx, null),
+    [setDayRecommendationCenter]
+  )
+
+  // TASK-010: 換一批 — replace one day/category's shown set, preserving unrelated buckets.
+  const handleRefreshCategory = useCallback((dayIdx: number, category: 'dessert' | 'attraction' | 'restaurant') => {
+    const center = resolveDayCenter(planRef.current.days, dayIdx)
+    if (!center) return
+    const key = `${dayIdx}:${category}`
+    setRefreshingKeys((s) => new Set(s).add(key))
+    const excludeIds = buildExcludeIds()
+    refreshDayCategoryRecommendations({ category, center, excludeIds })
+      .then((replacements) => {
+        if (replacements.length === 0) return   // recoverable: keep previous cards
+        const cur = recsRef.current
+        if (!cur || !cur[dayIdx]) return
+        commitRecs(cur.map((b, i) =>
+          i === dayIdx ? { ...b, [category]: { shown: replacements, reserve: b[category].reserve } } : b
+        ))
+      })
+      .catch(() => { /* recoverable: keep previous cards */ })
+      .finally(() => setRefreshingKeys((s) => { const n = new Set(s); n.delete(key); return n }))
+  }, [buildExcludeIds, commitRecs])
 
   const handleChangeStartDate = useCallback((iso: string) => {
     const recalced = recalcPlan({ ...planRef.current, startDate: iso })
@@ -529,6 +605,13 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
     planRef.current = recalced
     setPlan(recalced)
   }, [])
+
+  const handleDeletePlace = useCallback((dayIdx: number, placeId: string) => {
+    const newDays = planRef.current.days.map((d, i) =>
+      i === dayIdx ? { ...d, places: d.places.filter((p) => p.id !== placeId) } : d
+    )
+    scheduleRecalc({ ...planRef.current, days: newDays }, true)
+  }, [scheduleRecalc])
 
   const handleDeleteDay = useCallback((dayIdx: number) => {
     const next = renumberDays(planRef.current.days.filter((_, i) => i !== dayIdx))
@@ -568,31 +651,16 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
   )
 
   const handleSmartArrange = useCallback(async (dayIdx: number) => {
-    const current = planRef.current
-    const day = current.days[dayIdx]
     setArrangeError(null)
     setArrangingDay(dayIdx)
     try {
-      const inputs = await fetchDayArrangeInputs(
-        day.places, current.transportMode, day.avoidCrowds ?? true
-      )
-      const reordered = arrangeDayOrder(
-        day,
-        dayDate(current.startDate, day.day),
-        inputs,
-        { avoidTraffic: day.avoidTraffic ?? true, avoidCrowds: day.avoidCrowds ?? true }
-      )
-      const newDays = planRef.current.days.map((d, i) => (i === dayIdx ? { ...d, places: reordered } : d))
-      const recalced = recalcPlan({ ...planRef.current, days: newDays })
-      planRef.current = recalced
-      setPlan(recalced)
-      scheduleRecalc(recalced, true)
+      await arrangeDay(dayIdx)
     } catch {
       setArrangeError('排程失敗，請稍後再試')
     } finally {
       setArrangingDay(null)
     }
-  }, [scheduleRecalc])
+  }, [arrangeDay])
 
   const handleAiApply = useCallback((newPlan: PlanResult) => {
     scheduleRecalc(newPlan, true)
@@ -699,6 +767,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
                 }
                 onToggleStartLock={(placeId) => handleToggleStartLock(dayIdx, placeId)}
                 onToggleDurationLock={(placeId) => handleToggleDurationLock(dayIdx, placeId)}
+                onToggleEndLock={(placeId) => handleToggleEndLock(dayIdx, placeId)}
                 onChangeType={(placeId, type) => handleChangeType(dayIdx, placeId, type)}
                 onSetDayStartLock={(locked) => handleSetDayStartLock(dayIdx, locked)}
                 onSetDayDurationLock={(locked) => handleSetDayDurationLock(dayIdx, locked)}
@@ -720,8 +789,19 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
                   attraction: backfillKeys.has(`${dayIdx}:attraction`),
                   restaurant: backfillKeys.has(`${dayIdx}:restaurant`),
                 }}
+                recsHasCenter={resolveDayCenter(plan.days, dayIdx) !== null}
+                onSetRecommendationCenter={(center) => handleSetRecommendationCenter(dayIdx, center)}
+                onClearRecommendationCenter={() => handleClearRecommendationCenter(dayIdx)}
+                onRefreshRecommendationCategory={(category) => handleRefreshCategory(dayIdx, category)}
+                recsRefreshing={{
+                  dessert: refreshingKeys.has(`${dayIdx}:dessert`),
+                  attraction: refreshingKeys.has(`${dayIdx}:attraction`),
+                  restaurant: refreshingKeys.has(`${dayIdx}:restaurant`),
+                }}
+                recsError={recsError}
                 onChangeLegMode={(placeId, mode) => handleChangeLegMode(dayIdx, placeId, mode)}
                 legBusyPlaceId={legBusy?.dayIdx === dayIdx ? legBusy.placeId : null}
+                onDeletePlace={(placeId) => handleDeletePlace(dayIdx, placeId)}
               />
             </SortableContext>
           ))}

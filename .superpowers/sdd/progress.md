@@ -496,6 +496,32 @@ EXECUTED INLINE (controller, context-limited): both changes are tiny verbatim-fr
 - (B) ItineraryCard.tsx: derived warning「⚠ 早於一般 check-in 時間（15:00）」when type=accommodation && startTime<15:00.
 - 7/7 new tests (extend-accommodation 4, itinerary-card-checkin 3); full suite 316/316; build clean. No existing tests broke.
 
+---
+
+# SDD Progress Ledger
+Plan: docs/superpowers/plans/2026-07-05-three-lock-model.md
+Branch: lane/ai-research
+Base: 190e13b
+
+## Tasks
+- [x] Task 1: endLocked field + lockDerive helpers
+- [x] Task 2: scheduler anchor generalization
+- [x] Task 3: lock/drag decoupling
+- [x] Task 4: third 結束 toggle + derived-disabling + wiring
+- [x] Task 5: free-facet editors + end-lock edit behavior
+- [x] Task 6: supersede note + final gate
+Task 1: complete (commits 190e13b..392c3fc, review clean; MINOR: lib/types.ts:63 comment spacing)
+Task 2: complete (commits 392c3fc..7db4fc5, review clean; MINOR: no direct arrangeDay end-lock test)
+Task 3: complete (commits 7db4fc5..5928838, controller-verified after implementer session-limit interrupt; 346/346 green, diff matches brief exactly; RED not separately captured but split-lock-card assertion flip proves behavior change)
+Note: reviewer subagents blocked by account weekly limit — remaining tasks executed inline with controller self-review + full gate.
+Task 4: complete (commits 7db4fc5..95eac4c, controller-executed inline; 350/350 green, lint+build ok)
+Task 5: complete (commits 95eac4c..df2e531, controller-executed inline; 356/356 green, lint+build ok)
+Task 6: complete (supersede note; final gate 356/356 + lint + build all green)
+
+## Final Review (controller self-review — reviewer subagents blocked by account weekly limit)
+- Whole-branch (392c3fc..9c066c9): feature coherent, list-view path fully correct, 356/356 + lint + build green.
+- Minors (non-blocking): types.ts:63 comment spacing; no direct arrangeDay end-lock test; TimelineCard resize handle ignores end/duration-derived lock (latent — timeline view unused/unwired).
+- No Critical/Important findings. Branch ready.
 ## Final Review (accommodation-card-refinements, 4c2e3fe..c2fac3e)
 - Whole-branch review (opus, independent) — Verdict: **Ready to merge — no Critical/Important.**
 - Verified: (A) extendLastAccommodation wraps BOTH recalcDay return paths but only one executes per call → no double-apply; per-day dayEnd keying correct (read inside recalcDay, recalcPlan .map); duration math dayEndMin−startMin → freeTime remaining=0 so trailing pill vanishes (freeTime.ts untouched); accommodation is last stop so no downstream re-time corruption; all guards present (empty/non-accom/durationLocked/startMin≥dayEndMin), immutable returns. (B) pure-derived, 15:00 threshold correct, no collision with lateExit/below-DWELL warnings. Constraints honored: strict TS, no any, no new pkgs, TC copy, only the 2 allowed source files touched. No existing accommodation/free-time/scheduler test went stale (reviewer checked free-time, itinerary-day-free-time, client-scheduler, accommodation-warnings, schedule-accommodation).

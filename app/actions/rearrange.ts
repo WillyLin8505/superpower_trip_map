@@ -11,8 +11,11 @@ const ERR = 'AI 重排失敗，請換個說法再試'
 
 interface AiDay { day: number; dayStart: string; dayEnd: string; places: Array<{ ref: number; durationMin: number }> }
 
+// 單一地點停留時間上限:一整天(24h)。超過即視為 AI 亂數,拒絕。
+const MAX_DURATION_MIN = 24 * 60
+
 function isHHMM(s: unknown): s is string {
-  return typeof s === 'string' && /^\d{2}:\d{2}$/.test(s)
+  return typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s)
 }
 
 function buildProposed(current: PlanResult, refPlaces: ScheduledPlace[], aiDays: unknown): PlanResult | null {
@@ -26,7 +29,7 @@ function buildProposed(current: PlanResult, refPlaces: ScheduledPlace[], aiDays:
     const places: ScheduledPlace[] = []
     for (const ap of ad.places) {
       if (typeof ap?.ref !== 'number' || ap.ref < 1 || ap.ref > N || seen.has(ap.ref)) return null
-      if (typeof ap?.durationMin !== 'number' || ap.durationMin <= 0) return null
+      if (typeof ap?.durationMin !== 'number' || ap.durationMin <= 0 || ap.durationMin > MAX_DURATION_MIN) return null
       seen.add(ap.ref)
       const base = refPlaces[ap.ref - 1]
       places.push({ ...base, durationMin: base.durationLocked ? base.durationMin : ap.durationMin })

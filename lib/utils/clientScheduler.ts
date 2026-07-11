@@ -2,6 +2,7 @@ import type { PlanResult, ScheduledPlace, DayItinerary } from '@/lib/types'
 import { checkLateExit, checkOutsideHours } from '@/lib/utils/hours'
 import { dayDate } from '@/lib/utils/date'
 import { minsToTime } from '@/lib/utils/time'
+import { isTimeAnchored, effectivePinned } from '@/lib/utils/lockDerive'
 
 function toMin(time: string): number {
   const [h, m] = time.split(':').map(Number)
@@ -43,7 +44,7 @@ function extendLastAccommodation(places: ScheduledPlace[], dayEndMin: number): S
   if (places.length === 0) return places
   const lastIdx = places.length - 1
   const last = places[lastIdx]
-  if (last.type !== 'accommodation' || last.durationLocked) return places
+  if (last.type !== 'accommodation' || last.durationLocked || effectivePinned(last).end) return places
   const startMin = toMin(last.startTime)
   if (startMin >= dayEndMin) return places
   return places.map((p, i) => (i === lastIdx ? { ...p, durationMin: dayEndMin - startMin } : p))
@@ -53,7 +54,7 @@ export function recalcDay(day: DayItinerary, dateIso: string): DayItinerary {
   const places = day.places
   const dayStartMin = toMin(day.dayStart)
   const dayEndMin = toMin(day.dayEnd)
-  const lockIndices = places.reduce<number[]>((acc, p, i) => (p.startLocked ? [...acc, i] : acc), [])
+  const lockIndices = places.reduce<number[]>((acc, p, i) => (isTimeAnchored(p) ? [...acc, i] : acc), [])
 
   if (lockIndices.length === 0) {
     return { ...day, places: extendLastAccommodation(scheduleForward(places, dayStartMin, dateIso, dayStartMin), dayEndMin) }

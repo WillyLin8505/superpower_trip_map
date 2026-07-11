@@ -7,7 +7,7 @@ import { dayDate, formatDateLabel } from '@/lib/utils/date'
 import { DayRecommendations } from './DayRecommendations'
 import { DayCandidateSuggestions } from './DayCandidateSuggestions'
 import { freeBlocks, formatGap } from '@/lib/utils/freeTime'
-import type { DayItinerary, TransportMode, PlaceType, CategoryBuckets, DayRecommendation, Candidate, Place } from '@/lib/types'
+import type { DayItinerary, TransportMode, PlaceType, CategoryBuckets, DayRecommendation, Candidate, Place, RecommendationCenter } from '@/lib/types'
 
 function toMin(t: string): number {
   const [h, m] = t.split(':').map(Number)
@@ -27,6 +27,7 @@ interface Props {
   onTimeChange?: (placeId: string, field: 'startTime' | 'durationMin', value: string | number) => void
   onToggleStartLock?: (placeId: string) => void
   onToggleDurationLock?: (placeId: string) => void
+  onToggleEndLock?: (placeId: string) => void
   onChangeType?: (placeId: string, type: PlaceType) => void
   onSetDayStartLock?: (locked: boolean) => void
   onSetDayDurationLock?: (locked: boolean) => void
@@ -36,15 +37,22 @@ interface Props {
   candidates?: Candidate[]
   onAddCandidate?: (candidateId: string, place: Place) => void
   backfilling?: Partial<Record<'dessert' | 'attraction' | 'restaurant', boolean>>
+  recsHasCenter?: boolean
+  onSetRecommendationCenter?: (center: RecommendationCenter) => void
+  onClearRecommendationCenter?: () => void
+  onRefreshRecommendationCategory?: (category: 'dessert' | 'attraction' | 'restaurant') => void
+  recsRefreshing?: Partial<Record<'dessert' | 'attraction' | 'restaurant', boolean>>
+  recsError?: string | null
   isLastDay?: boolean
   onSmartArrange?: () => void
   onSetAvoid?: (field: 'avoidTraffic' | 'avoidCrowds', value: boolean) => void
   arranging?: boolean
   onChangeLegMode?: (placeId: string, mode: TransportMode) => void
   legBusyPlaceId?: string | null
+  onDeletePlace?: (placeId: string) => void
 }
 
-export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, candidates, onAddCandidate, backfilling, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId }: Props) {
+export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, candidates, onAddCandidate, backfilling, recsHasCenter, onSetRecommendationCenter, onClearRecommendationCenter, onRefreshRecommendationCategory, recsRefreshing, recsError, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId, onDeletePlace }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
 
@@ -161,9 +169,12 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
                     onTimeChange={onTimeChange}
                     onToggleStartLock={onToggleStartLock}
                     onToggleDurationLock={onToggleDurationLock}
+                    onToggleEndLock={onToggleEndLock}
                     onChangeType={onChangeType}
                     onChangeLegMode={onChangeLegMode}
                     legBusy={legBusyPlaceId === place.id}
+                    onDeletePlace={onDeletePlace}
+                    dayEnd={day.dayEnd}
                   />
                   {fb && (
                     <div
@@ -178,7 +189,7 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
             })
           })()}
         </div>
-        {(embedUrl || (recommendations && onAddRecommendation) || (candidates && candidates.length > 0 && onAddCandidate)) && (
+        {(embedUrl || onAddRecommendation || (candidates && candidates.length > 0 && onAddCandidate)) && (
           <div className="w-96 shrink-0 sticky top-4">
             {embedUrl && (
               <div className="rounded-xl overflow-hidden border border-border">
@@ -194,12 +205,19 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
                 />
               </div>
             )}
-            {recommendations && onAddRecommendation && (
+            {onAddRecommendation && (
               <DayRecommendations
                 recommendations={recommendations}
                 dateIso={dayDate(startDate, day.day)}
                 onAdd={onAddRecommendation}
                 backfilling={backfilling}
+                hasCenter={recsHasCenter}
+                center={day.recommendationCenter}
+                onSetCenter={onSetRecommendationCenter}
+                onClearCenter={onClearRecommendationCenter}
+                onRefreshCategory={onRefreshRecommendationCategory}
+                refreshing={recsRefreshing}
+                error={recsError}
               />
             )}
             {candidates && onAddCandidate && (

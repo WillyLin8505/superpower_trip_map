@@ -6,6 +6,10 @@ export interface ExtractedItinerary {
   country: string | null
   countryCode: string | null
   places: Array<{ name: string; type: PlaceType }>
+  // Set only when the AI call itself failed (e.g. missing ANTHROPIC_API_KEY / API error),
+  // so the UI can distinguish a real failure from a genuine "no places found" result
+  // instead of silently showing a blank screen.
+  error?: 'ai_failed'
 }
 
 export async function extractItinerary(text: string): Promise<ExtractedItinerary> {
@@ -29,7 +33,14 @@ export async function extractItinerary(text: string): Promise<ExtractedItinerary
 行程文字：
 ${text}`
 
-  const raw = await callClaude(prompt)
+  let raw: string
+  try {
+    raw = await callClaude(prompt)
+  } catch {
+    // AI call failed (missing key, auth, network, quota). Surface it — do not
+    // pretend "no places found", which produced a silent blank input page.
+    return { country: null, countryCode: null, places: [], error: 'ai_failed' }
+  }
   try {
     const stripped = raw.replace(/```(?:json)?\s*([\s\S]*?)```/g, '$1').trim()
     const match = stripped.match(/\{[\s\S]*\}/)

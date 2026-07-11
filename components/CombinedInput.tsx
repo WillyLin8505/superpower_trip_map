@@ -5,6 +5,7 @@ import { searchPlace } from '@/app/actions/places'
 import { scrapeText } from '@/app/actions/scrape'
 import type { Place, PlaceType } from '@/lib/types'
 import { inferType, validateType, TYPE_META } from '@/lib/placeType'
+import { resolveLocalizedAddress, resolveLocalizedText } from '@/lib/utils/localizedPlace'
 
 const COUNTRIES = [
   { name: 'Taiwan', label: '台灣' },
@@ -59,6 +60,12 @@ export function CombinedInput({ onAdd, onAddPlaces }: Props) {
   const [verifyProgress, setVerifyProgress] = useState({ done: 0, total: 0 })
 
   const detectedMode = detectMode(text)
+  const singleResultName = singleResult
+    ? resolveLocalizedText(singleResult.localizedName, singleResult.name)
+    : null
+  const singleResultAddress = singleResult
+    ? resolveLocalizedAddress(singleResult.localizedAddress, singleResult.address)
+    : null
 
   const reset = () => {
     setPhase('idle')
@@ -202,12 +209,17 @@ export function CombinedInput({ onAdd, onAddPlaces }: Props) {
           className="w-full text-left border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors"
         >
           <div className="flex items-center gap-2">
-            <span className="font-medium text-gray-900 text-sm">{singleResult.name}</span>
+            <span className="font-medium text-gray-900 text-sm">{singleResultName?.primary}</span>
             <span className={`text-xs px-2 py-0.5 rounded-full ${TYPE_META[inferType(searchQuery)].badge}`}>
               {TYPE_META[inferType(searchQuery)].label}
             </span>
           </div>
-          <p className="text-xs text-gray-500 mt-0.5 truncate">{singleResult.address}</p>
+          {singleResultName?.secondary && (
+            <p className="text-xs text-gray-500 mt-0.5 truncate">{singleResultName.secondary}</p>
+          )}
+          {singleResultAddress && (
+            <p className="text-xs text-gray-500 mt-0.5 truncate">{singleResultAddress}</p>
+          )}
         </button>
       )}
       <button

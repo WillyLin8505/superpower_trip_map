@@ -86,9 +86,9 @@ jest.mock('@/lib/utils/hours', () => ({
 
 // --- leg-specific mock ---
 
-const legDuration = jest.fn()
+const legInfo = jest.fn()
 jest.mock('@/app/actions/legs', () => ({
-  legDuration: (...a: unknown[]) => legDuration(...a),
+  legInfo: (...a: unknown[]) => legInfo(...a),
   computeLegPlan: jest.fn(async () => []),
 }))
 
@@ -109,20 +109,20 @@ function plan(): PlanResult {
   }
 }
 
-beforeEach(() => { legDuration.mockReset() })
+beforeEach(() => { legInfo.mockReset() })
 
-it('changing a leg mode calls legDuration and updates the leg', async () => {
-  legDuration.mockResolvedValue(25)
+it('changing a leg mode calls legInfo and updates the leg (min + km)', async () => {
+  legInfo.mockResolvedValue({ travelMin: 25, travelDistanceM: 6300 })
   render(<ItineraryClient initial={plan()} />)
   fireEvent.change(screen.getAllByLabelText('交通工具')[0], { target: { value: 'transit' } })
-  await waitFor(() => expect(screen.getByText(/大眾運輸 25 分/)).toBeInTheDocument())
-  expect(legDuration).toHaveBeenCalledWith(
+  await waitFor(() => expect(screen.getByText(/大眾運輸 25 分 · 6\.3 公里/)).toBeInTheDocument())
+  expect(legInfo).toHaveBeenCalledWith(
     expect.objectContaining({ id: 'A' }), expect.objectContaining({ id: 'B' }), 'transit'
   )
 })
 
-it('shows an error and keeps the leg when legDuration rejects', async () => {
-  legDuration.mockRejectedValue(new Error('boom'))
+it('shows an error and keeps the leg when legInfo rejects', async () => {
+  legInfo.mockRejectedValue(new Error('boom'))
   render(<ItineraryClient initial={plan()} />)
   fireEvent.change(screen.getAllByLabelText('交通工具')[0], { target: { value: 'walking' } })
   await waitFor(() => expect(screen.getByText('交通時間計算失敗')).toBeInTheDocument())

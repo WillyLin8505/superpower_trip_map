@@ -49,4 +49,18 @@ describe('extractItinerary', () => {
     expect(result.countryCode).toBeNull()
     expect(result.places).toEqual([])
   })
+
+  it('does NOT flag an error for a parseable-but-empty response (genuine no places)', async () => {
+    mockCallClaude.mockResolvedValue(JSON.stringify({ country: null, countryCode: null, places: [] }))
+    const result = await extractItinerary('沒有地點的文字')
+    expect(result.places).toEqual([])
+    expect(result.error).toBeUndefined()
+  })
+
+  it('flags error: "ai_failed" when the AI call throws (e.g. missing ANTHROPIC_API_KEY)', async () => {
+    mockCallClaude.mockRejectedValue(new Error('Could not resolve authentication method'))
+    const result = await extractItinerary('去東京旅遊')
+    expect(result.error).toBe('ai_failed')
+    expect(result.places).toEqual([])
+  })
 })

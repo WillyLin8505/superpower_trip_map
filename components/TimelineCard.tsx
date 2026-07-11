@@ -16,12 +16,13 @@ interface Props {
   onTimeChange?: (placeId: string, field: 'startTime' | 'durationMin', value: string | number) => void
   onToggleStartLock?: (placeId: string) => void
   onToggleDurationLock?: (placeId: string) => void
+  onToggleEndLock?: (placeId: string) => void
   onChangeType?: (placeId: string, type: PlaceType) => void
 }
 
-export function TimelineCard({ place, index, dateIso, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType }: Props) {
+export function TimelineCard({ place, index, dateIso, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: place.id, disabled: !draggable || place.startLocked })
+    useSortable({ id: place.id, disabled: !draggable })
   const [previewDur, setPreviewDur] = useState<number | null>(null)
   const startRef = useRef<{ y: number; dur: number } | null>(null)
 
@@ -69,7 +70,7 @@ export function TimelineCard({ place, index, dateIso, draggable, onTimeChange, o
       data-testid={`timeline-card-${place.id}`}
     >
       <div className="flex items-start gap-2 h-full">
-        {draggable && !place.startLocked && (
+        {draggable && (
           <span
             {...attributes}
             {...listeners}
@@ -84,6 +85,7 @@ export function TimelineCard({ place, index, dateIso, draggable, onTimeChange, o
           onTimeChange={onTimeChange}
           onToggleStartLock={onToggleStartLock}
           onToggleDurationLock={onToggleDurationLock}
+          onToggleEndLock={onToggleEndLock}
           onChangeType={onChangeType}
         />
       </div>

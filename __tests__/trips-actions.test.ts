@@ -1,4 +1,4 @@
-import type { PlanResult } from '@/lib/types'
+import type { PlanResult, RecommendationCenter } from '@/lib/types'
 
 // Chainable Supabase mock builder.
 // Mutation chain shape (after fix): .from().update/delete().eq().select('id') → { data, error }
@@ -89,4 +89,32 @@ it('saveTrip throws 儲存失敗 when RLS blocks the write (0 rows affected, no 
   current = makeSupabase({ mutate: { data: [], error: null } })
   const { saveTrip } = require('@/app/actions/trips')
   await expect(saveTrip('t1', plan)).rejects.toThrow('儲存失敗，請稍後再試')
+})
+
+// --- TASK-009: recommendationCenter persists through trip save/load (JSONB round-trip) ---
+it('getTrip round-trips a persisted manual recommendationCenter on a day', async () => {
+  const center: RecommendationCenter = {
+    placeId: 'ctr1', name: '中心點', lat: 25.03, lng: 121.56, address: '台北市', source: 'manual',
+  }
+  const planWithCenter: PlanResult = {
+    days: [{ day: 1, places: [], aiSummary: null, dayStart: '09:00', dayEnd: '21:00', recommendationCenter: center }],
+    transportMode: 'driving',
+    startDate: '2026-07-04',
+  }
+  current = makeSupabase({ single: { data: { plan: planWithCenter, title: '東京', owner_id: 'u1' }, error: null } })
+  const { getTrip } = require('@/app/actions/trips')
+  const result = await getTrip('t1')
+  expect(result?.plan.days[0].recommendationCenter).toEqual(center)
+})
+
+it('getTrip round-trips a cleared (null) recommendationCenter on a day', async () => {
+  const planWithNullCenter: PlanResult = {
+    days: [{ day: 1, places: [], aiSummary: null, dayStart: '09:00', dayEnd: '21:00', recommendationCenter: null }],
+    transportMode: 'driving',
+    startDate: '2026-07-04',
+  }
+  current = makeSupabase({ single: { data: { plan: planWithNullCenter, title: '東京', owner_id: 'u1' }, error: null } })
+  const { getTrip } = require('@/app/actions/trips')
+  const result = await getTrip('t1')
+  expect(result?.plan.days[0].recommendationCenter).toBeNull()
 })

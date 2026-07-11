@@ -25,6 +25,7 @@ interface Props {
   onTimeChange?: (placeId: string, field: 'startTime' | 'durationMin', value: string | number) => void
   onToggleStartLock?: (placeId: string) => void
   onToggleDurationLock?: (placeId: string) => void
+  onToggleEndLock?: (placeId: string) => void
   onChangeType?: (placeId: string, type: PlaceType) => void
   onSetDayStartLock?: (locked: boolean) => void
   onSetDayDurationLock?: (locked: boolean) => void
@@ -34,7 +35,7 @@ interface Props {
   backfilling?: Partial<Record<'dessert' | 'attraction' | 'restaurant', boolean>>
 }
 
-export function TimelineDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, backfilling }: Props) {
+export function TimelineDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, backfilling }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
   const dateIso = dayDate(startDate, day.day)
@@ -102,12 +103,13 @@ export function TimelineDay({ day, dayIdx, mode, startDate, isDragging, draggabl
                       onTimeChange={onTimeChange}
                       onToggleStartLock={onToggleStartLock}
                       onToggleDurationLock={onToggleDurationLock}
+                      onToggleEndLock={onToggleEndLock}
                       onChangeType={onChangeType}
                     />
                     {cl.travelMin > 0 && (
                       <div className="relative flex items-center justify-center" style={{ height: `${cl.travelGapPx}px` }} data-testid={`travel-gap-${place.id}`}>
                         <div className="absolute inset-x-4 border-t border-dashed border-gray-300" />
-                        <span className="relative bg-white px-2 text-xs text-gray-400">&#x2192; {cl.travelMin} 分鐘</span>
+                        <span className="relative bg-white px-2 text-xs text-gray-400">&#x2192; {cl.travelMin} 分鐘{place.travelDistanceToNext != null ? ` · ${(place.travelDistanceToNext / 1000).toFixed(1)} 公里` : ''}</span>
                       </div>
                     )}
                   </div>
