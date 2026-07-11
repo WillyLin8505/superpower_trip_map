@@ -103,3 +103,89 @@ it('each day header shows its date label and editable activity window', () => {
   expect(screen.getByDisplayValue('09:00')).toBeInTheDocument()
   expect(screen.getByDisplayValue('21:00')).toBeInTheDocument()
 })
+
+function planWithDays(n: number): PlanResult {
+  return {
+    startDate: '2026-06-28', transportMode: 'driving',
+    days: Array.from({ length: n }, (_, i) => ({
+      day: i + 1, aiSummary: null, dayStart: '09:00', dayEnd: '21:00', places: [],
+    })),
+  }
+}
+
+it('clicking ▲ appends an empty day', async () => {
+  render(<ItineraryClient initial={plan()} />)
+  fireEvent.click(screen.getByTestId('day-count-stepper-up'))
+  await waitFor(() => expect(screen.getByText(/共 2 天/)).toBeInTheDocument())
+  expect(screen.getByText('第 2 天 · 6/29（一）')).toBeInTheDocument()
+})
+
+it('clicking ▼ sets a pending target and shows the overCount banner without deleting days', async () => {
+  render(<ItineraryClient initial={planWithDays(3)} />)
+  fireEvent.click(screen.getByTestId('day-count-stepper-down'))
+  await waitFor(() =>
+    expect(screen.getByText('行程天數（3）大於設定天數（2），請處理超出的天。')).toBeInTheDocument()
+  )
+  expect(screen.getByText(/共 3 天/)).toBeInTheDocument() // unchanged — no auto-delete
+})
+
+it('clicking ▼ repeatedly keeps decrementing the pending target (not stuck after one click)', async () => {
+  render(<ItineraryClient initial={planWithDays(3)} />)
+  fireEvent.click(screen.getByTestId('day-count-stepper-down'))
+  await waitFor(() =>
+    expect(screen.getByText('行程天數（3）大於設定天數（2），請處理超出的天。')).toBeInTheDocument()
+  )
+  fireEvent.click(screen.getByTestId('day-count-stepper-down'))
+  await waitFor(() =>
+    expect(screen.getByText('行程天數（3）大於設定天數（1），請處理超出的天。')).toBeInTheDocument()
+  )
+  expect(screen.getByTestId('day-count-stepper-down')).toBeDisabled() // floor reached
+})
+
+it('clicking ▲ after a pending shrink cancels it instead of growing past the real day count', async () => {
+  render(<ItineraryClient initial={planWithDays(3)} />)
+  fireEvent.click(screen.getByTestId('day-count-stepper-down'))
+  await waitFor(() =>
+    expect(screen.getByText('行程天數（3）大於設定天數（2），請處理超出的天。')).toBeInTheDocument()
+  )
+  fireEvent.click(screen.getByTestId('day-count-stepper-up'))
+  await waitFor(() =>
+    expect(screen.queryByText(/行程天數（3）大於設定天數/)).not.toBeInTheDocument()
+  )
+  expect(screen.getByText(/共 3 天/)).toBeInTheDocument() // still 3 — target reset to match, no day appended
+})
+
+// --- TASK-015: bottom add-day and scroll-to-top buttons ---
+it('clicking bottom "+ 加一天" appends an empty day, same as the top ▲', async () => {
+  render(<ItineraryClient initial={planWithDays(3)} />)
+  fireEvent.click(screen.getByTestId('bottom-add-day'))
+  await waitFor(() => expect(screen.getByText(/共 4 天/)).toBeInTheDocument())
+  expect(screen.getByText('第 4 天 · 7/1（三）')).toBeInTheDocument()
+})
+
+it('clicking bottom "+ 加一天" while a shrink is pending cancels it, same as the top ▲', async () => {
+  render(<ItineraryClient initial={planWithDays(3)} />)
+  fireEvent.click(screen.getByTestId('day-count-stepper-down'))
+  await waitFor(() =>
+    expect(screen.getByText('行程天數（3）大於設定天數（2），請處理超出的天。')).toBeInTheDocument()
+  )
+  fireEvent.click(screen.getByTestId('bottom-add-day'))
+  await waitFor(() =>
+    expect(screen.queryByText(/行程天數（3）大於設定天數/)).not.toBeInTheDocument()
+  )
+  expect(screen.getByText(/共 3 天/)).toBeInTheDocument()
+})
+
+it('clicking "↑ 回到頂部" calls window.scrollTo(0,0) smoothly', () => {
+  const scrollToMock = jest.fn()
+  window.scrollTo = scrollToMock
+  render(<ItineraryClient initial={planWithDays(2)} />)
+  fireEvent.click(screen.getByTestId('scroll-to-top'))
+  expect(scrollToMock).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
+})
+
+it('bottom add-day and scroll-to-top buttons carry the correct accessible labels', () => {
+  render(<ItineraryClient initial={planWithDays(1)} />)
+  expect(screen.getByTestId('bottom-add-day')).toHaveAccessibleName('增加一天')
+  expect(screen.getByTestId('scroll-to-top')).toHaveAccessibleName('回到頂部')
+})

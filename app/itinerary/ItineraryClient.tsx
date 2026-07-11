@@ -17,7 +17,7 @@ import {
 } from '@dnd-kit/sortable'
 import type { PlanResult, ScheduledPlace, Place, PlaceType, TransportMode, RecommendationsByDay, DayRecommendation, RecommendationCenter, Candidate } from '@/lib/types'
 import { recalcPlan } from '@/lib/utils/clientScheduler'
-import { daysBetween, dayDate } from '@/lib/utils/date'
+import { addDays, daysBetween, dayDate } from '@/lib/utils/date'
 import { legInfo, computeLegPlan } from '@/app/actions/legs'
 import { applyTimeEdit } from '@/lib/utils/timeEdit'
 import { legMerge } from '@/lib/utils/legMerge'
@@ -715,7 +715,30 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
             onChange={(e) => handleChangeEndDate(e.target.value)}
             className="border border-border rounded-lg px-3 py-1.5 text-sm" />
         </label>
-        <span className="text-sm text-muted pb-1.5">共 {plan.days.length} 天</span>
+        <div className="flex items-center gap-1 pb-1.5">
+          <span className="text-sm text-muted">共 {plan.days.length} 天</span>
+          <div className="flex flex-col" data-testid="day-count-stepper">
+            <button
+              type="button"
+              aria-label="增加一天"
+              data-testid="day-count-stepper-up"
+              onClick={() => handleChangeEndDate(addDays(dayDate(plan.startDate, N), 1))}
+              className="text-xs px-2 py-1 rounded-full border border-border hover:bg-paper disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              ▲
+            </button>
+            <button
+              type="button"
+              aria-label="減少一天"
+              data-testid="day-count-stepper-down"
+              disabled={N <= 1}
+              onClick={() => handleChangeEndDate(addDays(dayDate(plan.startDate, N), -1))}
+              className="text-xs px-2 py-1 rounded-full border border-border hover:bg-paper disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              ▼
+            </button>
+          </div>
+        </div>
       </section>
       {overCount > 0 && (
         <div className="mb-4 px-4 py-2 rounded-lg bg-orange-50 border border-orange-200 text-sm text-orange-700">
@@ -805,6 +828,26 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
               />
             </SortableContext>
           ))}
+        </div>
+        <div className="flex gap-3 mt-6">
+          <button
+            type="button"
+            aria-label="增加一天"
+            data-testid="bottom-add-day"
+            onClick={() => handleChangeEndDate(addDays(dayDate(plan.startDate, N), 1))}
+            className="border border-border rounded-lg px-3 py-1.5 text-sm hover:bg-paper"
+          >
+            + 加一天
+          </button>
+          <button
+            type="button"
+            aria-label="回到頂部"
+            data-testid="scroll-to-top"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="border border-border rounded-lg px-3 py-1.5 text-sm hover:bg-paper"
+          >
+            ↑ 回到頂部
+          </button>
         </div>
         <DragOverlay>
           {activePlace ? (
