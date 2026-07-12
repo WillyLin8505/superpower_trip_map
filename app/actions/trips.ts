@@ -1,5 +1,6 @@
 'use server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { PlanResult, TripSummary } from '@/lib/types'
 
 export type CreateTripResult =
@@ -41,6 +42,36 @@ function formatUnknownError(fallback: string, error: unknown): { error: string }
   return { error: fallback }
 }
 
+async function requireTripWriteAccess(tripId: string, userId: string): Promise<SaveTripResult> {
+  const admin = createAdminClient()
+  const { data: trip, error: tripError } = await admin
+    .from('trips')
+    .select('owner_id')
+    .eq('id', tripId)
+    .single()
+
+  if (tripError || !trip) {
+    return { ok: false, ...formatSupabaseError('找不到行程或無法讀取行程', tripError) }
+  }
+
+  if ((trip as { owner_id: string }).owner_id === userId) return { ok: true }
+
+  const { data: membership, error: membershipError } = await admin
+    .from('trip_members')
+    .select('user_id')
+    .eq('trip_id', tripId)
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (membershipError) {
+    return { ok: false, ...formatSupabaseError('無法確認行程成員權限', membershipError) }
+  }
+
+  if (!membership) return { ok: false, error: '你沒有權限編輯這個行程' }
+
+  return { ok: true }
+}
+
 export async function createTrip(plan: PlanResult, title: string): Promise<{ tripId: string }> {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -68,7 +99,8 @@ export async function createTripSafe(plan: PlanResult, title: string): Promise<C
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { ok: false, error: 'NOT_AUTHENTICATED' }
 
-    const { data, error } = await supabase
+    const admin = createAdminClient()
+    const { data, error } = await admin
       .from('trips')
       .insert({ owner_id: user.id, title, plan })
       .select('id')
@@ -126,7 +158,14 @@ export async function saveTrip(tripId: string, plan: PlanResult): Promise<void> 
 export async function saveTripSafe(tripId: string, plan: PlanResult): Promise<SaveTripResult> {
   try {
     const supabase = createClient()
-    const { data, error } = await supabase
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: 'NOT_AUTHENTICATED' }
+
+    const access = await requireTripWriteAccess(tripId, user.id)
+    if (!access.ok) return access
+
+    const admin = createAdminClient()
+    const { data, error } = await admin
       .from('trips')
       .update({ plan, updated_at: new Date().toISOString() })
       .eq('id', tripId)

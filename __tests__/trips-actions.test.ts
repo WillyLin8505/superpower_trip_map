@@ -19,8 +19,10 @@ function makeSupabase(overrides: {
       : { data: [{ id: 't1' }], error: null }
   )
 
-  // afterEq supports both read (.single) and mutation (.select) continuations
-  const afterEq = { single, select: selectMutate }
+  const maybeSingle = jest.fn(async () => overrides.single ?? { data: { user_id: 'u1' }, error: null })
+  // afterEq supports read (.single/.maybeSingle) and mutation (.select) continuations
+  const afterEq: any = { single, maybeSingle, select: selectMutate }
+  afterEq.eq = jest.fn(() => afterEq)
 
   const builder: any = {
     insert: jest.fn(() => builder),
@@ -36,16 +38,21 @@ function makeSupabase(overrides: {
       from: jest.fn(() => builder),
       auth: { getUser: jest.fn(async () => ({ data: { user: 'user' in overrides ? overrides.user : { id: 'u1' } } })) },
     },
-    spies: { single, order, selectMutate, builder },
+    spies: { single, maybeSingle, order, selectMutate, builder },
   }
 }
 
 let current: ReturnType<typeof makeSupabase>
+let currentAdmin: ReturnType<typeof makeSupabase>
 jest.mock('@/lib/supabase/server', () => ({ createClient: () => current.client }))
+jest.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => currentAdmin.client }))
 
 const plan = { days: [], transportMode: 'driving', startDate: '2026-07-04' } as PlanResult
 
-beforeEach(() => { current = makeSupabase() })
+beforeEach(() => {
+  current = makeSupabase()
+  currentAdmin = makeSupabase()
+})
 
 it('createTrip inserts owner_id + plan and returns the new id', async () => {
   current = makeSupabase({ user: { id: 'u1' }, single: { data: { id: 'new-id' }, error: null } })
@@ -68,8 +75,8 @@ it('createTripSafe returns NOT_AUTHENTICATED instead of throwing when no user', 
 })
 
 it('createTripSafe returns visible database errors instead of throwing', async () => {
-  current = makeSupabase({
-    user: { id: 'u1' },
+  current = makeSupabase({ user: { id: 'u1' } })
+  currentAdmin = makeSupabase({
     single: {
       data: null,
       error: { code: 'PGRST204', message: "Could not find the 'invite_code' column" },
@@ -114,7 +121,11 @@ it('saveTrip throws 儲存失敗 when RLS blocks the write (0 rows affected, no 
 })
 
 it('saveTripSafe returns visible database errors instead of throwing', async () => {
-  current = makeSupabase({ mutate: { error: { code: '42501', message: 'permission denied' } } })
+  current = makeSupabase({ user: { id: 'u1' } })
+  currentAdmin = makeSupabase({
+    single: { data: { owner_id: 'u1' }, error: null },
+    mutate: { error: { code: '42501', message: 'permission denied' } },
+  })
   const { saveTripSafe } = require('@/app/actions/trips')
   await expect(saveTripSafe('t1', plan)).resolves.toEqual({
     ok: false,
@@ -123,8 +134,36 @@ it('saveTripSafe returns visible database errors instead of throwing', async () 
   })
 })
 
+it('saveTripSafe updates through admin client when the current user owns the trip', async () => {
+  current = makeSupabase({ user: { id: 'u1' } })
+  currentAdmin = makeSupabase({
+    single: { data: { owner_id: 'u1' }, error: null },
+    mutate: { data: [{ id: 't1' }], error: null },
+  })
+  const { saveTripSafe } = require('@/app/actions/trips')
+  await expect(saveTripSafe('t1', plan)).resolves.toEqual({ ok: true })
+  expect(currentAdmin.client.from).toHaveBeenCalledWith('trips')
+})
+
+it('saveTripSafe rejects users who are not owners or members', async () => {
+  current = makeSupabase({ user: { id: 'u2' } })
+  currentAdmin = makeSupabase({
+    single: { data: { owner_id: 'u1' }, error: null },
+  })
+  currentAdmin.spies.maybeSingle.mockResolvedValueOnce({ data: null, error: null })
+  const { saveTripSafe } = require('@/app/actions/trips')
+  await expect(saveTripSafe('t1', plan)).resolves.toEqual({
+    ok: false,
+    error: '你沒有權限編輯這個行程',
+  })
+})
+
 it('saveTripSafe explains when RLS updates zero rows', async () => {
-  current = makeSupabase({ mutate: { data: [], error: null } })
+  current = makeSupabase({ user: { id: 'u1' } })
+  currentAdmin = makeSupabase({
+    single: { data: { owner_id: 'u1' }, error: null },
+    mutate: { data: [], error: null },
+  })
   const { saveTripSafe } = require('@/app/actions/trips')
   await expect(saveTripSafe('t1', plan)).resolves.toEqual({
     ok: false,
