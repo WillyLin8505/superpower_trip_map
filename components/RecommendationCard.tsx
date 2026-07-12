@@ -32,7 +32,7 @@ export function RecommendationCard({ rec, dateIso, onAdd, onArchive }: Props) {
           <button
             type="button"
             onClick={() => onArchive(rec)}
-            aria-label="封存"
+            aria-label="移到備用"
             className="shrink-0 mt-0.5 text-gray-300 hover:text-clay-deep transition-colors leading-none"
           >
             &#x1F4E5;

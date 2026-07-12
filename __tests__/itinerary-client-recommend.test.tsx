@@ -100,13 +100,19 @@ const plan: PlanResult = {
 }
 
 const recsWithReserve: RecommendationsByDay = [{
-  dessert: { shown: [drec('d1')], reserve: [drec('d2')] },
+  dessert: { shown: [drec('d1'), drec('d3'), drec('d4'), drec('d5'), drec('d6')], reserve: [drec('d2')] },
   attraction: { shown: [], reserve: [] },
   restaurant: { shown: [], reserve: [] },
 }]
 
 const recsNoReserve: RecommendationsByDay = [{
   dessert: { shown: [drec('d1')], reserve: [] },
+  attraction: { shown: [], reserve: [] },
+  restaurant: { shown: [], reserve: [] },
+}]
+
+const recsPartialNoReserve: RecommendationsByDay = [{
+  dessert: { shown: [drec('d1'), drec('d2'), drec('d3')], reserve: [] },
   attraction: { shown: [], reserve: [] },
   restaurant: { shown: [], reserve: [] },
 }]
@@ -139,6 +145,23 @@ it('fetches a Google replacement when the reserve is empty', async () => {
 
   await waitFor(() => expect(fetchReplacementRecommendation).toHaveBeenCalledTimes(1))
   expect(await screen.findByTestId('rec-add-g1')).toBeInTheDocument()
+})
+
+it('backfills up to 5 visible recommendation cards after adding a card', async () => {
+  ;(getDayRecommendations as jest.Mock).mockResolvedValue(recsPartialNoReserve)
+  ;(fetchReplacementRecommendation as jest.Mock)
+    .mockResolvedValueOnce(drec('g1'))
+    .mockResolvedValueOnce(drec('g2'))
+    .mockResolvedValueOnce(drec('g3'))
+  render(<ItineraryClient initial={plan} />)
+  await waitFor(() => expect(getDayRecommendations).toHaveBeenCalledTimes(1))
+
+  fireEvent.click(await screen.findByTestId('rec-add-d1'))
+
+  await waitFor(() => expect(fetchReplacementRecommendation).toHaveBeenCalledTimes(3))
+  expect(await screen.findByTestId('rec-add-g1')).toBeInTheDocument()
+  expect(await screen.findByTestId('rec-add-g2')).toBeInTheDocument()
+  expect(await screen.findByTestId('rec-add-g3')).toBeInTheDocument()
 })
 
 it('leaves the slot empty when Google returns nothing (no crash)', async () => {

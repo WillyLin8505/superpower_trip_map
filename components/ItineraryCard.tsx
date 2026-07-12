@@ -69,7 +69,7 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
           <button
             type="button"
             onClick={() => onArchive(place)}
-            aria-label="封存"
+            aria-label="移到備用"
             className="text-gray-300 hover:text-clay-deep transition-colors mt-1 shrink-0 leading-none"
           >&#x1F4E5;</button>
         )}

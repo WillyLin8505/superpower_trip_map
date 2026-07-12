@@ -1,6 +1,7 @@
 'use client'
-import type { Candidate, Place } from '@/lib/types'
+import type { Candidate, DayRecommendation, Place } from '@/lib/types'
 import { CombinedInput } from '@/components/CombinedInput'
+import { RecommendationCard } from './RecommendationCard'
 
 interface CandidatePanelProps {
   candidates: Candidate[]
@@ -9,34 +10,55 @@ interface CandidatePanelProps {
   onRemove: (candidateId: string) => void
   onArchive?: (candidateId: string) => void
   onAddToDay?: (candidateId: string, place: Place) => void
+  dateIso: string
 }
 
-export function CandidatePanel({ candidates, onAddPlace, onAddPlaces, onRemove, onArchive, onAddToDay }: CandidatePanelProps) {
+function candidateToRecommendation(candidate: Candidate): DayRecommendation {
+  return {
+    ...candidate.place,
+    reason: 'LINE Bot 或成員加入的備用地點',
+    sourceLabel: `LINE / ${candidate.addedByName}`,
+  }
+}
+
+export function CandidatePanel({
+  candidates,
+  onAddPlace,
+  onAddPlaces,
+  onRemove,
+  onArchive,
+  onAddToDay,
+  dateIso,
+}: CandidatePanelProps) {
   return (
     <section className="border border-border rounded-lg p-4 bg-surface flex flex-col gap-3">
-      <h2 className="font-medium text-ink">候選池</h2>
+      <h2 className="font-medium text-ink">LINE 討論</h2>
       <CombinedInput onAdd={onAddPlace} onAddPlaces={onAddPlaces} />
       {candidates.length === 0 ? (
-        <p className="text-sm text-muted">還沒有候選，搜尋想去的地方加進來吧</p>
+        <p className="text-sm text-muted">尚無 LINE 或手動加入的備用地點</p>
       ) : (
-        <ul className="flex flex-col gap-2">
-          {candidates.map((c) => (
-            <li key={c.id} className="flex items-center justify-between gap-2 text-sm border border-border rounded px-2 py-1 text-ink">
-              <span className="flex-1">{c.place.name}<span className="text-muted ml-2">由 {c.addedByName} 加入</span></span>
-              {onAddToDay && (
-                <button
-                  onClick={() => onAddToDay(c.id, c.place)}
-                  aria-label={`加入 ${c.place.name}`}
-                  data-testid={`cand-add-${c.id}`}
-                  className="text-clay-deep hover:underline"
-                >
-                  加入本天
+        <ul className="flex flex-col gap-3">
+          {candidates.map((candidate) => (
+            <li key={candidate.id} className="space-y-2" data-testid={`candidate-card-${candidate.id}`}>
+              <RecommendationCard
+                rec={candidateToRecommendation(candidate)}
+                dateIso={dateIso}
+                onAdd={() => onAddToDay?.(candidate.id, candidate.place)}
+              />
+              <div className="flex justify-end gap-3 text-sm">
+                {onArchive && (
+                  <button
+                    type="button"
+                    onClick={() => onArchive(candidate.id)}
+                    className="text-muted hover:text-clay-deep"
+                  >
+                    移到備用
+                  </button>
+                )}
+                <button type="button" onClick={() => onRemove(candidate.id)} className="text-error hover:underline">
+                  移除
                 </button>
-              )}
-              {onArchive && (
-                <button onClick={() => onArchive(c.id)} className="text-muted hover:text-clay-deep">封存</button>
-              )}
-              <button onClick={() => onRemove(c.id)} className="text-error hover:underline">移除</button>
+              </div>
             </li>
           ))}
         </ul>

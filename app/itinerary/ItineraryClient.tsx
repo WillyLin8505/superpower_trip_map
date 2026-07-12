@@ -70,6 +70,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   const [legError, setLegError] = useState<string | null>(null)
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [candidates, setCandidates] = useState<Candidate[]>(initialCandidates)
   const [archived, setArchived] = useState<Candidate[]>(initialArchived)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -430,51 +431,63 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     void onRemoveCandidate(candidateId)
   }, [scheduleRecalc, onRemoveCandidate])
 
+  const showActionError = useCallback((fallback: string, error: unknown) => {
+    setActionError(error instanceof Error ? error.message : fallback)
+  }, [])
+
   // TASK-022：封存停車場（per-trip，跨天共用，DEC-503）
   const handleArchivePlace = useCallback(async (dayIdx: number, place: Place) => {
     if (!tripId) return
-    const newDays = planRef.current.days.map((d, i) =>
-      i === dayIdx ? { ...d, places: d.places.filter((p) => p.id !== place.id) } : d
-    )
-    scheduleRecalc({ ...planRef.current, days: newDays }, true)
     try {
       const { id } = await archivePlace(tripId, place)
+      const newDays = planRef.current.days.map((d, i) =>
+        i === dayIdx ? { ...d, places: d.places.filter((p) => p.id !== place.id) } : d
+      )
+      scheduleRecalc({ ...planRef.current, days: newDays }, true)
       setArchived((a) => [...a, { id, place, addedBy: 'me', addedByName: '你' }])
-    } catch { /* 卡片已從行程移除；封存失敗則使用者仍可從行程重新加入 */ }
-  }, [tripId, scheduleRecalc])
+      setActionError(null)
+    } catch (error) {
+      showActionError('加入備用行程失敗，請稍後再試', error)
+    }
+  }, [tripId, scheduleRecalc, showActionError])
 
   const handleArchiveRecommendation = useCallback(async (dayIdx: number, rec: DayRecommendation) => {
-    // 推薦是每次算出的 ephemeral 清單；封存後本 session 從顯示隱藏即可，不需改推薦計算。
     const cat = rec.type as 'dessert' | 'attraction' | 'restaurant'
-    const cur = recsRef.current
-    if (cur && cur[dayIdx]) {
-      const bucket = cur[dayIdx][cat]
-      const next: RecommendationsByDay = cur.map((b, i) =>
-        i === dayIdx ? { ...b, [cat]: { ...bucket, shown: bucket.shown.filter((r) => r.placeId !== rec.placeId) } } : b
-      )
-      commitRecs(next)
-    }
     if (!tripId) return
     try {
       const { id } = await archivePlace(tripId, rec)
+      const cur = recsRef.current
+      if (cur && cur[dayIdx]) {
+        const bucket = cur[dayIdx][cat]
+        const next: RecommendationsByDay = cur.map((b, i) =>
+          i === dayIdx ? { ...b, [cat]: { ...bucket, shown: bucket.shown.filter((r) => r.placeId !== rec.placeId) } } : b
+        )
+        commitRecs(next)
+      }
       setArchived((a) => [...a, { id, place: rec, addedBy: 'me', addedByName: '你' }])
-    } catch { /* 推薦卡已隱藏；封存失敗不影響顯示 */ }
-  }, [tripId, commitRecs])
+      setActionError(null)
+    } catch (error) {
+      showActionError('加入備用行程失敗，請稍後再試', error)
+    }
+  }, [tripId, commitRecs, showActionError])
 
   const handleArchiveCandidate = useCallback(async (candidateId: string) => {
     if (!tripId) return
     const found = candidates.find((c) => c.id === candidateId)
     if (!found) return
-    setCandidates((cs) => cs.filter((c) => c.id !== candidateId))
     try {
       // 既有候選列已存在同 place_id row；archivePlace 遇到 duplicate 會把該 row 的
       // list 更新為 'archived'（見 app/actions/candidates.ts），不是另外新增一筆。
       const { id } = await archivePlace(tripId, found.place)
+      setCandidates((cs) => cs.filter((c) => c.id !== candidateId))
       setArchived((a) => [...a, { id, place: found.place, addedBy: 'me', addedByName: '你' }])
-    } catch { /* 保留在候選池；封存失敗則使用者可重試 */ }
-  }, [tripId, candidates])
+      setActionError(null)
+    } catch (error) {
+      showActionError('加入備用行程失敗，請稍後再試', error)
+    }
+  }, [tripId, candidates, showActionError])
 
-  const handleAddArchivedToDay = useCallback((candidateId: string, place: Place, dayIndex: number) => {
+  const handleAddArchivedToDay = useCallback(async (candidateId: string, place: Place, dayIndex: number) => {
     const newPlace: ScheduledPlace = {
       ...place,
       startTime: '09:00',
@@ -486,20 +499,28 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       startLocked: false,
       durationLocked: false,
     }
-    const newDays = planRef.current.days.map((d, i) =>
-      i === dayIndex ? { ...d, places: [...d.places, newPlace] } : d
-    )
-    scheduleRecalc({ ...planRef.current, days: newDays }, true)
-    setArchived((a) => a.filter((c) => c.id !== candidateId))
-    void unarchivePlace(candidateId).catch(() => { /* 已從畫面移除；背景刪除失敗不影響已加入行程的結果 */ })
-  }, [scheduleRecalc])
-
-  const handleDeleteArchived = useCallback(async (candidateId: string) => {
-    setArchived((a) => a.filter((c) => c.id !== candidateId))
     try {
       await unarchivePlace(candidateId)
-    } catch { /* 畫面已移除；背景刪除失敗則下次載入會再次出現，可再刪一次 */ }
-  }, [])
+      const newDays = planRef.current.days.map((d, i) =>
+        i === dayIndex ? { ...d, places: [...d.places, newPlace] } : d
+      )
+      scheduleRecalc({ ...planRef.current, days: newDays }, true)
+      setArchived((a) => a.filter((c) => c.id !== candidateId))
+      setActionError(null)
+    } catch (error) {
+      showActionError('加入行程失敗，請稍後再試', error)
+    }
+  }, [scheduleRecalc, showActionError])
+
+  const handleDeleteArchived = useCallback(async (candidateId: string) => {
+    try {
+      await unarchivePlace(candidateId)
+      setArchived((a) => a.filter((c) => c.id !== candidateId))
+      setActionError(null)
+    } catch (error) {
+      showActionError('刪除備用行程失敗，請稍後再試', error)
+    }
+  }, [showActionError])
 
   const buildExcludeIds = useCallback((): string[] => {
     const ids = new Set<string>()
@@ -570,41 +591,41 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     setArrangingDay(dayIdx)
     arrangeDay(dayIdx).catch(() => {}).finally(() => setArrangingDay(null))
 
-    // 2. remove the card; promote a reserve item if available
+    // 2. remove the card; promote reserve items until the visible list is back to 5 when possible
     const prev = recsRef.current
     if (!prev || !prev[dayIdx]) return
     const bucket = prev[dayIdx][cat]
     const shownAfter = bucket.shown.filter((r) => r.placeId !== rec.placeId)
-    let reserve = bucket.reserve
-    let needFetch = false
-    if (reserve.length > 0) {
-      shownAfter.push(reserve[0])
-      reserve = reserve.slice(1)
-    } else {
-      needFetch = true
+    const reserve = [...bucket.reserve]
+    while (shownAfter.length < 5 && reserve.length > 0) {
+      const nextReserve = reserve.shift()
+      if (nextReserve) shownAfter.push(nextReserve)
     }
+    const missingCount = Math.max(0, 5 - shownAfter.length)
     const updated: RecommendationsByDay = prev.map((b, i) =>
       i === dayIdx ? { ...b, [cat]: { shown: shownAfter, reserve } } : b
     )
     commitRecs(updated)
 
-    // 3. reserve empty → fetch one from Google on demand
-    if (needFetch) {
+    // 3. reserve empty → fetch enough Google replacements to return to 5 visible cards
+    if (missingCount > 0) {
       const key = `${dayIdx}:${cat}`
       setBackfillKeys((s) => new Set(s).add(key))
-      const excludeIds = buildExcludeIds()
-      fetchReplacementRecommendation(planRef.current.days[dayIdx], cat, excludeIds)
-        .then((repl) => {
-          if (!repl) return
+      ;(async () => {
+        for (let i = 0; i < missingCount; i += 1) {
+          const repl = await fetchReplacementRecommendation(planRef.current.days[dayIdx], cat, buildExcludeIds())
+          if (!repl) break
           const cur = recsRef.current
-          if (!cur || !cur[dayIdx]) return
-          if (buildExcludeIds().includes(repl.placeId)) return   // race/dup guard
+          if (!cur || !cur[dayIdx]) break
+          if (buildExcludeIds().includes(repl.placeId)) continue
           const b = cur[dayIdx][cat]
-          const next2: RecommendationsByDay = cur.map((x, i) =>
-            i === dayIdx ? { ...x, [cat]: { shown: [...b.shown, repl], reserve: b.reserve } } : x
+          if (b.shown.length >= 5) break
+          const next2: RecommendationsByDay = cur.map((x, idx) =>
+            idx === dayIdx ? { ...x, [cat]: { shown: [...b.shown, repl], reserve: b.reserve } } : x
           )
           commitRecs(next2)
-        })
+        }
+      })()
         .catch(() => { /* leave slot empty */ })
         .finally(() => setBackfillKeys((s) => { const n = new Set(s); n.delete(key); return n }))
     }
@@ -788,6 +809,11 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
           </span>
         )}
       </div>
+      {actionError && (
+        <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+          {actionError}
+        </p>
+      )}
       <section className="mb-6 flex flex-wrap items-end gap-4">
         <label className="flex flex-col gap-1">
           <span className="text-xs text-muted">開始日期</span>

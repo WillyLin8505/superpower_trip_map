@@ -17,7 +17,7 @@ function candidate(id: string, name: string): Candidate {
       id: `p-${id}`, placeId: `gp-${id}`, name, type: 'attraction', lat: 25, lng: 121, address: '',
       openingHours: null, rating: null, photoUrl: null, description: null,
     },
-    addedBy: 'u1', addedByName: '小明',
+    addedBy: 'u1', addedByName: 'User',
   }
 }
 
@@ -36,43 +36,38 @@ function baseProps() {
   }
 }
 
-it('defaults to the 推薦行程 tab', () => {
+it('defaults to the recommendation tab', () => {
   render(<SidePanel {...baseProps()} />)
   expect(screen.getByTestId('day-recommendations')).toBeInTheDocument()
 })
 
-it('switching to LINE 討論 shows the candidate panel content', () => {
-  render(<SidePanel {...baseProps()} candidates={[candidate('c1', '候選A')]} />)
-  fireEvent.click(screen.getByTestId('side-panel-tab-candidates'))
-  expect(screen.getByText('候選A')).toBeInTheDocument()
-  expect(screen.queryByTestId('day-recommendations')).not.toBeInTheDocument()
+it('reserve tab contains LINE discussion candidates and archived items', () => {
+  render(<SidePanel {...baseProps()} candidates={[candidate('c1', 'LINE A')]} archived={[candidate('a1', 'Archive A')]} />)
+  fireEvent.click(screen.getByTestId('side-panel-tab-reserve'))
+  expect(screen.getByTestId('reserve-panel')).toBeInTheDocument()
+  expect(screen.getByTestId('candidate-card-c1')).toBeInTheDocument()
+  expect(screen.getByText('Archive A')).toBeInTheDocument()
 })
 
-it('switching to 封存 shows the archive list', () => {
-  render(<SidePanel {...baseProps()} archived={[candidate('a1', '封存A')]} />)
-  fireEvent.click(screen.getByTestId('side-panel-tab-archive'))
-  expect(screen.getByText('封存A')).toBeInTheDocument()
-})
-
-it('封存 tab shows an empty state when nothing is archived', () => {
+it('reserve tab shows an empty archived state when nothing is archived', () => {
   render(<SidePanel {...baseProps()} />)
-  fireEvent.click(screen.getByTestId('side-panel-tab-archive'))
-  expect(screen.getByTestId('archive-empty')).toHaveTextContent('尚未封存任何地點')
+  fireEvent.click(screen.getByTestId('side-panel-tab-reserve'))
+  expect(screen.getByTestId('archive-empty')).toHaveTextContent('尚未加入任何備用行程')
 })
 
-it('archived item 加入行程 calls onAddArchivedToDay with id and place', () => {
+it('archived item add calls onAddArchivedToDay with id and place', () => {
   const onAddArchivedToDay = jest.fn()
-  const c = candidate('a1', '封存A')
-  render(<SidePanel {...baseProps()} archived={[c]} onAddArchivedToDay={onAddArchivedToDay} />)
-  fireEvent.click(screen.getByTestId('side-panel-tab-archive'))
-  fireEvent.click(screen.getByRole('button', { name: '加入行程' }))
-  expect(onAddArchivedToDay).toHaveBeenCalledWith('a1', c.place)
+  const archived = candidate('a1', 'Archive A')
+  render(<SidePanel {...baseProps()} archived={[archived]} onAddArchivedToDay={onAddArchivedToDay} />)
+  fireEvent.click(screen.getByTestId('side-panel-tab-reserve'))
+  fireEvent.click(screen.getByTestId('archive-add-a1'))
+  expect(onAddArchivedToDay).toHaveBeenCalledWith('a1', archived.place)
 })
 
-it('archived item 永久刪除 calls onDeleteArchived with the candidate id', () => {
+it('archived item delete calls onDeleteArchived with the candidate id', () => {
   const onDeleteArchived = jest.fn()
-  render(<SidePanel {...baseProps()} archived={[candidate('a1', '封存A')]} onDeleteArchived={onDeleteArchived} />)
-  fireEvent.click(screen.getByTestId('side-panel-tab-archive'))
-  fireEvent.click(screen.getByRole('button', { name: '永久刪除' }))
+  render(<SidePanel {...baseProps()} archived={[candidate('a1', 'Archive A')]} onDeleteArchived={onDeleteArchived} />)
+  fireEvent.click(screen.getByTestId('side-panel-tab-reserve'))
+  fireEvent.click(screen.getByTestId('archive-delete-a1'))
   expect(onDeleteArchived).toHaveBeenCalledWith('a1')
 })

@@ -7,6 +7,15 @@ function isDuplicateKeyError(error: unknown): boolean {
   return (error as { code?: string } | null)?.code === '23505'
 }
 
+function isMissingListColumn(error: unknown): boolean {
+  const e = error as { code?: string; message?: string } | null
+  return e?.code === '42703' || e?.code === 'PGRST204' || /list/i.test(e?.message ?? '')
+}
+
+function missingArchiveMigrationError(): Error {
+  return new Error('備用行程資料庫尚未更新，請套用 migration 0007_archive_list.sql')
+}
+
 async function resolveCandidateNames(
   rows: { id: string; place: Place; added_by: string; created_at: string }[]
 ): Promise<Candidate[]> {
@@ -49,6 +58,15 @@ export async function listCandidates(tripId: string): Promise<Candidate[]> {
     .eq('trip_id', tripId)
     .eq('list', 'candidate')
     .order('created_at', { ascending: true })
+  if (isMissingListColumn(error)) {
+    const { data: fallback, error: fallbackError } = await supabase
+      .from('trip_candidates')
+      .select('id, place, added_by, created_at')
+      .eq('trip_id', tripId)
+      .order('created_at', { ascending: true })
+    if (fallbackError || !fallback) return []
+    return resolveCandidateNames(fallback as { id: string; place: Place; added_by: string; created_at: string }[])
+  }
   if (error || !data) return []
   return resolveCandidateNames(data as { id: string; place: Place; added_by: string; created_at: string }[])
 }
@@ -80,6 +98,7 @@ export async function archivePlace(tripId: string, place: Place): Promise<{ id: 
     .select('id')
     .single()
   if (error) {
+    if (isMissingListColumn(error)) throw missingArchiveMigrationError()
     if (isDuplicateKeyError(error) && place.placeId) {
       const { data: updated, error: updateError } = await supabase
         .from('trip_candidates')
@@ -88,6 +107,7 @@ export async function archivePlace(tripId: string, place: Place): Promise<{ id: 
         .eq('place_id', place.placeId)
         .select('id')
         .single()
+      if (isMissingListColumn(updateError)) throw missingArchiveMigrationError()
       if (updateError || !updated) throw new Error('封存失敗，請稍後再試')
       return { id: (updated as { id: string }).id }
     }
@@ -107,6 +127,7 @@ export async function listArchived(tripId: string): Promise<Candidate[]> {
     .eq('trip_id', tripId)
     .eq('list', 'archived')
     .order('created_at', { ascending: true })
+  if (isMissingListColumn(error)) return []
   if (error || !data) return []
   return resolveCandidateNames(data as { id: string; place: Place; added_by: string; created_at: string }[])
 }

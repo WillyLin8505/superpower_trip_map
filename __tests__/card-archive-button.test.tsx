@@ -38,13 +38,13 @@ describe('ItineraryCard archive button', () => {
   it('renders an archive button and calls onArchive with the place when clicked', () => {
     const onArchive = jest.fn()
     render(<ItineraryCard place={scheduledPlace()} index={0} dateIso="2026-07-01" onArchive={onArchive} />)
-    fireEvent.click(screen.getByLabelText('封存'))
+    fireEvent.click(screen.getByLabelText('移到備用'))
     expect(onArchive).toHaveBeenCalledWith(scheduledPlace())
   })
 
   it('does not render an archive button when onArchive is not provided', () => {
     render(<ItineraryCard place={scheduledPlace()} index={0} dateIso="2026-07-01" />)
-    expect(screen.queryByLabelText('封存')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('移到備用')).not.toBeInTheDocument()
   })
 })
 
@@ -52,7 +52,7 @@ describe('RecommendationCard archive button', () => {
   it('renders an archive button and calls onArchive with the recommendation when clicked', () => {
     const onArchive = jest.fn()
     render(<RecommendationCard rec={recommendation()} dateIso="2026-07-01" onAdd={() => {}} onArchive={onArchive} />)
-    fireEvent.click(screen.getByLabelText('封存'))
+    fireEvent.click(screen.getByLabelText('移到備用'))
     expect(onArchive).toHaveBeenCalledWith(recommendation())
   })
 })
@@ -67,9 +67,10 @@ describe('CandidatePanel archive button', () => {
         onAddPlaces={() => {}}
         onRemove={() => {}}
         onArchive={onArchive}
+        dateIso="2026-07-01"
       />
     )
-    fireEvent.click(screen.getByRole('button', { name: '封存' }))
+    fireEvent.click(screen.getByRole('button', { name: '移到備用' }))
     expect(onArchive).toHaveBeenCalledWith('c1')
   })
 })
