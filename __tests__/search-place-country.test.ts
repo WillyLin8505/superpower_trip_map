@@ -16,8 +16,34 @@ const PLACE_DETAILS_RESPONSE = {
   },
 }
 
+const VIETNAMESE_DETAILS_RESPONSE = {
+  status: 'OK',
+  result: {
+    name: 'Nhà hàng Ngon',
+    geometry: { location: { lat: 10.776, lng: 106.7 } },
+    formatted_address: '160 Pasteur, Bến Nghé, Quận 1, Hồ Chí Minh',
+    opening_hours: null,
+    rating: 4.4,
+    photos: null,
+    editorial_summary: null,
+  },
+}
+
+const ENGLISH_DETAILS_RESPONSE = {
+  status: 'OK',
+  result: {
+    name: 'Ngon Restaurant',
+    geometry: { location: { lat: 10.776, lng: 106.7 } },
+    formatted_address: '160 Pasteur, Ben Nghe, District 1, Ho Chi Minh City',
+    opening_hours: null,
+    rating: 4.4,
+    photos: null,
+    editorial_summary: null,
+  },
+}
+
 describe('searchPlace with country', () => {
-  beforeEach(() => jest.clearAllMocks())
+  beforeEach(() => mockFetch.mockReset())
 
   it('appends country name to query when countryName provided', async () => {
     mockFetch
@@ -79,6 +105,39 @@ describe('searchPlace with country', () => {
     expect(mockFetch).toHaveBeenCalledTimes(2)
     expect((mockFetch.mock.calls[1][0] as string)).toContain('language=zh-TW')
     expect((mockFetch.mock.calls[1][0] as string)).not.toContain('language=en')
+  })
+
+  it('falls back to English when zh-TW details returns a non-Chinese local name', async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        json: async () => ({ candidates: [{ place_id: 'vietnam123' }] }),
+      })
+      .mockResolvedValueOnce({
+        json: async () => VIETNAMESE_DETAILS_RESPONSE,
+      })
+      .mockResolvedValueOnce({
+        json: async () => ENGLISH_DETAILS_RESPONSE,
+      })
+
+    const result = await searchPlace('Nhà hàng Ngon', 'Vietnam')
+
+    expect(result).toEqual(expect.objectContaining({
+      name: 'Ngon Restaurant',
+      localizedName: {
+        zhTw: null,
+        en: 'Ngon Restaurant',
+        original: 'Nhà hàng Ngon',
+      },
+      address: '160 Pasteur, Ben Nghe, District 1, Ho Chi Minh City',
+      localizedAddress: {
+        zhTw: null,
+        en: '160 Pasteur, Ben Nghe, District 1, Ho Chi Minh City',
+        original: '160 Pasteur, Bến Nghé, Quận 1, Hồ Chí Minh',
+      },
+    }))
+    expect(mockFetch).toHaveBeenCalledTimes(3)
+    expect((mockFetch.mock.calls[1][0] as string)).toContain('language=zh-TW')
+    expect((mockFetch.mock.calls[2][0] as string)).toContain('language=en')
   })
 
   it('verifyPlace preserves localized fields from searchPlace', async () => {
