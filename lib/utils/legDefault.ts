@@ -1,6 +1,6 @@
 import type { LegDefault } from '@/lib/types'
 
-const WALK_THRESHOLD_M = 500
+export const WALK_THRESHOLD_M = 500
 
 interface ModeLeg { min: number; distM: number }
 

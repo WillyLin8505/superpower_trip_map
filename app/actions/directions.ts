@@ -37,9 +37,11 @@ export async function buildDistanceMatrix(
     `&mode=${GOOGLE_MODE[mode]}` +
     `&key=${process.env.GOOGLE_MAPS_API_KEY}`
 
-  // Fix 3: Wrap fetch block in try-catch to handle network/JSON errors
+  // Wrap fetch block in try-catch to handle network/JSON errors.
+  // Cache by URL (coords + mode) for 24h: place coordinates are stable, so repeated
+  // reschedules/drags/leg recomputes reuse the result instead of re-billing Google.
   try {
-    const res = await fetch(url)
+    const res = await fetch(url, { next: { revalidate: 86400 } })
 
     // Fix 2: Check res.ok before parsing JSON
     if (!res.ok) return { indices, matrix: haversineMatrix(), distances: haversineDistanceMatrix() }
