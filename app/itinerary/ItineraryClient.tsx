@@ -70,6 +70,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
   const [legBusy, setLegBusy] = useState<{ dayIdx: number; placeId: string } | null>(null)
   const [legError, setLegError] = useState<string | null>(null)
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [candidates, setCandidates] = useState<Candidate[]>(initialCandidates)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const autosaveRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -107,12 +108,14 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
   // 匿名：建立 trip
   const onSave = useCallback(async () => {
     try {
+      setSaveError(null)
       const { tripId: newId } = await createTrip(planRef.current, '未命名行程')
       router.push(`/itinerary/${newId}`)
     } catch (e) {
       if (e instanceof Error && e.message === 'NOT_AUTHENTICATED') {
         router.push(`/login?next=${encodeURIComponent('/itinerary')}`)
       } else {
+        setSaveError(e instanceof Error ? e.message : '儲存失敗，請稍後再試')
         setSaveState('error')
       }
     }
@@ -123,13 +126,15 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
     if (!tripId) return
     if (plan === savedPlanRef.current) return
     setSaveState('saving')
+    setSaveError(null)
     if (autosaveRef.current) clearTimeout(autosaveRef.current)
     autosaveRef.current = setTimeout(async () => {
       try {
         await saveTrip(tripId, planRef.current)
         savedPlanRef.current = planRef.current
         setSaveState('saved')
-      } catch {
+      } catch (e) {
+        setSaveError(e instanceof Error ? e.message : '儲存失敗，請稍後再試')
         setSaveState('error')
       }
     }, 1500)
@@ -140,11 +145,13 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
   const onRetry = useCallback(async () => {
     if (!tripId) return
     setSaveState('saving')
+    setSaveError(null)
     try {
       await saveTrip(tripId, planRef.current)
       savedPlanRef.current = planRef.current
       setSaveState('saved')
-    } catch {
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : '儲存失敗，請稍後再試')
       setSaveState('error')
     }
   }, [tripId])
@@ -686,7 +693,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
                 onClick={onRetry}
                 className="text-red-600 underline"
               >
-                儲存失敗，點此重試
+                {saveError ? `儲存失敗：${saveError}` : '儲存失敗，點此重試'}
               </button>
             )}
           </span>
@@ -696,7 +703,9 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
               儲存行程
             </button>
             {saveState === 'error' && (
-              <span className="text-xs text-red-600">儲存失敗，請稍後再試</span>
+              <span className="text-xs text-red-600">
+                {saveError ? `儲存失敗：${saveError}` : '儲存失敗，請稍後再試'}
+              </span>
             )}
           </span>
         )}

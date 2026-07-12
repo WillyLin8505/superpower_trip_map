@@ -11,7 +11,15 @@ export async function createTrip(plan: PlanResult, title: string): Promise<{ tri
     .insert({ owner_id: user.id, title, plan })
     .select('id')
     .single()
-  if (error || !data) throw new Error('儲存失敗，請稍後再試')
+  if (error || !data) {
+    console.error('createTrip failed', {
+      code: error?.code,
+      message: error?.message,
+      details: error?.details,
+      hint: error?.hint,
+    })
+    throw new Error(error?.message ?? '儲存失敗，請稍後再試')
+  }
   return { tripId: (data as { id: string }).id }
 }
 
@@ -34,7 +42,17 @@ export async function saveTrip(tripId: string, plan: PlanResult): Promise<void> 
     .update({ plan, updated_at: new Date().toISOString() })
     .eq('id', tripId)
     .select('id')
-  if (error || !data?.length) throw new Error('儲存失敗，請稍後再試')
+  if (error || !data?.length) {
+    console.error('saveTrip failed', {
+      tripId,
+      code: error?.code,
+      message: error?.message,
+      details: error?.details,
+      hint: error?.hint,
+      rows: data?.length ?? 0,
+    })
+    throw new Error(error?.message ?? '儲存失敗，請稍後再試')
+  }
 }
 
 export async function listTrips(): Promise<TripSummary[]> {
