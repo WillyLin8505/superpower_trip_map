@@ -1,6 +1,6 @@
 # Task Registry
 
-Last updated: 2026-07-11
+Last updated: 2026-07-12
 Manager-owned status registry and single source of truth. Worker Sessions may mark a task `in_progress` when claiming it and may mark only their own current task `done` or `blocked` during `$multi-handoff-task`.
 
 Status values: `todo`, `in_progress`, `blocked`, `done`.
@@ -29,13 +29,8 @@ Implementation task invariant: if `Task type` is `frontend` or `backend`, and `S
 
 ## Locked Files
 
-- `lib/types.ts` — TASK-011, claimed 2026-07-11 (`$multi-auto-session` SPEC: Place Photos Lightbox).
-- `app/actions/places.ts` — TASK-011, claimed 2026-07-11.
-- `app/api/photo/route.ts` — TASK-011, claimed 2026-07-11.
-- `components/ItineraryCard.tsx` — TASK-011, claimed 2026-07-11.
-- `components/RecommendationCard.tsx` — TASK-011, claimed 2026-07-11.
-- `components/PhotoLightbox.tsx` — TASK-011, claimed 2026-07-11.
-- `photo/card tests` — TASK-011, claimed 2026-07-11.
+No active locks.
+
 
 ## Spec Trees
 
@@ -70,6 +65,7 @@ Implementation task invariant: if `Task type` is `frontend` or `backend`, and `S
 ## Un Spec
 
 - None currently derived for non-done implementation tasks. If a future frontend/backend task has `Spec: none`, `Spec: TBD`, or a missing spec file, run `$multi-auto-spec` before `$multi-auto-session`.
+
 
 ## TASK-001 - Create multi-session planning and orchestration docs
 
@@ -284,7 +280,7 @@ Implementation task invariant: if `Task type` is `frontend` or `backend`, and `S
 ## TASK-011 - Implement four Google photos per place and lightbox
 
 - Task type: frontend
-- Status: in_progress
+- Status: done
 - Priority: medium
 - Spec: `docs/superpowers/specs/2026-07-10-place-photos-lightbox-design.md`
 - Estimated scope: large
@@ -303,7 +299,7 @@ Implementation task invariant: if `Task type` is `frontend` or `backend`, and `S
 - Required review: GStack review/challenge after implementation
 - Suggested session count: 1
 - Safe to assign to any session: no
-- Notes: Wait for localization/type changes to avoid repeated `Place` migrations.
+- Notes: Done 2026-07-12 in worktree `superpowers_food_map-task011`, branch `codex/task-011-place-photos`. Added `photoUrls?: string[]`, Google photo mapping up to four photos, reusable `PhotoStrip`/`PhotoLightbox`, and card integrations with click-to-enlarge behavior. Review status `not_reviewed`.
 
 ## TASK-012 - Implement Google Maps right-side place drawer
 
