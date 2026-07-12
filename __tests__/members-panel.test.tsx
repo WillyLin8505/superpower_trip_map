@@ -32,8 +32,8 @@ const members: TripMember[] = [
 describe('MembersPanel', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    getInviteLink.mockResolvedValue({ token: 'invite-123' })
-    rotateInvite.mockResolvedValue({ token: 'invite-456' })
+    getInviteLink.mockResolvedValue({ token: 'invite-123', code: '123456' })
+    rotateInvite.mockResolvedValue({ token: 'invite-456', code: '654321' })
     removeMember.mockResolvedValue(undefined)
     leaveTrip.mockResolvedValue(undefined)
     writeText.mockResolvedValue(undefined)
@@ -43,15 +43,19 @@ describe('MembersPanel', () => {
     })
   })
 
-  it('owner can generate an invite link and sees a /join/<token> URL', async () => {
+  it('owner can generate an invite link and sees a six-digit LINE share code', async () => {
     render(<MembersPanel tripId="trip-1" members={members} isOwner />)
 
-    fireEvent.click(screen.getByRole('button', { name: '產生邀請連結' }))
+    fireEvent.click(screen.getByRole('button', { name: '產生 LINE 分享碼' }))
 
     await waitFor(() => expect(getInviteLink).toHaveBeenCalledWith('trip-1'))
+    expect(screen.getByText('123456')).toBeInTheDocument()
+    expect(screen.getByText('LINE 群組輸入：/綁定 123456')).toBeInTheDocument()
     expect(screen.getByDisplayValue('http://localhost/join/invite-123')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '複製連結' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '重新產生連結' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '複製分享碼' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '複製 LINE 綁定指令' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '複製邀請連結' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '重新產生分享碼' })).toBeInTheDocument()
   })
 
   it('owner sees the member list and a single 蝘駁 button for non-self editor members', () => {
@@ -66,23 +70,46 @@ describe('MembersPanel', () => {
   it('複製連結 copies the generated invite URL to the clipboard', async () => {
     render(<MembersPanel tripId="trip-1" members={members} isOwner />)
 
-    fireEvent.click(screen.getByRole('button', { name: '產生邀請連結' }))
+    fireEvent.click(screen.getByRole('button', { name: '產生 LINE 分享碼' }))
     await screen.findByDisplayValue('http://localhost/join/invite-123')
 
-    fireEvent.click(screen.getByRole('button', { name: '複製連結' }))
+    fireEvent.click(screen.getByRole('button', { name: '複製邀請連結' }))
 
     await waitFor(() => expect(writeText).toHaveBeenCalledWith('http://localhost/join/invite-123'))
   })
 
-  it('重新產生連結 rotates the invite token and updates the visible URL', async () => {
+  it('複製分享碼 copies only the six-digit code', async () => {
     render(<MembersPanel tripId="trip-1" members={members} isOwner />)
 
-    fireEvent.click(screen.getByRole('button', { name: '產生邀請連結' }))
+    fireEvent.click(screen.getByRole('button', { name: '產生 LINE 分享碼' }))
+    await screen.findByText('123456')
+
+    fireEvent.click(screen.getByRole('button', { name: '複製分享碼' }))
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('123456'))
+  })
+
+  it('複製 LINE 綁定指令 copies the bind command', async () => {
+    render(<MembersPanel tripId="trip-1" members={members} isOwner />)
+
+    fireEvent.click(screen.getByRole('button', { name: '產生 LINE 分享碼' }))
+    await screen.findByText('123456')
+
+    fireEvent.click(screen.getByRole('button', { name: '複製 LINE 綁定指令' }))
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('/綁定 123456'))
+  })
+
+  it('重新產生分享碼 rotates the invite token and code', async () => {
+    render(<MembersPanel tripId="trip-1" members={members} isOwner />)
+
+    fireEvent.click(screen.getByRole('button', { name: '產生 LINE 分享碼' }))
     await screen.findByDisplayValue('http://localhost/join/invite-123')
 
-    fireEvent.click(screen.getByRole('button', { name: '重新產生連結' }))
+    fireEvent.click(screen.getByRole('button', { name: '重新產生分享碼' }))
 
     await waitFor(() => expect(rotateInvite).toHaveBeenCalledWith('trip-1'))
+    expect(screen.getByText('654321')).toBeInTheDocument()
     expect(screen.getByDisplayValue('http://localhost/join/invite-456')).toBeInTheDocument()
   })
 
@@ -90,9 +117,9 @@ describe('MembersPanel', () => {
     render(<MembersPanel tripId="trip-1" members={members} isOwner={false} />)
 
     expect(screen.getByRole('button', { name: '離開行程' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '產生邀請連結' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '複製連結' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '重新產生連結' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '產生 LINE 分享碼' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '複製分享碼' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '重新產生分享碼' })).not.toBeInTheDocument()
   })
 
   it('移除 calls removeMember(tripId, userId) and router.refresh()', async () => {

@@ -10,7 +10,7 @@ type AdminState = {
   ownerLookup: QueryResult
   updateResult: UpdateResult
   insertResult: InsertResult
-  lastUpdate: { invite_token: string } | null
+  lastUpdate: { invite_token?: string; invite_code?: string } | null
   lastUpdatePredicates: UpdatePredicate[]
   lastUpdateSelect: string | null
   lastInsert: { trip_id: string; user_id: string; role: 'editor' } | null
@@ -46,11 +46,11 @@ function makeTripsBuilder() {
     select: jest.fn((_columns: string) => ({
       eq: jest.fn((_column: string, value: string) => ({
         single: jest.fn(async () =>
-          value.startsWith('invite-') ? adminState.tripLookup : adminState.ownerLookup,
+          value.startsWith('invite-') || /^\d{6}$/.test(value) ? adminState.tripLookup : adminState.ownerLookup,
         ),
       })),
     })),
-    update: jest.fn((values: { invite_token: string }) => {
+    update: jest.fn((values: { invite_token?: string; invite_code?: string }) => {
       adminState.lastUpdate = values
 
       const predicates: UpdatePredicate[] = []
@@ -88,7 +88,7 @@ beforeEach(() => {
   authUser = { id: 'user-1' }
   adminState = {
     tripLookup: { data: { id: 'trip-1', owner_id: 'owner-1' }, error: null },
-    ownerLookup: { data: { owner_id: 'owner-1', invite_token: 'invite-existing' }, error: null },
+    ownerLookup: { data: { owner_id: 'owner-1', invite_token: 'invite-existing', invite_code: '123456' }, error: null },
     updateResult: { data: [{ id: 'trip-1' }], error: null },
     insertResult: { error: null },
     lastUpdate: null,
@@ -139,17 +139,21 @@ it('getInviteLink throws NOT_OWNER for non-owner', async () => {
 it('getInviteLink returns existing token without update', async () => {
   authUser = { id: 'owner-1' }
   const { getInviteLink } = loadActions()
-  await expect(getInviteLink('trip-1')).resolves.toEqual({ token: 'invite-existing' })
+  await expect(getInviteLink('trip-1')).resolves.toEqual({ token: 'invite-existing', code: '123456' })
   expect(adminState.lastUpdate).toBeNull()
 })
 
-it('getInviteLink generates and persists a UUID when missing', async () => {
+it('getInviteLink generates and persists a UUID and six-digit code when missing', async () => {
   authUser = { id: 'owner-1' }
-  adminState.ownerLookup = { data: { owner_id: 'owner-1', invite_token: null }, error: null }
+  adminState.ownerLookup = { data: { owner_id: 'owner-1', invite_token: null, invite_code: null }, error: null }
   jest.spyOn(crypto, 'randomUUID').mockReturnValue('invite-new')
+  jest.spyOn(crypto, 'getRandomValues').mockImplementation((array) => {
+    ;(array as Uint32Array)[0] = 123456
+    return array
+  })
   const { getInviteLink } = loadActions()
-  await expect(getInviteLink('trip-1')).resolves.toEqual({ token: 'invite-new' })
-  expect(adminState.lastUpdate).toEqual({ invite_token: 'invite-new' })
+  await expect(getInviteLink('trip-1')).resolves.toEqual({ token: 'invite-new', code: '123456' })
+  expect(adminState.lastUpdate).toEqual({ invite_token: 'invite-new', invite_code: '123456' })
   expect(adminState.lastUpdatePredicates).toEqual([
     { column: 'id', value: 'trip-1' },
     { column: 'owner_id', value: 'owner-1' },
@@ -160,9 +164,13 @@ it('getInviteLink generates and persists a UUID when missing', async () => {
 it('rotateInvite owner gets a new persisted token', async () => {
   authUser = { id: 'owner-1' }
   jest.spyOn(crypto, 'randomUUID').mockReturnValue('invite-rotated')
+  jest.spyOn(crypto, 'getRandomValues').mockImplementation((array) => {
+    ;(array as Uint32Array)[0] = 654321
+    return array
+  })
   const { rotateInvite } = loadActions()
-  await expect(rotateInvite('trip-1')).resolves.toEqual({ token: 'invite-rotated' })
-  expect(adminState.lastUpdate).toEqual({ invite_token: 'invite-rotated' })
+  await expect(rotateInvite('trip-1')).resolves.toEqual({ token: 'invite-rotated', code: '654321' })
+  expect(adminState.lastUpdate).toEqual({ invite_token: 'invite-rotated', invite_code: '654321' })
   expect(adminState.lastUpdatePredicates).toEqual([
     { column: 'id', value: 'trip-1' },
     { column: 'owner_id', value: 'owner-1' },
@@ -179,9 +187,13 @@ it('rotateInvite throws INVITE_UPDATE_FAILED when owner-scoped update affects no
   authUser = { id: 'owner-1' }
   adminState.updateResult = { data: [], error: null }
   jest.spyOn(crypto, 'randomUUID').mockReturnValue('invite-missed')
+  jest.spyOn(crypto, 'getRandomValues').mockImplementation((array) => {
+    ;(array as Uint32Array)[0] = 111111
+    return array
+  })
   const { rotateInvite } = loadActions()
   await expect(rotateInvite('trip-1')).rejects.toThrow('INVITE_UPDATE_FAILED')
-  expect(adminState.lastUpdate).toEqual({ invite_token: 'invite-missed' })
+  expect(adminState.lastUpdate).toEqual({ invite_token: 'invite-missed', invite_code: '111111' })
   expect(adminState.lastUpdatePredicates).toEqual([
     { column: 'id', value: 'trip-1' },
     { column: 'owner_id', value: 'owner-1' },

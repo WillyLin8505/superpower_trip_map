@@ -98,7 +98,7 @@ async function resolveTrip(tripLinkOrToken: string): Promise<TripRow | null> {
   const { data, error } = await admin
     .from('trips')
     .select('id, owner_id')
-    .eq('invite_token', lookup.value)
+    .eq(lookup.kind === 'code' ? 'invite_code' : 'invite_token', lookup.value)
     .single()
 
   if (error) {
@@ -110,7 +110,7 @@ async function resolveTrip(tripLinkOrToken: string): Promise<TripRow | null> {
   return data as TripRow
 }
 
-function extractTripLookupValue(input: string): { kind: 'invite'; value: string } | null {
+function extractTripLookupValue(input: string): { kind: 'invite' | 'code'; value: string } | null {
   const trimmed = input.trim()
 
   try {
@@ -119,15 +119,17 @@ function extractTripLookupValue(input: string): { kind: 'invite'; value: string 
     const joinIndex = parts.indexOf('join')
 
     if (joinIndex >= 0 && parts[joinIndex + 1]) {
-      return { kind: 'invite', value: parts[joinIndex + 1] }
+      const value = parts[joinIndex + 1]
+      return /^\d{6}$/.test(value) ? { kind: 'code', value } : { kind: 'invite', value }
     }
 
     return null
   } catch {
     if (!trimmed || trimmed.includes('/')) return null
 
-    // Plain tokens fall back to invite tokens.
-    return { kind: 'invite', value: trimmed }
+    return /^\d{6}$/.test(trimmed)
+      ? { kind: 'code', value: trimmed }
+      : { kind: 'invite', value: trimmed }
   }
 }
 

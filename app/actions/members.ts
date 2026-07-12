@@ -12,6 +12,7 @@ type TripInviteRow = {
 type TripOwnerRow = {
   owner_id: string
   invite_token: string | null
+  invite_code: string | null
 }
 
 type TripVisibilityRow = {
@@ -32,6 +33,10 @@ type AuthProfile = {
   }
 }
 
+type SupabaseErrorLike = {
+  code?: string
+}
+
 async function requireUserId(): Promise<string> {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -42,11 +47,11 @@ async function requireUserId(): Promise<string> {
 async function requireOwner(
   tripId: string,
   userId: string,
-): Promise<{ inviteToken: string | null }> {
+): Promise<{ inviteToken: string | null; inviteCode: string | null }> {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('trips')
-    .select('owner_id, invite_token')
+    .select('owner_id, invite_token, invite_code')
     .eq('id', tripId)
     .single()
 
@@ -55,19 +60,51 @@ async function requireOwner(
   const trip = data as TripOwnerRow
   if (trip.owner_id !== userId) throw new Error('NOT_OWNER')
 
-  return { inviteToken: trip.invite_token }
+  return { inviteToken: trip.invite_token, inviteCode: trip.invite_code }
 }
 
-async function persistInviteToken(tripId: string, ownerId: string, token: string): Promise<void> {
+async function persistInvite(
+  tripId: string,
+  ownerId: string,
+  values: { invite_token?: string; invite_code?: string },
+): Promise<void> {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('trips')
-    .update({ invite_token: token })
+    .update(values)
     .eq('id', tripId)
     .eq('owner_id', ownerId)
     .select('id')
 
-  if (error || !data?.length) throw new Error('INVITE_UPDATE_FAILED')
+  if (error) {
+    if ((error as SupabaseErrorLike).code === '23505') throw new Error('INVITE_CODE_COLLISION')
+    throw new Error('INVITE_UPDATE_FAILED')
+  }
+  if (!data?.length) throw new Error('INVITE_UPDATE_FAILED')
+}
+
+function generateInviteCode(): string {
+  const values = new Uint32Array(1)
+  crypto.getRandomValues(values)
+  return String(values[0] % 1000000).padStart(6, '0')
+}
+
+async function persistInviteWithFreshCode(
+  tripId: string,
+  ownerId: string,
+  token: string,
+): Promise<{ token: string; code: string }> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const code = generateInviteCode()
+    try {
+      await persistInvite(tripId, ownerId, { invite_token: token, invite_code: code })
+      return { token, code }
+    } catch (error) {
+      if ((error as Error).message !== 'INVITE_CODE_COLLISION') throw error
+    }
+  }
+
+  throw new Error('INVITE_CODE_GENERATION_FAILED')
 }
 
 export async function joinTrip(token: string): Promise<{ tripId: string }> {
@@ -76,7 +113,7 @@ export async function joinTrip(token: string): Promise<{ tripId: string }> {
   const { data, error } = await admin
     .from('trips')
     .select('id, owner_id')
-    .eq('invite_token', token)
+    .eq(/^\d{6}$/.test(token) ? 'invite_code' : 'invite_token', token)
     .single()
 
   if (error || !data) throw new Error('INVALID_INVITE')
@@ -95,23 +132,20 @@ export async function joinTrip(token: string): Promise<{ tripId: string }> {
   return { tripId: trip.id }
 }
 
-export async function getInviteLink(tripId: string): Promise<{ token: string }> {
+export async function getInviteLink(tripId: string): Promise<{ token: string; code: string }> {
   const userId = await requireUserId()
-  const { inviteToken } = await requireOwner(tripId, userId)
-  if (inviteToken) return { token: inviteToken }
+  const { inviteToken, inviteCode } = await requireOwner(tripId, userId)
+  if (inviteToken && inviteCode) return { token: inviteToken, code: inviteCode }
 
-  const token = crypto.randomUUID()
-  await persistInviteToken(tripId, userId, token)
-  return { token }
+  return persistInviteWithFreshCode(tripId, userId, inviteToken ?? crypto.randomUUID())
 }
 
-export async function rotateInvite(tripId: string): Promise<{ token: string }> {
+export async function rotateInvite(tripId: string): Promise<{ token: string; code: string }> {
   const userId = await requireUserId()
   await requireOwner(tripId, userId)
 
   const token = crypto.randomUUID()
-  await persistInviteToken(tripId, userId, token)
-  return { token }
+  return persistInviteWithFreshCode(tripId, userId, token)
 }
 
 export async function listMembers(tripId: string): Promise<TripMember[]> {

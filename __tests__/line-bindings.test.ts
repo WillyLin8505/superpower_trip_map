@@ -15,6 +15,7 @@ type TripRow = {
   id: string
   owner_id: string
   invite_token?: string | null
+  invite_code?: string | null
 }
 
 type AdminState = {
@@ -125,6 +126,7 @@ function makeTripsBuilder() {
           if (!row) return adminState.tripLookup
 
           if (column === 'invite_token' && row.invite_token === value) return adminState.tripLookup
+          if (column === 'invite_code' && row.invite_code === value) return adminState.tripLookup
           return { data: null, error: NOT_FOUND_ERROR }
         }),
       })),
@@ -140,7 +142,7 @@ beforeEach(() => {
   adminState = {
     activeBindingLookup: { data: null, error: NOT_FOUND_ERROR },
     tripLookup: {
-      data: { id: 'trip-1', owner_id: 'owner-1', invite_token: 'invite-123' },
+      data: { id: 'trip-1', owner_id: 'owner-1', invite_token: 'invite-123', invite_code: '123456' },
       error: null,
     },
     insertResult: { error: null },
@@ -170,6 +172,38 @@ it('resolves /join/<token> links and binds the LINE group to the trip owner', as
     write_as_user_id: 'owner-1',
     status: 'active',
   })
+})
+
+it('resolves six-digit share codes through invite_code', async () => {
+  const { bindLineGroupToTrip } = loadBindings()
+
+  await expect(
+    bindLineGroupToTrip({
+      lineGroupId: 'group-code',
+      tripLinkOrToken: '123456',
+    }),
+  ).resolves.toEqual({ tripId: 'trip-1' })
+
+  expect(adminState.tripPredicates).toContainEqual({ column: 'invite_code', value: '123456' })
+  expect(adminState.lastInsert).toEqual({
+    line_group_id: 'group-code',
+    trip_id: 'trip-1',
+    write_as_user_id: 'owner-1',
+    status: 'active',
+  })
+})
+
+it('resolves /join/<six-digit-code> links through invite_code', async () => {
+  const { bindLineGroupToTrip } = loadBindings()
+
+  await expect(
+    bindLineGroupToTrip({
+      lineGroupId: 'group-code-link',
+      tripLinkOrToken: 'https://food-map.test/join/123456',
+    }),
+  ).resolves.toEqual({ tripId: 'trip-1' })
+
+  expect(adminState.tripPredicates).toContainEqual({ column: 'invite_code', value: '123456' })
 })
 
 it('rejects /itinerary/<tripId> links because LINE binding requires an invite token', async () => {

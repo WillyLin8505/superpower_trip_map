@@ -2,9 +2,9 @@ export const LINE_BIND_COMMAND = '/綁定'
 export const LINE_UNBIND_COMMAND = '/解除綁定'
 
 export const LINE_MESSAGES = {
-  bindUsage: `請使用：${LINE_BIND_COMMAND} <行程邀請連結或 token>`,
+  bindUsage: `請使用：${LINE_BIND_COMMAND} <6位分享碼或行程邀請連結>`,
   bindSuccess: '已成功綁定 LINE 與本次行程。',
-  bindTripNotFound: '找不到對應的行程，請確認邀請連結或 token 是否正確。',
+  bindTripNotFound: '找不到對應的行程，請確認分享碼或邀請連結是否正確。',
   bindAlreadyActive: `你已經綁定其他行程，如需改綁請先輸入 ${LINE_UNBIND_COMMAND}。`,
   unbindSuccess: '已解除目前的 LINE 綁定。',
   unbindNotBound: '目前沒有可解除的 LINE 綁定。',
