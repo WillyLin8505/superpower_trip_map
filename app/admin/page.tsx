@@ -1,5 +1,6 @@
 import { getSources } from '@/app/actions/sources'
-import { requireAdmin } from '@/lib/admin'
+import { isAdminEmail, requireAdmin } from '@/lib/admin'
+import { createClient } from '@/lib/supabase/server'
 import { SourceList } from '@/components/admin/SourceList'
 import { SourceForm } from '@/components/admin/SourceForm'
 import { SaveDiagnosticsPanel } from '@/components/admin/SaveDiagnosticsPanel'
@@ -8,9 +9,23 @@ export default async function AdminPage() {
   try {
     await requireAdmin()
   } catch {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const email = user?.email ?? null
+    const adminEmailsConfigured = Boolean(process.env.ADMIN_EMAILS?.trim())
+    const emailAllowed = isAdminEmail(email)
+
     return (
       <main className="max-w-3xl mx-auto px-4 py-10">
-        <p className="text-gray-500 text-sm">此頁需要管理員權限</p>
+        <h1 className="text-xl font-semibold text-gray-900 mb-3">此頁需要管理員權限</h1>
+        <div className="rounded-lg border border-border bg-surface p-4 text-sm text-gray-700">
+          <p>目前登入 email：{email ?? '未登入'}</p>
+          <p>Vercel `ADMIN_EMAILS`：{adminEmailsConfigured ? '已設定' : '未設定'}</p>
+          <p>目前 email 是否在 allowlist：{emailAllowed ? '是' : '否'}</p>
+        </div>
+        <p className="mt-4 text-sm text-gray-500">
+          請在 Vercel Environment Variables 設定 `ADMIN_EMAILS` 為你的登入 email，部署後重新整理。
+        </p>
       </main>
     )
   }
