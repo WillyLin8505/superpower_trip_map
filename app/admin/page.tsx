@@ -2,6 +2,7 @@ import { getSources } from '@/app/actions/sources'
 import { requireAdmin } from '@/lib/admin'
 import { SourceList } from '@/components/admin/SourceList'
 import { SourceForm } from '@/components/admin/SourceForm'
+import { SaveDiagnosticsPanel } from '@/components/admin/SaveDiagnosticsPanel'
 
 export default async function AdminPage() {
   try {
@@ -22,6 +23,7 @@ export default async function AdminPage() {
       <p className="text-gray-500 mb-8 text-sm">
         設定推薦系統的參考網站。系統會在使用者規劃行程時自動爬取這些網站並提供推薦。
       </p>
+      <SaveDiagnosticsPanel />
       <section className="mb-8">
         <h2 className="text-base font-semibold text-gray-700 mb-3">新增參考網站</h2>
         <SourceForm />
