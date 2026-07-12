@@ -3,6 +3,12 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { PhotoStrip } from '@/components/PhotoStrip'
 
 describe('PhotoStrip', () => {
+  const realFetch = global.fetch
+
+  afterEach(() => {
+    global.fetch = realFetch
+  })
+
   it('opens the selected photo in a lightbox and closes with Escape', () => {
     render(
       <PhotoStrip
@@ -57,5 +63,36 @@ describe('PhotoStrip', () => {
     expect(screen.getByTestId('photo-prev')).toHaveClass('left-4')
     expect(screen.getByTestId('photo-next')).toHaveClass('fixed')
     expect(screen.getByTestId('photo-next')).toHaveClass('right-4')
+  })
+
+  it('fetches a fifth photo when persisted place photos only contain four', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        photoUrls: [
+          '/api/photo?ref=one',
+          '/api/photo?ref=two',
+          '/api/photo?ref=three',
+          '/api/photo?ref=four',
+          '/api/photo?ref=five',
+        ],
+      }),
+    }) as unknown as typeof fetch
+
+    render(
+      <PhotoStrip
+        placeId="place-1"
+        placeName="Avoccino"
+        photos={[
+          '/api/photo?ref=one',
+          '/api/photo?ref=two',
+          '/api/photo?ref=three',
+          '/api/photo?ref=four',
+        ]}
+      />
+    )
+
+    expect(await screen.findByTestId('photo-thumb-4')).toBeInTheDocument()
+    expect(global.fetch).toHaveBeenCalledWith('/api/place-photos?placeId=place-1')
   })
 })
