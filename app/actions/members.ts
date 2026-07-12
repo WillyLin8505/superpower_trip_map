@@ -35,6 +35,18 @@ type AuthProfile = {
 
 type SupabaseErrorLike = {
   code?: string
+  message?: string
+}
+
+function isMissingInviteCodeColumn(error: unknown): boolean {
+  const candidate = error as SupabaseErrorLike | null
+  if (!candidate) return false
+  const message = candidate.message?.toLowerCase() ?? ''
+  return (
+    candidate.code === '42703' ||
+    candidate.code === 'PGRST204' ||
+    message.includes('invite_code')
+  )
 }
 
 async function requireUserId(): Promise<string> {
@@ -54,6 +66,20 @@ async function requireOwner(
     .select('owner_id, invite_token, invite_code')
     .eq('id', tripId)
     .single()
+
+  if (error && isMissingInviteCodeColumn(error)) {
+    const fallback = await admin
+      .from('trips')
+      .select('owner_id, invite_token')
+      .eq('id', tripId)
+      .single()
+
+    if (fallback.error || !fallback.data) throw new Error('TRIP_NOT_FOUND')
+
+    const trip = fallback.data as Omit<TripOwnerRow, 'invite_code'>
+    if (trip.owner_id !== userId) throw new Error('NOT_OWNER')
+    return { inviteToken: trip.invite_token, inviteCode: null }
+  }
 
   if (error || !data) throw new Error('TRIP_NOT_FOUND')
 
@@ -78,6 +104,7 @@ async function persistInvite(
 
   if (error) {
     if ((error as SupabaseErrorLike).code === '23505') throw new Error('INVITE_CODE_COLLISION')
+    if (isMissingInviteCodeColumn(error)) throw new Error('INVITE_CODE_NOT_MIGRATED')
     throw new Error('INVITE_UPDATE_FAILED')
   }
   if (!data?.length) throw new Error('INVITE_UPDATE_FAILED')
@@ -137,7 +164,12 @@ export async function getInviteLink(tripId: string): Promise<{ token: string; co
   const { inviteToken, inviteCode } = await requireOwner(tripId, userId)
   if (inviteToken && inviteCode) return { token: inviteToken, code: inviteCode }
 
-  return persistInviteWithFreshCode(tripId, userId, inviteToken ?? crypto.randomUUID())
+  try {
+    return await persistInviteWithFreshCode(tripId, userId, inviteToken ?? crypto.randomUUID())
+  } catch (error) {
+    if ((error as Error).message !== 'INVITE_CODE_NOT_MIGRATED') throw error
+    throw new Error('INVITE_CODE_REQUIRES_MIGRATION')
+  }
 }
 
 export async function rotateInvite(tripId: string): Promise<{ token: string; code: string }> {
@@ -145,7 +177,12 @@ export async function rotateInvite(tripId: string): Promise<{ token: string; cod
   await requireOwner(tripId, userId)
 
   const token = crypto.randomUUID()
-  return persistInviteWithFreshCode(tripId, userId, token)
+  try {
+    return await persistInviteWithFreshCode(tripId, userId, token)
+  } catch (error) {
+    if ((error as Error).message !== 'INVITE_CODE_NOT_MIGRATED') throw error
+    throw new Error('INVITE_CODE_REQUIRES_MIGRATION')
+  }
 }
 
 export async function listMembers(tripId: string): Promise<TripMember[]> {
