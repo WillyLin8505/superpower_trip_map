@@ -45,6 +45,7 @@ No active locks.
 - SPEC: Bottom Add-Day Flow — TASK-015
 - SPEC: README Onboarding — TASK-016
 - SPEC: LINE Group Candidate Ingest — TASK-021
+- SPEC: Archive & Tabbed Panel — TASK-022
 
 ## Conflicts
 
@@ -61,6 +62,8 @@ No active locks.
 - TASK-010 <> TASK-015: both modify `app/itinerary/ItineraryClient.tsx`.
 - TASK-011 <> TASK-012: both modify itinerary/recommendation card surfaces.
 - TASK-014 <> TASK-015: same day-count/add-day control area; run sequentially.
+- TASK-022 <> TASK-011: both modify itinerary/recommendation card internals (archive button vs photo layout).
+- TASK-022 <> TASK-012: light — both add a button to the same card components (`ItineraryCard`/`RecommendationCard`/`CandidatePanel`); no layout clash since TASK-012 is now just an external Google Maps link.
 
 ## Un Spec
 
@@ -301,27 +304,27 @@ No active locks.
 - Safe to assign to any session: no
 - Notes: Done 2026-07-12 in worktree `superpowers_food_map-task011`, branch `codex/task-011-place-photos`. Added `photoUrls?: string[]`, Google photo mapping up to five photos, reusable `PhotoStrip`/`PhotoLightbox`, fixed-position lightbox arrows, and card integrations with click-to-enlarge behavior. Review status `not_reviewed`.
 
-## TASK-012 - Implement Google Maps right-side place drawer
+## TASK-012 - Open place in Google Maps (new tab)
 
 - Task type: frontend
 - Status: todo
-- Priority: medium
-- Spec: `docs/superpowers/specs/2026-07-10-place-drawer-design.md`
-- Estimated scope: medium
+- Priority: low
+- Spec: `docs/superpowers/specs/2026-07-12-open-place-in-google-maps-design.md`
+- Estimated scope: small
 - Files likely to change:
-  - `components/ItineraryCard.tsx`
+  - `lib/utils/mapUrl.ts` (`buildPlaceMapsUrl`)
+  - `components/ItineraryCard.tsx` / `components/CardContent.tsx`
   - `components/RecommendationCard.tsx`
-  - possibly new `components/MapPlaceDrawer.tsx`
-  - `app/itinerary/ItineraryClient.tsx`
-  - drawer/card tests
-- Dependencies: TASK-003, TASK-008
+  - `components/CandidatePanel.tsx`
+  - `__tests__/map-url.test.ts`, card tests
+- Dependencies: none
 - Blocking tasks: none
-- Conflict risk: high
-- Can run in parallel: no
-- Required review: GStack review/challenge after implementation
+- Conflict risk: low
+- Can run in parallel: yes
+- Required review: GStack review if non-trivial
 - Suggested session count: 1
-- Safe to assign to any session: no
-- Notes: Conflicts with card duration and photo tasks because all touch card components.
+- Safe to assign to any session: yes
+- Notes: REDEFINED 2026-07-12: was "right-side place drawer" (spec never written — dangling ref). User changed it to "click a card → open Google Maps search for that place in a new tab" (external `maps.google.com` URL via `place_id`; no API key, no cost, no in-app drawer). This removes the layout overlap with TASK-022 (the 3-tab side panel now owns the right column). Only a light conflict with TASK-022 remains: both add a button to the same card components.
 
 ## TASK-013 - Improve admin source management
 
@@ -504,3 +507,28 @@ No active locks.
 - Suggested session count: 1
 - Safe to assign to any session: yes
 - Notes: Merged into the registry 2026-07-08 by Manager from a previously un-tracked draft. Previous `in_progress` claim was stale; no active session owns this task. LINE bot ingests group-shared places / Google Maps links / article URLs into C3 `trip_candidates` after a group is bound to a trip.
+
+## TASK-022 - Archive parking-lot + 3-tab side panel + map relayout
+
+- Task type: frontend
+- Status: todo
+- Priority: medium
+- Spec: `docs/superpowers/specs/2026-07-12-archive-and-tabbed-panel-design.md`
+- Dependencies: C5 `trip_candidates` (done, on main)
+- Estimated scope: large
+- Files likely to change:
+  - `supabase/migrations/0006_archive_list.sql`
+  - `lib/types.ts` (`TripCandidate.list`)
+  - `app/actions/candidates.ts` (or new `app/actions/archive.ts`): `archivePlace` / `listArchived` / `unarchivePlace`
+  - `lib/candidates.ts`
+  - `components/ItineraryCard.tsx`, `components/RecommendationCard.tsx`, `components/CandidatePanel.tsx` (archive button)
+  - new `components/SidePanel.tsx` (3-tab: 推薦 / LINE 討論 / 封存)
+  - `components/ItineraryDay.tsx` (map below AI summary; side panel same height)
+  - `app/itinerary/ItineraryClient.tsx` (archive/unarchive handlers)
+  - `__tests__/archive-actions.test.ts`, `__tests__/card-archive-button.test.tsx`, `__tests__/side-panel.test.tsx`, `__tests__/itinerary-day-layout.test.tsx`
+- Conflict risk: high (shares card + itinerary-day layout with TASK-011/TASK-012)
+- Can run in parallel: no
+- Required review: GStack review/challenge after implementation
+- Suggested session count: 1
+- Safe to assign to any session: yes (spec/plan complete)
+- Notes: Spec/plan via `$multi-auto-spec` 2026-07-12. Decisions DEC-501..DEC-506. Plan: `docs/superpowers/plans/2026-07-12-archive-and-tabbed-panel.md`. Archive = per-trip parking-lot reusing `trip_candidates` + a `list` column (`candidate`/`archived`); place-level, re-addable. Do not run concurrently with TASK-011/TASK-012 (shared card/layout surfaces).
