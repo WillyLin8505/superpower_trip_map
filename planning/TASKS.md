@@ -29,7 +29,16 @@ Implementation task invariant: if `Task type` is `frontend` or `backend`, and `S
 
 ## Locked Files
 
-No active locks.
+- `supabase/migrations/0006_archive_list.sql` — TASK-022, claimed 2026-07-12.
+- `lib/types.ts` — TASK-022, claimed 2026-07-12.
+- `app/actions/candidates.ts` — TASK-022, claimed 2026-07-12.
+- `lib/candidates.ts` — TASK-022, claimed 2026-07-12.
+- `components/ItineraryCard.tsx` — TASK-022, claimed 2026-07-12.
+- `components/RecommendationCard.tsx` — TASK-022, claimed 2026-07-12.
+- `components/CandidatePanel.tsx` — TASK-022, claimed 2026-07-12.
+- `components/SidePanel.tsx` — TASK-022, claimed 2026-07-12.
+- `components/ItineraryDay.tsx` — TASK-022, claimed 2026-07-12.
+- `app/itinerary/ItineraryClient.tsx` — TASK-022, claimed 2026-07-12.
 
 
 ## Spec Trees
@@ -511,7 +520,7 @@ No active locks.
 ## TASK-022 - Archive parking-lot + 3-tab side panel + map relayout
 
 - Task type: frontend
-- Status: todo
+- Status: in_progress
 - Priority: medium
 - Spec: `docs/superpowers/specs/2026-07-12-archive-and-tabbed-panel-design.md`
 - Dependencies: C5 `trip_candidates` (done, on main)

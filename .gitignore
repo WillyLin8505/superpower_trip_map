@@ -40,6 +40,10 @@ next-env.d.ts
 
 # tooling / test artifacts (not source)
 .codex/
+.codex-backups/
+.agents/
 .mcp.json
 /test-results/
 .gstack/
+skills-lock.json
+supabase/.temp/
