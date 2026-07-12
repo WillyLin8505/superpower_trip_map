@@ -37,3 +37,10 @@ export function buildDayEmbedUrl(
     `&mode=${EMBED_MODE[mode]}`
   )
 }
+
+// Official Maps URLs (api=1) — no API key required, not billed.
+export function buildPlaceMapsUrl(place: { name: string; placeId?: string | null; address?: string }): string {
+  const params = new URLSearchParams({ api: '1', query: place.name || place.address || '' })
+  if (place.placeId) params.set('query_place_id', place.placeId)
+  return `https://www.google.com/maps/search/?${params.toString()}`
+}

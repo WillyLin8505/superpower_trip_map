@@ -3,6 +3,7 @@ import type { DayRecommendation } from '@/lib/types'
 import { getHoursForDate } from '@/lib/utils/hours'
 import { TYPE_META } from '@/lib/placeType'
 import { PhotoStrip } from './PhotoStrip'
+import { buildPlaceMapsUrl } from '@/lib/utils/mapUrl'
 
 interface Props {
   rec: DayRecommendation
@@ -28,6 +29,15 @@ export function RecommendationCard({ rec, dateIso, onAdd, onArchive }: Props) {
         >
           &#x2190;
         </button>
+        <a
+          href={buildPlaceMapsUrl(rec)}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="在 Google Maps 開啟"
+          className="shrink-0 mt-0.5 text-gray-300 hover:text-clay-deep transition-colors leading-none"
+        >
+          &#x1F5FA;&#xFE0F;
+        </a>
         {onArchive && (
           <button
             type="button"

@@ -48,3 +48,11 @@ it('no longer renders the day-picker promote control (superseded by per-day ← 
   expect(screen.queryByRole('button', { name: '放進' })).not.toBeInTheDocument()
   expect(screen.queryByLabelText(/放進第幾天/)).not.toBeInTheDocument()
 })
+
+it('shows a link to open the candidate place in Google Maps', () => {
+  render(<CandidatePanel candidates={[cand('c1', '台北101')]} onAddPlace={noop} onAddPlaces={noop} onRemove={noop} />)
+  const link = screen.getByRole('link', { name: '在 Google Maps 開啟' })
+  expect(link).toHaveAttribute('href', expect.stringContaining('query_place_id=c1'))
+  expect(link).toHaveAttribute('target', '_blank')
+  expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'))
+})

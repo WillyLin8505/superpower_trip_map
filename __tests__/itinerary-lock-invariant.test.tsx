@@ -63,7 +63,7 @@ jest.mock('@/lib/utils/dragContainers', () => ({
 }))
 
 jest.mock('@/lib/utils/mapUrl', () => ({
-  buildDayEmbedUrl: jest.fn(() => null),
+  buildDayEmbedUrl: jest.fn(() => null), buildPlaceMapsUrl: jest.fn(() => 'https://maps.google.com/maps/search/?api=1&query=test'),
 }))
 
 jest.mock('@/lib/utils/hours', () => ({

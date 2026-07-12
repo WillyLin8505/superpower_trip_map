@@ -1,6 +1,7 @@
 'use client'
 import type { Candidate, Place } from '@/lib/types'
 import { CombinedInput } from '@/components/CombinedInput'
+import { buildPlaceMapsUrl } from '@/lib/utils/mapUrl'
 
 interface CandidatePanelProps {
   candidates: Candidate[]
@@ -33,6 +34,13 @@ export function CandidatePanel({ candidates, onAddPlace, onAddPlaces, onRemove, 
                   加入本天
                 </button>
               )}
+              <a
+                href={buildPlaceMapsUrl(c.place)}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="在 Google Maps 開啟"
+                className="text-muted hover:text-clay-deep"
+              >&#x1F5FA;&#xFE0F;</a>
               {onArchive && (
                 <button onClick={() => onArchive(c.id)} className="text-muted hover:text-clay-deep">封存</button>
               )}

@@ -44,7 +44,7 @@ jest.mock('@dnd-kit/sortable', () => ({
 jest.mock('@dnd-kit/utilities', () => ({ CSS: { Transform: { toString: () => '' } } }))
 jest.mock('@/lib/utils/geo', () => ({ findClosestDay: jest.fn(() => 0) }))
 jest.mock('@/lib/utils/dragContainers', () => ({ applyDragResult: jest.fn(), findContainer: jest.fn(() => -1) }))
-jest.mock('@/lib/utils/mapUrl', () => ({ buildDayEmbedUrl: jest.fn(() => null) }))
+jest.mock('@/lib/utils/mapUrl', () => ({ buildDayEmbedUrl: jest.fn(() => null), buildPlaceMapsUrl: jest.fn(() => 'https://maps.google.com/maps/search/?api=1&query=test'), }))
 jest.mock('@/lib/utils/hours', () => ({
   getHoursForDate: jest.fn(() => null), checkOutsideHours: jest.fn(() => false), checkLateExit: jest.fn(() => false),
 }))

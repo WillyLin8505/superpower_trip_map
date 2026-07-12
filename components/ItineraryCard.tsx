@@ -7,6 +7,7 @@ import { PhotoStrip } from './PhotoStrip'
 import { getHoursForDate } from '@/lib/utils/hours'
 import { addMinutes } from '@/lib/utils/time'
 import { resolveLocalizedText } from '@/lib/utils/localizedPlace'
+import { buildPlaceMapsUrl } from '@/lib/utils/mapUrl'
 import type { PlaceType, ScheduledPlace, TransportMode } from '@/lib/types'
 import { SUGGESTED_DURATION, TYPE_META } from '@/lib/placeType'
 import { effectivePinned, isDerived } from '@/lib/utils/lockDerive'
@@ -65,6 +66,13 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
       data-testid={`card-${place.id}`}
     >
       <div className="flex items-start gap-3">
+        <a
+          href={buildPlaceMapsUrl(place)}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="在 Google Maps 開啟"
+          className="text-gray-300 hover:text-clay-deep transition-colors mt-1 shrink-0 leading-none"
+        >&#x1F5FA;&#xFE0F;</a>
         {onArchive && (
           <button
             type="button"

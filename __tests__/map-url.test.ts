@@ -1,4 +1,4 @@
-import { buildDayEmbedUrl } from '@/lib/utils/mapUrl'
+import { buildDayEmbedUrl, buildPlaceMapsUrl } from '@/lib/utils/mapUrl'
 import type { ScheduledPlace } from '@/lib/types'
 
 process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY = 'TEST_KEY'
@@ -50,4 +50,30 @@ test('maps transit mode correctly', () => {
     'transit'
   )
   expect(url).toContain('mode=transit')
+})
+
+// --- TASK-012: buildPlaceMapsUrl ---
+describe('buildPlaceMapsUrl', () => {
+  test('includes query_place_id when placeId is present', () => {
+    const url = buildPlaceMapsUrl({ name: '台北101', placeId: 'ChIJ-abc123', address: '台北市信義區' })
+    expect(url).toContain('https://www.google.com/maps/search/?')
+    expect(url).toContain('query=%E5%8F%B0%E5%8C%97101')
+    expect(url).toContain('query_place_id=ChIJ-abc123')
+  })
+
+  test('falls back to name when placeId is missing', () => {
+    const url = buildPlaceMapsUrl({ name: '鼎泰豐', placeId: null, address: '台北市' })
+    expect(url).toContain('query=%E9%BC%8E%E6%B3%B0%E8%B1%90')
+    expect(url).not.toContain('query_place_id')
+  })
+
+  test('falls back to address when name is empty', () => {
+    const url = buildPlaceMapsUrl({ name: '', placeId: undefined, address: '台北市中正區' })
+    expect(url).toContain(`query=${encodeURIComponent('台北市中正區')}`)
+  })
+
+  test('uses official api=1 Maps URL format', () => {
+    const url = buildPlaceMapsUrl({ name: 'Place', placeId: 'p1', address: '' })
+    expect(url).toContain('api=1')
+  })
 })
