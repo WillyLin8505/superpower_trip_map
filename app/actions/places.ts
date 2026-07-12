@@ -4,40 +4,61 @@ import { randomUUID } from 'crypto'
 
 const KEY = process.env.GOOGLE_MAPS_API_KEY!
 const BASE = 'https://maps.googleapis.com/maps/api/place'
+const DETAILS_FIELDS = [
+  'place_id', 'name', 'geometry', 'formatted_address',
+  'opening_hours', 'rating', 'photos', 'editorial_summary',
+].join(',')
 
-export async function getPlaceDetails(placeId: string): Promise<Place | null> {
-  const fields = [
-    'place_id', 'name', 'geometry', 'formatted_address',
-    'opening_hours', 'rating', 'photos', 'editorial_summary',
-  ].join(',')
-  const url = `${BASE}/details/json?place_id=${placeId}&fields=${fields}&key=${KEY}&language=zh-TW`
+function hasHanText(value: string | null | undefined): boolean {
+  return /[\u3400-\u9fff]/.test(value ?? '')
+}
+
+async function fetchPlaceDetails(placeId: string, language: 'zh-TW' | 'en') {
+  const url = `${BASE}/details/json?place_id=${placeId}&fields=${DETAILS_FIELDS}&key=${KEY}&language=${language}`
   const res = await fetch(url, { next: { revalidate: 3600 } })
   const data = await res.json()
-  if (data.status !== 'OK') return null
-  const r = data.result
+  return data.status === 'OK' ? data.result : null
+}
+
+export async function getPlaceDetails(placeId: string): Promise<Place | null> {
+  const zhResult = await fetchPlaceDetails(placeId, 'zh-TW')
+  if (!zhResult) return null
+
+  const zhName = hasHanText(zhResult.name) ? zhResult.name : null
+  const zhAddress = hasHanText(zhResult.formatted_address) ? zhResult.formatted_address : null
+  const needsEnglish = !zhName || !zhAddress
+  const enResult = needsEnglish ? await fetchPlaceDetails(placeId, 'en') : null
+  const enName = enResult?.name && enResult.name !== zhResult.name ? enResult.name : null
+  const enAddress = enResult?.formatted_address && enResult.formatted_address !== zhResult.formatted_address
+    ? enResult.formatted_address
+    : null
+  const displayName = zhName ?? enName ?? zhResult.name
+  const displayAddress = zhAddress ?? enAddress ?? zhResult.formatted_address ?? ''
 
   return {
     id: randomUUID(),
     placeId,
-    name: r.name,
+    name: displayName,
     localizedName: {
-      zhTw: r.name ?? null,
-      original: r.name ?? null,
+      zhTw: zhName,
+      ...(enName ? { en: enName } : {}),
+      original: zhResult.name ?? null,
     },
     type: 'attraction',  // caller sets the correct type
-    lat: r.geometry.location.lat,
-    lng: r.geometry.location.lng,
-    address: r.formatted_address ?? '',
+    lat: zhResult.geometry.location.lat,
+    lng: zhResult.geometry.location.lng,
+    address: displayAddress,
     localizedAddress: {
-      zhTw: r.formatted_address ?? null,
-      original: r.formatted_address ?? null,
+      zhTw: zhAddress,
+      ...(enAddress ? { en: enAddress } : {}),
+      original: zhResult.formatted_address ?? null,
     },
-    openingHours: r.opening_hours?.weekday_text ?? null,
-    rating: r.rating ?? null,
-    photoUrl: r.photos?.[0]
-      ? `/api/photo?ref=${r.photos[0].photo_reference}`
+    openingHours: zhResult.opening_hours?.weekday_text ?? null,
+    rating: zhResult.rating ?? null,
+    photoUrl: zhResult.photos?.[0]
+      ? `/api/photo?ref=${zhResult.photos[0].photo_reference}`
       : null,
-    description: r.editorial_summary?.overview ?? null,
+    description: zhResult.editorial_summary?.overview ?? null,
   }
 }
 
