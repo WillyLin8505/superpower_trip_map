@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 
 // LINE 在 Supabase 為自訂 OIDC provider;此 slug 需與 Dashboard 設定一致(見 plan Task 0)。
-const LINE_PROVIDER = 'line' as const
+const LINE_PROVIDER = 'custom:line' as const
 
 function LoginForm() {
   const searchParams = useSearchParams()

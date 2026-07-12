@@ -37,12 +37,12 @@ it('Google button calls signInWithOAuth with provider google and redirectTo cont
   )
 })
 
-it('LINE button calls signInWithOAuth with provider line', () => {
+it('LINE button calls signInWithOAuth with provider custom:line', () => {
   const LoginPage = require('@/app/login/page').default
   render(<LoginPage />)
   fireEvent.click(screen.getByRole('button', { name: '使用 LINE 登入' }))
   expect(signInWithOAuth).toHaveBeenCalledWith(
-    expect.objectContaining({ provider: 'line' }),
+    expect.objectContaining({ provider: 'custom:line' }),
   )
 })
 
