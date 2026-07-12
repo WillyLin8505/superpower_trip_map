@@ -2,7 +2,7 @@
 
 Date: 2026-07-10
 Status: approved-for-planning
-Related task: TASK-011 - Implement four Google photos per place and lightbox
+Related task: TASK-011 - Implement five Google photos per place and lightbox
 
 ## Product Discovery
 
@@ -12,7 +12,7 @@ Itinerary and recommendation cards currently show text-first place information. 
 
 ### Narrowest Useful Wedge
 
-Show up to four Google Place photos for each place on itinerary cards and recommendation cards. Tapping any photo opens an in-app lightbox where the user can view the larger image and move between the available photos.
+Show up to five Google Place photos for each place on itinerary cards and recommendation cards. Tapping any photo opens an in-app lightbox where the user can view the larger image and move between the available photos.
 
 ### Target User
 
@@ -20,7 +20,7 @@ Trip planners building a multi-day itinerary who need quick visual confidence wh
 
 ### Success Criteria
 
-- Place and recommendation cards can render up to four photos when Google returns them.
+- Place and recommendation cards can render up to five photos when Google returns them.
 - Existing single-photo data remains backward compatible.
 - Clicking a thumbnail opens a lightbox without navigating away from the page.
 - The lightbox supports next/previous navigation, close button, Escape key, and backdrop click.
@@ -39,9 +39,9 @@ Trip planners building a multi-day itinerary who need quick visual confidence wh
 
 1. Additive data model: add `photoUrls?: string[]` to `Place`; keep `photoUrl: string | null` for compatibility.
 2. Google photo references are converted to proxy URLs, not raw references, using `/api/photo?ref=...`.
-3. Normalize to a maximum of four photos at the data boundary in `app/actions/places.ts`.
+3. Normalize to a maximum of five photos at the data boundary in `app/actions/places.ts`.
 4. Render a thumbnail strip only when at least one URL exists.
-5. The first thumbnail is visually dominant enough to read as the primary image, but all four images are available.
+5. The first thumbnail is visually dominant enough to read as the primary image, but all five images are available.
 6. Lightbox state stays local to each card component; no global itinerary state is required.
 7. Missing or broken images should not block itinerary editing. Use normal browser image fallback behavior and keep text visible.
 
@@ -68,7 +68,7 @@ Create a small helper in `app/actions/places.ts` or a nearby utility:
 ```ts
 function mapPhotoUrls(photos?: Array<{ photo_reference: string }>): string[] {
   return (photos ?? [])
-    .slice(0, 4)
+    .slice(0, 5)
     .map((photo) => `/api/photo?ref=${encodeURIComponent(photo.photo_reference)}`)
 }
 ```
@@ -89,7 +89,8 @@ Create `components/PhotoStrip.tsx`:
 
 - Props: `photos: string[]`, `placeName: string`, optional `className`.
 - Renders nothing when `photos.length === 0`.
-- Shows up to four clickable thumbnail buttons.
+- Shows up to five clickable thumbnail buttons.
+- Keeps lightbox previous/next arrows fixed to stable viewport positions so they do not shift when the displayed photo changes size.
 - Uses `alt` text like `${placeName} photo ${index + 1}`.
 - Uses `data-testid="photo-thumb-${index}"` for focused tests.
 - Opens `PhotoLightbox` with the selected index.
@@ -142,7 +143,7 @@ In `components/RecommendationCard.tsx`:
 
 Update `__tests__/nearby-search.test.ts` and add/extend tests for `getPlaceDetails` behavior:
 
-- Multiple Google photos map to `photoUrls` with max four URLs.
+- Multiple Google photos map to `photoUrls` with max five URLs.
 - `photoUrl` equals the first `photoUrls` entry.
 - Empty/missing photos produce `photoUrl: null` and `photoUrls: []` or no photos depending implementation choice.
 
@@ -156,7 +157,8 @@ Update or add:
 
 Assertions:
 
-- Cards render four thumbnails when `photoUrls` has four entries.
+- Cards render five thumbnails when `photoUrls` has five entries.
+- Lightbox previous/next arrows keep the same viewport position while navigating between photos.
 - Cards fall back to one thumbnail when only `photoUrl` exists.
 - Clicking a thumbnail opens the lightbox with the selected image.
 - Close button and Escape close the lightbox.
@@ -177,7 +179,7 @@ Assertions:
 ## Acceptance Criteria
 
 - `Place` supports optional `photoUrls?: string[]`.
-- `getPlaceDetails` and `nearbySearch` map up to four Google photos.
+- `getPlaceDetails` and `nearbySearch` map up to five Google photos.
 - Itinerary and recommendation cards show photo thumbnails when available.
 - Lightbox opens from thumbnails and supports close, Escape, previous, and next.
 - No empty photo UI appears for places without photos.

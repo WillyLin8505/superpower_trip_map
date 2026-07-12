@@ -52,17 +52,19 @@ export function PhotoLightbox({ photos, placeName, initialIndex, onClose }: Prop
           <>
             <button
               type="button"
+              data-testid="photo-prev"
               aria-label="上一張照片"
               onClick={goPrevious}
-              className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-3 py-2 text-xl text-gray-800 shadow"
+              className="fixed left-4 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-3 py-2 text-xl text-gray-800 shadow"
             >
               ‹
             </button>
             <button
               type="button"
+              data-testid="photo-next"
               aria-label="下一張照片"
               onClick={goNext}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-3 py-2 text-xl text-gray-800 shadow"
+              className="fixed right-4 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-3 py-2 text-xl text-gray-800 shadow"
             >
               ›
             </button>

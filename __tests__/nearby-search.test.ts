@@ -36,7 +36,7 @@ describe('nearbySearch', () => {
     expect(await nearbySearch(25.0, 121.5, 'restaurant')).toEqual([])
   })
 
-  it('maps up to four Google photos while preserving photoUrl compatibility', async () => {
+  it('maps up to five Google photos while preserving photoUrl compatibility', async () => {
     mockFetch({
       status: 'OK',
       results: [
@@ -52,6 +52,7 @@ describe('nearbySearch', () => {
             { photo_reference: 'ref3' },
             { photo_reference: 'ref4' },
             { photo_reference: 'ref5' },
+            { photo_reference: 'ref6' },
           ],
         },
       ],
@@ -65,6 +66,7 @@ describe('nearbySearch', () => {
       '/api/photo?ref=ref2',
       '/api/photo?ref=ref3',
       '/api/photo?ref=ref4',
+      '/api/photo?ref=ref5',
     ])
   })
 

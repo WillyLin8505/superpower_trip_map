@@ -7,7 +7,7 @@ const BASE = 'https://maps.googleapis.com/maps/api/place'
 
 function mapPhotoUrls(photos?: Array<{ photo_reference: string }>): string[] {
   return (photos ?? [])
-    .slice(0, 4)
+    .slice(0, 5)
     .map((photo) => `/api/photo?ref=${encodeURIComponent(photo.photo_reference)}`)
 }
 

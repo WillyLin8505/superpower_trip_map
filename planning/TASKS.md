@@ -277,7 +277,7 @@ No active locks.
 - Safe to assign to any session: no
 - Notes: High-conflict recommendation pipeline and itinerary client work.
 
-## TASK-011 - Implement four Google photos per place and lightbox
+## TASK-011 - Implement five Google photos per place and lightbox
 
 - Task type: frontend
 - Status: done
@@ -299,7 +299,7 @@ No active locks.
 - Required review: GStack review/challenge after implementation
 - Suggested session count: 1
 - Safe to assign to any session: no
-- Notes: Done 2026-07-12 in worktree `superpowers_food_map-task011`, branch `codex/task-011-place-photos`. Added `photoUrls?: string[]`, Google photo mapping up to four photos, reusable `PhotoStrip`/`PhotoLightbox`, and card integrations with click-to-enlarge behavior. Review status `not_reviewed`.
+- Notes: Done 2026-07-12 in worktree `superpowers_food_map-task011`, branch `codex/task-011-place-photos`. Added `photoUrls?: string[]`, Google photo mapping up to five photos, reusable `PhotoStrip`/`PhotoLightbox`, fixed-position lightbox arrows, and card integrations with click-to-enlarge behavior. Review status `not_reviewed`.
 
 ## TASK-012 - Implement Google Maps right-side place drawer
 

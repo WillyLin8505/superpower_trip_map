@@ -7,14 +7,14 @@ Implementation plan: `docs/superpowers/plans/2026-07-10-place-photos-lightbox.md
 
 ## Objective
 
-Implement up to four Google photos per place and an in-app lightbox for itinerary and recommendation cards without changing scheduling, lock, drag, or recommendation-center behavior.
+Implement up to five Google photos per place and an in-app lightbox for itinerary and recommendation cards without changing scheduling, lock, drag, or recommendation-center behavior.
 
 ## Scope
 
 In scope:
 
 - Add optional `Place.photoUrls?: string[]`.
-- Map up to four Google Places photos in `getPlaceDetails` and `nearbySearch`.
+- Map up to five Google Places photos in `getPlaceDetails` and `nearbySearch`.
 - Keep `photoUrl` as first-photo compatibility field.
 - Add `PhotoStrip` and `PhotoLightbox` client components.
 - Render photos in `ItineraryCard` and `RecommendationCard`.
@@ -29,7 +29,7 @@ Out of scope:
 
 ## Worker Task
 
-### TASK-011 - Implement four Google photos per place and lightbox
+### TASK-011 - Implement five Google photos per place and lightbox
 
 - Task type: frontend
 - Status: todo

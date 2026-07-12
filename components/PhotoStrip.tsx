@@ -9,7 +9,7 @@ interface Props {
 }
 
 export function PhotoStrip({ photos, placeName, className = '' }: Props) {
-  const visiblePhotos = photos.slice(0, 4)
+  const visiblePhotos = photos.slice(0, 5)
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
 
   if (visiblePhotos.length === 0) return null

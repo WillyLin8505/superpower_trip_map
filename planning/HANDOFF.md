@@ -109,12 +109,12 @@ Required fields:
 - Risks / notes: built in worktree `claude_lane_a`, branch `task-015-bottom-add-day`, off current `origin/main` (includes TASK-014's merged commit `6815eb5`). Manual diff review confirmed zero lines touched in existing handlers (`handleChangeEndDate`, `handleDeleteDay`, `handleScatterDay`, overCount banner). Pushed and opened PR #12: https://github.com/WillyLin8505/superpower_trip_map/pull/12. Not yet merged — Manager merge decision pending.
 - Manager decisions needed: review/merge PR #12.
 
-### TASK-011 - Implement four Google photos per place and lightbox
+### TASK-011 - Implement five Google photos per place and lightbox
 
 - Owner: superpowers_food_map-task011
 - Status: done
 - Review Status: not_reviewed
-- Completed: Added optional `photoUrls?: string[]`, mapped up to four Google photo references in `getPlaceDetails` and `nearbySearch`, preserved `photoUrl` compatibility, added reusable `PhotoStrip` and `PhotoLightbox`, and integrated click-to-enlarge photo UI into itinerary and recommendation cards.
+- Completed: Added optional `photoUrls?: string[]`, mapped up to five Google photo references in `getPlaceDetails` and `nearbySearch`, preserved `photoUrl` compatibility, added reusable `PhotoStrip` and `PhotoLightbox`, fixed previous/next arrows to stable viewport positions, and integrated click-to-enlarge photo UI into itinerary and recommendation cards.
 - Modified files: `lib/types.ts`, `app/actions/places.ts`, `components/PhotoLightbox.tsx`, `components/PhotoStrip.tsx`, `components/ItineraryCard.tsx`, `components/RecommendationCard.tsx`, `__tests__/nearby-search.test.ts`, `__tests__/places-details.test.ts`, `__tests__/photo-strip.test.tsx`, `__tests__/itinerary-card-photos.test.tsx`, `__tests__/recommendation-card-photos.test.tsx`.
 - Tests: RED confirmed with `npm test -- __tests__/nearby-search.test.ts __tests__/places-details.test.ts __tests__/photo-strip.test.tsx __tests__/itinerary-card-photos.test.tsx __tests__/recommendation-card-photos.test.tsx --runInBand` failing for missing `photoUrls`, missing `PhotoStrip`, and missing card thumbnails. GREEN verified with `npm test -- __tests__/nearby-search.test.ts __tests__/places-details.test.ts __tests__/photo-strip.test.tsx __tests__/itinerary-card-photos.test.tsx __tests__/recommendation-card-photos.test.tsx __tests__/photo-route.test.ts __tests__/itinerary-card-info.test.tsx __tests__/recommendation-card.test.tsx --runInBand`: 8 suites, 27 tests passed. `git diff --check` passed with CRLF warnings only. `npx tsc --noEmit` was run and failed on unrelated pre-existing test type errors in line/member/trip test files, not TASK-011 files.
 - Remaining work: none for TASK-011 implementation.

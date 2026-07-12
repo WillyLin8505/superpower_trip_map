@@ -33,4 +33,29 @@ describe('PhotoStrip', () => {
 
     expect(screen.getByAltText('Avoccino 照片 2')).toHaveAttribute('src', '/api/photo?ref=two')
   })
+  it('renders five thumbnails and keeps lightbox arrows fixed on the viewport', () => {
+    render(
+      <PhotoStrip
+        placeName="Avoccino"
+        photos={[
+          '/api/photo?ref=one',
+          '/api/photo?ref=two',
+          '/api/photo?ref=three',
+          '/api/photo?ref=four',
+          '/api/photo?ref=five',
+          '/api/photo?ref=six',
+        ]}
+      />
+    )
+
+    expect(screen.getByTestId('photo-thumb-4')).toBeInTheDocument()
+    expect(screen.queryByTestId('photo-thumb-5')).toBeNull()
+
+    fireEvent.click(screen.getByTestId('photo-thumb-0'))
+
+    expect(screen.getByTestId('photo-prev')).toHaveClass('fixed')
+    expect(screen.getByTestId('photo-prev')).toHaveClass('left-4')
+    expect(screen.getByTestId('photo-next')).toHaveClass('fixed')
+    expect(screen.getByTestId('photo-next')).toHaveClass('right-4')
+  })
 })

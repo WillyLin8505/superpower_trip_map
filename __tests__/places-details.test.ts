@@ -7,7 +7,7 @@ describe('getPlaceDetails', () => {
     global.fetch = realFetch
   })
 
-  it('maps up to four Google details photos while preserving photoUrl compatibility', async () => {
+  it('maps up to five Google details photos while preserving photoUrl compatibility', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       json: async () => ({
         status: 'OK',
@@ -24,6 +24,7 @@ describe('getPlaceDetails', () => {
             { photo_reference: 'detail-ref-3' },
             { photo_reference: 'detail-ref-4' },
             { photo_reference: 'detail-ref-5' },
+            { photo_reference: 'detail-ref-6' },
           ],
           editorial_summary: { overview: 'Coffee shop' },
         },
@@ -38,6 +39,7 @@ describe('getPlaceDetails', () => {
       '/api/photo?ref=detail-ref-2',
       '/api/photo?ref=detail-ref-3',
       '/api/photo?ref=detail-ref-4',
+      '/api/photo?ref=detail-ref-5',
     ])
   })
 })
