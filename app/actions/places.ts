@@ -5,6 +5,12 @@ import { randomUUID } from 'crypto'
 const KEY = process.env.GOOGLE_MAPS_API_KEY!
 const BASE = 'https://maps.googleapis.com/maps/api/place'
 
+function mapPhotoUrls(photos?: Array<{ photo_reference: string }>): string[] {
+  return (photos ?? [])
+    .slice(0, 4)
+    .map((photo) => `/api/photo?ref=${encodeURIComponent(photo.photo_reference)}`)
+}
+
 export async function getPlaceDetails(placeId: string): Promise<Place | null> {
   const fields = [
     'place_id', 'name', 'geometry', 'formatted_address',
@@ -15,6 +21,7 @@ export async function getPlaceDetails(placeId: string): Promise<Place | null> {
   const data = await res.json()
   if (data.status !== 'OK') return null
   const r = data.result
+  const photoUrls = mapPhotoUrls(r.photos)
 
   return {
     id: randomUUID(),
@@ -34,9 +41,8 @@ export async function getPlaceDetails(placeId: string): Promise<Place | null> {
     },
     openingHours: r.opening_hours?.weekday_text ?? null,
     rating: r.rating ?? null,
-    photoUrl: r.photos?.[0]
-      ? `/api/photo?ref=${r.photos[0].photo_reference}`
-      : null,
+    photoUrl: photoUrls[0] ?? null,
+    photoUrls,
     description: r.editorial_summary?.overview ?? null,
   }
 }
@@ -104,18 +110,22 @@ export async function nearbySearch(
   if (data.status !== 'OK' || !Array.isArray(data.results)) return []
 
   return (data.results as NearbyPlaceResult[]).map(
-    (r): Place => ({
-      id: randomUUID(),
-      placeId: r.place_id,
-      name: r.name,
-      type: placeType,
-      lat: r.geometry?.location?.lat ?? lat,
-      lng: r.geometry?.location?.lng ?? lng,
-      address: r.vicinity ?? '',
-      openingHours: null,
-      rating: r.rating ?? null,
-      photoUrl: r.photos?.[0] ? `/api/photo?ref=${r.photos[0].photo_reference}` : null,
-      description: null,
-    })
+    (r): Place => {
+      const photoUrls = mapPhotoUrls(r.photos)
+      return {
+        id: randomUUID(),
+        placeId: r.place_id,
+        name: r.name,
+        type: placeType,
+        lat: r.geometry?.location?.lat ?? lat,
+        lng: r.geometry?.location?.lng ?? lng,
+        address: r.vicinity ?? '',
+        openingHours: null,
+        rating: r.rating ?? null,
+        photoUrl: photoUrls[0] ?? null,
+        photoUrls,
+        description: null,
+      }
+    }
   )
 }

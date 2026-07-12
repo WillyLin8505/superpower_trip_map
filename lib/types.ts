@@ -22,6 +22,7 @@ export interface Place {
   openingHours: string[] | null   // e.g. ["Monday: 9:00 AM – 5:00 PM", ...]
   rating: number | null
   photoUrl: string | null
+  photoUrls?: string[]
   description: string | null   // from Google editorial_summary.overview; null if unavailable
   nightIndex?: number          // 住宿夜次（1-indexed），僅 accommodation
 }

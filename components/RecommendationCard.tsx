@@ -2,6 +2,7 @@
 import type { DayRecommendation } from '@/lib/types'
 import { getHoursForDate } from '@/lib/utils/hours'
 import { TYPE_META } from '@/lib/placeType'
+import { PhotoStrip } from './PhotoStrip'
 
 interface Props {
   rec: DayRecommendation
@@ -12,6 +13,7 @@ interface Props {
 export function RecommendationCard({ rec, dateIso, onAdd }: Props) {
   const meta = TYPE_META[rec.type]
   const todayHours = getHoursForDate(rec.openingHours, dateIso)
+  const photos = rec.photoUrls?.length ? rec.photoUrls : rec.photoUrl ? [rec.photoUrl] : []
 
   return (
     <div className={`border border-border rounded-xl p-3 ${meta.cardBg}`} data-testid={`rec-${rec.placeId}`}>
@@ -32,6 +34,7 @@ export function RecommendationCard({ rec, dateIso, onAdd }: Props) {
           </div>
           {todayHours && <p className="text-xs text-gray-500 mt-0.5">營業 {todayHours}</p>}
           {rec.rating && <p className="text-xs text-gray-500 mt-0.5">評分：{rec.rating} &#x2605;</p>}
+          <PhotoStrip photos={photos} placeName={rec.name} className="mt-2" />
           {rec.description && <p className="text-xs text-gray-600 mt-1 italic">{rec.description}</p>}
           <p className="text-xs text-gray-600 mt-1">{rec.reason}</p>
           <p className="text-[11px] text-gray-400 mt-0.5">來源：{rec.sourceLabel}</p>

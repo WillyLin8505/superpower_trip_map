@@ -36,6 +36,38 @@ describe('nearbySearch', () => {
     expect(await nearbySearch(25.0, 121.5, 'restaurant')).toEqual([])
   })
 
+  it('maps up to four Google photos while preserving photoUrl compatibility', async () => {
+    mockFetch({
+      status: 'OK',
+      results: [
+        {
+          place_id: 'p1',
+          name: 'Avoccino',
+          geometry: { location: { lat: 25.01, lng: 121.51 } },
+          vicinity: 'Hanoi',
+          rating: 4.6,
+          photos: [
+            { photo_reference: 'ref1' },
+            { photo_reference: 'ref2' },
+            { photo_reference: 'ref3' },
+            { photo_reference: 'ref4' },
+            { photo_reference: 'ref5' },
+          ],
+        },
+      ],
+    })
+
+    const out = await nearbySearch(25.0, 121.5, 'dessert')
+
+    expect(out[0].photoUrl).toBe('/api/photo?ref=ref1')
+    expect(out[0].photoUrls).toEqual([
+      '/api/photo?ref=ref1',
+      '/api/photo?ref=ref2',
+      '/api/photo?ref=ref3',
+      '/api/photo?ref=ref4',
+    ])
+  })
+
   it('sends the mapped Google type for attractions', async () => {
     mockFetch({ status: 'OK', results: [] })
     await nearbySearch(25.0, 121.5, 'attraction')

@@ -3,6 +3,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { TimeScrollPicker } from './TimeScrollPicker'
 import { TypePicker } from './TypePicker'
+import { PhotoStrip } from './PhotoStrip'
 import { getHoursForDate } from '@/lib/utils/hours'
 import { addMinutes } from '@/lib/utils/time'
 import { resolveLocalizedText } from '@/lib/utils/localizedPlace'
@@ -53,6 +54,7 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
   const pin = effectivePinned(place)
   const displayName = resolveLocalizedText(place.localizedName, place.name)
   const endTime = addMinutes(place.startTime, place.durationMin)
+  const photos = place.photoUrls?.length ? place.photoUrls : place.photoUrl ? [place.photoUrl] : []
 
   return (
     <div
@@ -156,6 +158,7 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
           {place.rating && (
             <p className="text-sm text-muted mt-0.5">評分：{place.rating} &#x2605;</p>
           )}
+          <PhotoStrip photos={photos} placeName={displayName.primary} className="mt-2" />
           {descriptionText && (
             <p className="text-sm text-gray-600 mt-2 italic">{descriptionText}</p>
           )}
