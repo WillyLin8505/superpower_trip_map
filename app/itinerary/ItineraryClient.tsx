@@ -32,7 +32,7 @@ import { DWELL } from '@/lib/placeType'
 import { fetchDayArrangeInputs } from '@/app/actions/arrange'
 import { arrangeDayOrder } from '@/lib/utils/arrangeDay'
 import { AiRearrangeInput } from '@/components/AiRearrangeInput'
-import { createTrip, saveTrip } from '@/app/actions/trips'
+import { createTripSafe, saveTripSafe } from '@/app/actions/trips'
 import { CandidatePanel } from '@/components/CandidatePanel'
 import { addCandidate, removeCandidate } from '@/app/actions/candidates'
 import { groupCandidatesByDay } from '@/lib/utils/candidateArrange'
@@ -109,15 +109,18 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
   const onSave = useCallback(async () => {
     try {
       setSaveError(null)
-      const { tripId: newId } = await createTrip(planRef.current, '未命名行程')
-      router.push(`/itinerary/${newId}`)
-    } catch (e) {
-      if (e instanceof Error && e.message === 'NOT_AUTHENTICATED') {
+      const result = await createTripSafe(planRef.current, '未命名行程')
+      if (result.ok) {
+        router.push(`/itinerary/${result.tripId}`)
+      } else if (result.error === 'NOT_AUTHENTICATED') {
         router.push(`/login?next=${encodeURIComponent('/itinerary')}`)
       } else {
-        setSaveError(e instanceof Error ? e.message : '儲存失敗，請稍後再試')
+        setSaveError(result.error)
         setSaveState('error')
       }
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : '儲存失敗，請稍後再試')
+      setSaveState('error')
     }
   }, [router])
 
@@ -130,9 +133,14 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
     if (autosaveRef.current) clearTimeout(autosaveRef.current)
     autosaveRef.current = setTimeout(async () => {
       try {
-        await saveTrip(tripId, planRef.current)
-        savedPlanRef.current = planRef.current
-        setSaveState('saved')
+        const result = await saveTripSafe(tripId, planRef.current)
+        if (result.ok) {
+          savedPlanRef.current = planRef.current
+          setSaveState('saved')
+        } else {
+          setSaveError(result.error)
+          setSaveState('error')
+        }
       } catch (e) {
         setSaveError(e instanceof Error ? e.message : '儲存失敗，請稍後再試')
         setSaveState('error')
@@ -147,9 +155,14 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
     setSaveState('saving')
     setSaveError(null)
     try {
-      await saveTrip(tripId, planRef.current)
-      savedPlanRef.current = planRef.current
-      setSaveState('saved')
+      const result = await saveTripSafe(tripId, planRef.current)
+      if (result.ok) {
+        savedPlanRef.current = planRef.current
+        setSaveState('saved')
+      } else {
+        setSaveError(result.error)
+        setSaveState('error')
+      }
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : '儲存失敗，請稍後再試')
       setSaveState('error')

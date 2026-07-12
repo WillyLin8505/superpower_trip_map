@@ -2,6 +2,39 @@
 import { createClient } from '@/lib/supabase/server'
 import type { PlanResult, TripSummary } from '@/lib/types'
 
+export type CreateTripResult =
+  | { ok: true; tripId: string }
+  | { ok: false; error: string; code?: string }
+
+export type SaveTripResult =
+  | { ok: true }
+  | { ok: false; error: string; code?: string }
+
+type SupabaseErrorLike = {
+  code?: string
+  message?: string
+  details?: string
+  hint?: string
+}
+
+function formatSupabaseError(
+  fallback: string,
+  error?: SupabaseErrorLike | null,
+  extra?: string,
+): { error: string; code?: string } {
+  const parts = [
+    error?.message,
+    error?.details,
+    error?.hint,
+    extra,
+  ].filter(Boolean)
+
+  return {
+    error: parts.length > 0 ? parts.join(' ') : fallback,
+    code: error?.code,
+  }
+}
+
 export async function createTrip(plan: PlanResult, title: string): Promise<{ tripId: string }> {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -18,9 +51,33 @@ export async function createTrip(plan: PlanResult, title: string): Promise<{ tri
       details: error?.details,
       hint: error?.hint,
     })
-    throw new Error(error?.message ?? '儲存失敗，請稍後再試')
+    throw new Error('儲存失敗，請稍後再試')
   }
   return { tripId: (data as { id: string }).id }
+}
+
+export async function createTripSafe(plan: PlanResult, title: string): Promise<CreateTripResult> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'NOT_AUTHENTICATED' }
+
+  const { data, error } = await supabase
+    .from('trips')
+    .insert({ owner_id: user.id, title, plan })
+    .select('id')
+    .single()
+
+  if (error || !data) {
+    console.error('createTripSafe failed', {
+      code: error?.code,
+      message: error?.message,
+      details: error?.details,
+      hint: error?.hint,
+    })
+    return { ok: false, ...formatSupabaseError('儲存失敗，請稍後再試', error) }
+  }
+
+  return { ok: true, tripId: (data as { id: string }).id }
 }
 
 export async function getTrip(tripId: string): Promise<{ plan: PlanResult; title: string; ownerId: string } | null> {
@@ -51,8 +108,38 @@ export async function saveTrip(tripId: string, plan: PlanResult): Promise<void> 
       hint: error?.hint,
       rows: data?.length ?? 0,
     })
-    throw new Error(error?.message ?? '儲存失敗，請稍後再試')
+    throw new Error('儲存失敗，請稍後再試')
   }
+}
+
+export async function saveTripSafe(tripId: string, plan: PlanResult): Promise<SaveTripResult> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('trips')
+    .update({ plan, updated_at: new Date().toISOString() })
+    .eq('id', tripId)
+    .select('id')
+
+  if (error || !data?.length) {
+    console.error('saveTripSafe failed', {
+      tripId,
+      code: error?.code,
+      message: error?.message,
+      details: error?.details,
+      hint: error?.hint,
+      rows: data?.length ?? 0,
+    })
+    return {
+      ok: false,
+      ...formatSupabaseError(
+        '儲存失敗，請稍後再試',
+        error,
+        !error && !data?.length ? 'No rows were updated. You may not have permission to edit this trip.' : undefined,
+      ),
+    }
+  }
+
+  return { ok: true }
 }
 
 export async function listTrips(): Promise<TripSummary[]> {

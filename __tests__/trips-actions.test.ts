@@ -61,6 +61,28 @@ it('createTrip throws NOT_AUTHENTICATED when no user', async () => {
   await expect(createTrip(plan, 't')).rejects.toThrow('NOT_AUTHENTICATED')
 })
 
+it('createTripSafe returns NOT_AUTHENTICATED instead of throwing when no user', async () => {
+  current = makeSupabase({ user: null })
+  const { createTripSafe } = require('@/app/actions/trips')
+  await expect(createTripSafe(plan, 't')).resolves.toEqual({ ok: false, error: 'NOT_AUTHENTICATED' })
+})
+
+it('createTripSafe returns visible database errors instead of throwing', async () => {
+  current = makeSupabase({
+    user: { id: 'u1' },
+    single: {
+      data: null,
+      error: { code: 'PGRST204', message: "Could not find the 'invite_code' column" },
+    },
+  })
+  const { createTripSafe } = require('@/app/actions/trips')
+  await expect(createTripSafe(plan, 't')).resolves.toEqual({
+    ok: false,
+    code: 'PGRST204',
+    error: "Could not find the 'invite_code' column",
+  })
+})
+
 it('getTrip returns null on error', async () => {
   current = makeSupabase({ single: { data: null, error: { message: 'no' } } })
   const { getTrip } = require('@/app/actions/trips')
@@ -89,6 +111,26 @@ it('saveTrip throws 儲存失敗 when RLS blocks the write (0 rows affected, no 
   current = makeSupabase({ mutate: { data: [], error: null } })
   const { saveTrip } = require('@/app/actions/trips')
   await expect(saveTrip('t1', plan)).rejects.toThrow('儲存失敗，請稍後再試')
+})
+
+it('saveTripSafe returns visible database errors instead of throwing', async () => {
+  current = makeSupabase({ mutate: { error: { code: '42501', message: 'permission denied' } } })
+  const { saveTripSafe } = require('@/app/actions/trips')
+  await expect(saveTripSafe('t1', plan)).resolves.toEqual({
+    ok: false,
+    code: '42501',
+    error: 'permission denied',
+  })
+})
+
+it('saveTripSafe explains when RLS updates zero rows', async () => {
+  current = makeSupabase({ mutate: { data: [], error: null } })
+  const { saveTripSafe } = require('@/app/actions/trips')
+  await expect(saveTripSafe('t1', plan)).resolves.toEqual({
+    ok: false,
+    code: undefined,
+    error: 'No rows were updated. You may not have permission to edit this trip.',
+  })
 })
 
 // --- TASK-009: recommendationCenter persists through trip save/load (JSONB round-trip) ---
