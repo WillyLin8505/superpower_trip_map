@@ -123,3 +123,37 @@ Required fields:
 - Manager decisions needed: review TASK-011 diff and decide whether to merge branch `codex/task-011-place-photos`.
 - Suggested next task: TASK-012 only after TASK-011 is reviewed/merged because both touch card surfaces.
 - Suggested commit message: `feat: add multi-photo lightbox for place cards`
+
+### TASK-022 - Archive parking-lot + 3-tab side panel + map relayout
+
+- Status: done
+- Review Status: not_reviewed
+- Completed: `archivePlace`/`listArchived`/`unarchivePlace` reusing `trip_candidates` with a new `list` column (no new table). Archive button (📥, `aria-label="封存"`) on `ItineraryCard`, `RecommendationCard` (incl. inside `DayRecommendations`), and `CandidatePanel` per DEC-504. New `SidePanel` (3 tabs: 推薦行程 / LINE 討論 / 封存) replaces the bare `DayRecommendations` sidebar. `ItineraryDay` relayout: map moved to full-width below the AI summary; right column is `SidePanel`, `items-stretch` with the day column.
+- Modified files: `app/actions/candidates.ts`, `app/itinerary/ItineraryClient.tsx`, `app/itinerary/[tripId]/page.tsx`, `components/CandidatePanel.tsx`, `components/DayRecommendations.tsx`, `components/ItineraryCard.tsx`, `components/ItineraryDay.tsx`, `components/RecommendationCard.tsx`, new `components/SidePanel.tsx`, new `supabase/migrations/0007_archive_list.sql` (renamed from spec's `0006`), plus new/updated tests (`candidates-actions`, `card-archive-button`, `itinerary-client-candidates`, `itinerary-day-layout`, `side-panel`, `trip-page*`).
+- Tests: `npx tsc --noEmit` clean (pre-existing baseline only — confirmed `line-bindings.test.ts`/`line-candidates.test.ts`'s type collision already exists on clean `main`, unrelated to this work); `npm test` 121/121 suites, 616/616 tests; `npm run build` succeeds.
+- Remaining work: apply `supabase/migrations/0007_archive_list.sql` to the live Supabase project (cannot be done from this session); manual QA of the archive flow end-to-end once deployed.
+- Blockers: none for merge; production functionality blocked on the migration being applied.
+- Risks / notes:
+  - **Design correction made mid-implementation:** `archivePlace`'s duplicate-key handling. The spec assumed a simple "duplicate → no-op," but the `(trip_id, place_id)` unique index doesn't distinguish by `list`, so archiving an *existing* LINE candidate would silently do nothing under a pure no-op. Fixed to flip the existing row's `list` to `'archived'` on conflict instead — verified with dedicated tests.
+  - **Scope deviation from spec:** did not extend `TripCandidate`/`lib/candidates.ts` as the spec assumed. Checked first — `TripCandidate`/`lib/candidates.ts` are LINE-ingest-only (server-side, no UI consumer); the actual UI (`CandidatePanel`, `app/actions/candidates.ts`) already uses the simpler `Candidate` type. Extended that instead, since it's what's actually rendered.
+  - **Dead code, not deleted:** `components/DayCandidateSuggestions.tsx` + `lib/utils/candidateArrange.ts` (+ their still-passing standalone tests) are now unused — the per-day geographic candidate suggestions they provided are superseded by the trip-wide LINE 討論 tab. Left in place for reversibility; Manager can decide to remove.
+  - **Real behavior change:** the LINE 討論 tab shows the same trip-wide candidate list in every day (not geographically filtered per day like the old widget was) — deliberate, matches DEC-503's trip-wide scope, but worth a product sanity check since it's a UX change from what existed before.
+  - `CandidatePanel` gained a new `加入本天` action (`data-testid="cand-add-{id}"`, reusing the old widget's testid pattern) — needed to preserve "add an existing LINE candidate into a specific day," which the old per-day widget did and the new trip-wide tab otherwise wouldn't.
+  - Concurrent session collision noted, not encountered as an active lock: `claude_lane_a` is now on `task-012-place-drawer` (TASK-012 redefined as an external Google Maps link per an earlier commit on `main`) — no file overlap hit during this session's work, but TASK-012 and TASK-022 are both on the `## Conflicts` list for card surfaces; worth checking before either's PR merges.
+- Manager decisions needed: apply migration 0007; decide whether to delete the now-dead `DayCandidateSuggestions`/`candidateArrange` code or leave it; sanity-check the "same list in every day's LINE tab" behavior change.
+- Suggested next task: review/merge PR #14; apply the migration; then manual QA (archive from all 3 surfaces, add-back-to-day, permanent delete, empty states, map/panel layout).
+- Suggested commit message: see PR #14 body (`https://github.com/WillyLin8505/superpower_trip_map/pull/14`).
+
+### TASK-012 - Open place in Google Maps (new tab)
+
+- Status: done
+- Review Status: not_reviewed
+- Completed: Added `buildPlaceMapsUrl(place)` to `lib/utils/mapUrl.ts` — an official `api=1` Maps Search URL, `query_place_id` when a Google Place ID is available, falling back to name then address. Wired a "🗺️ 在 Google Maps 開啟" link (`target="_blank" rel="noopener noreferrer"`) into `ItineraryCard`, `RecommendationCard`, and `CandidatePanel`, alongside their existing archive/delete button rows. Pure external link, no in-app drawer, no layout change — matches the 2026-07-12 scope redefinition (original "right-side drawer" spec was never written and would have overlapped TASK-022's side panel).
+- Modified files: `lib/utils/mapUrl.ts`, `components/ItineraryCard.tsx`, `components/RecommendationCard.tsx`, `components/CandidatePanel.tsx`, `__tests__/map-url.test.ts`, new `__tests__/itinerary-card-maps-link.test.tsx`, new `__tests__/recommendation-card-maps-link.test.tsx`, `__tests__/candidate-panel.test.tsx`, plus 14 pre-existing test files that fully `jest.mock('@/lib/utils/mapUrl', ...)`.
+- Tests: TDD — RED confirmed for 4 new test files/cases before implementation, GREEN after (`npx jest map-url itinerary-card-maps-link recommendation-card-maps-link candidate-panel --verbose` → 18/18). `npm test` (full suite) — 123/123 suites, 626/626 tests, no regressions. `npx tsc --noEmit` — no new errors. `npm run build` — succeeds.
+- Remaining work: none for TASK-012 itself. `CardContent.tsx`/`TimelineCard.tsx` intentionally not touched — no existing action-button row there, consistent with TASK-022's archive button also skipping it.
+- Blockers: none.
+- Risks / notes: **Regression caught and fixed during verification, not a silent gap** — the first full-suite run after implementing surfaced 13 failing suites / 35 failing tests, all `TypeError: buildPlaceMapsUrl is not a function`. Root cause: 14 existing test files fully mock `@/lib/utils/mapUrl` (only providing `buildDayEmbedUrl`), and `ItineraryCard` now calls the new export unconditionally. Fixed by adding `buildPlaceMapsUrl: jest.fn(() => '...')` to each of the 14 mocks; re-ran full suite to confirm 123/123 green before committing. Built in worktree `claude_lane_a`, branch `task-012-google-maps-link`, off `origin/main` post-TASK-022-merge (`334ace6`). Pushed and opened **PR #15**: https://github.com/WillyLin8505/superpower_trip_map/pull/15. Not yet merged.
+- Manager decisions needed: review/merge PR #15.
+- Suggested next task: none currently queued in this spec area — check `$multi-status` for the next `todo` task.
+- Suggested commit message: already committed as `6e0ef9a`, see PR #15 body.

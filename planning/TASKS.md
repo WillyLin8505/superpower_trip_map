@@ -29,16 +29,7 @@ Implementation task invariant: if `Task type` is `frontend` or `backend`, and `S
 
 ## Locked Files
 
-- `supabase/migrations/0006_archive_list.sql` — TASK-022, claimed 2026-07-12.
-- `lib/types.ts` — TASK-022, claimed 2026-07-12.
-- `app/actions/candidates.ts` — TASK-022, claimed 2026-07-12.
-- `lib/candidates.ts` — TASK-022, claimed 2026-07-12.
-- `components/ItineraryCard.tsx` — TASK-022, claimed 2026-07-12.
-- `components/RecommendationCard.tsx` — TASK-022, claimed 2026-07-12.
-- `components/CandidatePanel.tsx` — TASK-022, claimed 2026-07-12.
-- `components/SidePanel.tsx` — TASK-022, claimed 2026-07-12.
-- `components/ItineraryDay.tsx` — TASK-022, claimed 2026-07-12.
-- `app/itinerary/ItineraryClient.tsx` — TASK-022, claimed 2026-07-12.
+No active locks.
 
 
 ## Spec Trees
@@ -316,7 +307,7 @@ Implementation task invariant: if `Task type` is `frontend` or `backend`, and `S
 ## TASK-012 - Open place in Google Maps (new tab)
 
 - Task type: frontend
-- Status: todo
+- Status: done
 - Priority: low
 - Spec: `docs/superpowers/specs/2026-07-12-open-place-in-google-maps-design.md`
 - Estimated scope: small
@@ -333,7 +324,7 @@ Implementation task invariant: if `Task type` is `frontend` or `backend`, and `S
 - Required review: GStack review if non-trivial
 - Suggested session count: 1
 - Safe to assign to any session: yes
-- Notes: REDEFINED 2026-07-12: was "right-side place drawer" (spec never written — dangling ref). User changed it to "click a card → open Google Maps search for that place in a new tab" (external `maps.google.com` URL via `place_id`; no API key, no cost, no in-app drawer). This removes the layout overlap with TASK-022 (the 3-tab side panel now owns the right column). Only a light conflict with TASK-022 remains: both add a button to the same card components.
+- Notes: REDEFINED 2026-07-12: was "right-side place drawer" (spec never written — dangling ref). User changed it to "click a card → open Google Maps search for that place in a new tab" (external `maps.google.com` URL via `place_id`; no API key, no cost, no in-app drawer). This removes the layout overlap with TASK-022 (the 3-tab side panel now owns the right column). Only a light conflict with TASK-022 remains: both add a button to the same card components. DONE 2026-07-12: implemented in worktree `claude_lane_a`, branch `task-012-google-maps-link` off current `origin/main` (post TASK-022 merge, `334ace6`). Added `buildPlaceMapsUrl(place)` (official `api=1` Maps Search URL, `query_place_id` when available, name/address fallback) and wired a "🗺️ 在 Google Maps 開啟" link into `ItineraryCard`, `RecommendationCard`, `CandidatePanel` next to the existing archive/delete buttons. `CardContent.tsx`/`TimelineCard.tsx` intentionally skipped — no existing action-button row there, matching the precedent TASK-022's archive button already set. TDD: RED confirmed for 4 new tests before implementation, GREEN after. Found and fixed a real regression during verification: 14 pre-existing test files fully `jest.mock('@/lib/utils/mapUrl', ...)` with only `buildDayEmbedUrl`, which crashed `ItineraryCard` once it called the new `buildPlaceMapsUrl` unconditionally — added the missing mock export to all 14. Full suite 123/123 suites, 626/626 tests. `tsc --noEmit` clean. `next build` succeeds. Pushed and opened **PR #15** (https://github.com/WillyLin8505/superpower_trip_map/pull/15).
 
 ## TASK-013 - Improve admin source management
 
@@ -520,7 +511,7 @@ Implementation task invariant: if `Task type` is `frontend` or `backend`, and `S
 ## TASK-022 - Archive parking-lot + 3-tab side panel + map relayout
 
 - Task type: frontend
-- Status: in_progress
+- Status: done
 - Priority: medium
 - Spec: `docs/superpowers/specs/2026-07-12-archive-and-tabbed-panel-design.md`
 - Dependencies: C5 `trip_candidates` (done, on main)
@@ -540,4 +531,4 @@ Implementation task invariant: if `Task type` is `frontend` or `backend`, and `S
 - Required review: GStack review/challenge after implementation
 - Suggested session count: 1
 - Safe to assign to any session: yes (spec/plan complete)
-- Notes: Spec/plan via `$multi-auto-spec` 2026-07-12. Decisions DEC-501..DEC-506. Plan: `docs/superpowers/plans/2026-07-12-archive-and-tabbed-panel.md`. Archive = per-trip parking-lot reusing `trip_candidates` + a `list` column (`candidate`/`archived`); place-level, re-addable. Do not run concurrently with TASK-011/TASK-012 (shared card/layout surfaces).
+- Notes: Spec/plan via `$multi-auto-spec` 2026-07-12. Decisions DEC-501..DEC-506. Plan: `docs/superpowers/plans/2026-07-12-archive-and-tabbed-panel.md`. Archive = per-trip parking-lot reusing `trip_candidates` + a `list` column (`candidate`/`archived`); place-level, re-addable. Do not run concurrently with TASK-011/TASK-012 (shared card/layout surfaces). DONE 2026-07-12: implemented in isolated worktree off `origin/main` (branch `task-022-archive-tabbed-panel`). Migration renamed `0006` → `0007_archive_list.sql` (`0006_invite_codes.sql` already existed on main). Did NOT touch `lib/types.ts`/`lib/candidates.ts` — used the existing simpler `Candidate` type (already what `CandidatePanel`/`app/actions/candidates.ts` actually use in production; `TripCandidate`/`lib/candidates.ts` are LINE-ingest-only and unused by any UI) rather than the spec's assumed `TripCandidate` extension. Corrected a real bug in `archivePlace`'s own design mid-implementation: duplicate-key on insert now flips the existing row's `list` to `'archived'` instead of a silent no-op (a plain no-op would mean archiving an already-existing LINE candidate never actually archives it). `components/DayCandidateSuggestions.tsx` + `lib/utils/candidateArrange.ts` + their tests are now dead code (kept, not deleted) — the per-day geographic candidate suggestions they provided are superseded by the trip-wide LINE 討論 tab, which intentionally shows the same list in every day (DEC-503). Verified: `tsc --noEmit` clean (same pre-existing baseline, plus confirmed the `line-bindings.test.ts`/`line-candidates.test.ts` collision already existed on clean `main` before this work), `npm test` 121/121 suites / 616/616 tests, `next build` succeeds. Pushed and opened **PR #14** (https://github.com/WillyLin8505/superpower_trip_map/pull/14). **MERGED to `main` 2026-07-12** (commit `334ace6`); reverified 121/121 suites / 618/618 tests green on `main` post-merge via a fresh worktree. **Migration `0007_archive_list.sql` still needs to be manually applied to the live Supabase project** — archive won't work in production until then.
