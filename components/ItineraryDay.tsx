@@ -4,10 +4,9 @@ import { useDroppable } from '@dnd-kit/core'
 import { ItineraryCard } from './ItineraryCard'
 import { buildDayEmbedUrl } from '@/lib/utils/mapUrl'
 import { dayDate, formatDateLabel } from '@/lib/utils/date'
-import { DayRecommendations } from './DayRecommendations'
-import { DayCandidateSuggestions } from './DayCandidateSuggestions'
+import { SidePanel } from './SidePanel'
 import { freeBlocks, formatGap } from '@/lib/utils/freeTime'
-import type { DayItinerary, TransportMode, PlaceType, CategoryBuckets, DayRecommendation, Candidate, Place, RecommendationCenter } from '@/lib/types'
+import type { DayItinerary, TransportMode, PlaceType, CategoryBuckets, DayRecommendation, Candidate, Place, RecommendationCenter, ScheduledPlace } from '@/lib/types'
 
 function toMin(t: string): number {
   const [h, m] = t.split(':').map(Number)
@@ -34,8 +33,7 @@ interface Props {
   onChangeWindow?: (field: 'dayStart' | 'dayEnd', value: string) => void
   recommendations?: CategoryBuckets
   onAddRecommendation?: (rec: DayRecommendation) => void
-  candidates?: Candidate[]
-  onAddCandidate?: (candidateId: string, place: Place) => void
+  onArchiveRecommendation?: (rec: DayRecommendation) => void
   backfilling?: Partial<Record<'dessert' | 'attraction' | 'restaurant', boolean>>
   recsHasCenter?: boolean
   onSetRecommendationCenter?: (center: RecommendationCenter) => void
@@ -43,6 +41,15 @@ interface Props {
   onRefreshRecommendationCategory?: (category: 'dessert' | 'attraction' | 'restaurant') => void
   recsRefreshing?: Partial<Record<'dessert' | 'attraction' | 'restaurant', boolean>>
   recsError?: string | null
+  candidates?: Candidate[]
+  onAddCandidatePlace?: (place: Place) => void
+  onAddCandidatePlaces?: (places: Place[]) => void
+  onRemoveCandidate?: (candidateId: string) => void
+  onAddCandidateToDay?: (candidateId: string, place: Place) => void
+  onArchiveCandidate?: (candidateId: string) => void
+  archived?: Candidate[]
+  onAddArchivedToDay?: (candidateId: string, place: Place) => void
+  onDeleteArchived?: (candidateId: string) => void
   isLastDay?: boolean
   onSmartArrange?: () => void
   onSetAvoid?: (field: 'avoidTraffic' | 'avoidCrowds', value: boolean) => void
@@ -50,9 +57,10 @@ interface Props {
   onChangeLegMode?: (placeId: string, mode: TransportMode) => void
   legBusyPlaceId?: string | null
   onDeletePlace?: (placeId: string) => void
+  onArchivePlace?: (place: ScheduledPlace) => void
 }
 
-export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, candidates, onAddCandidate, backfilling, recsHasCenter, onSetRecommendationCenter, onClearRecommendationCenter, onRefreshRecommendationCategory, recsRefreshing, recsError, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId, onDeletePlace }: Props) {
+export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, onArchiveRecommendation, candidates, onAddCandidatePlace, onAddCandidatePlaces, onRemoveCandidate, onAddCandidateToDay, onArchiveCandidate, archived, onAddArchivedToDay, onDeleteArchived, backfilling, recsHasCenter, onSetRecommendationCenter, onClearRecommendationCenter, onRefreshRecommendationCategory, recsRefreshing, recsError, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId, onDeletePlace, onArchivePlace }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
 
@@ -148,7 +156,21 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
         )
       })()}
       {day.aiSummary && <p className="text-sm text-muted mb-4">{day.aiSummary}</p>}
-      <div className="flex gap-6 items-start">
+      {embedUrl && (
+        <div className="rounded-xl overflow-hidden border border-border mb-4" data-testid="day-map-fullwidth">
+          <iframe
+            src={embedUrl}
+            width="100%"
+            height="360"
+            style={{ border: 0, pointerEvents: isDragging ? 'none' : 'auto' }}
+            loading="lazy"
+            allowFullScreen
+            referrerPolicy="no-referrer-when-downgrade"
+            title={`第 ${day.day} 天路線地圖`}
+          />
+        </div>
+      )}
+      <div className="flex gap-6 items-stretch" data-testid="day-content-row">
         <div
           ref={setNodeRef}
           className={`flex-1 space-y-3 rounded-lg transition-colors min-h-[60px] ${isOver ? 'ring-2 ring-clay bg-clay-tint' : ''}`}
@@ -174,6 +196,7 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
                     onChangeLegMode={onChangeLegMode}
                     legBusy={legBusyPlaceId === place.id}
                     onDeletePlace={onDeletePlace}
+                    onArchive={onArchivePlace}
                     dayEnd={day.dayEnd}
                   />
                   {fb && (
@@ -189,40 +212,31 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
             })
           })()}
         </div>
-        {(embedUrl || onAddRecommendation || (candidates && candidates.length > 0 && onAddCandidate)) && (
-          <div className="w-96 shrink-0 sticky top-4">
-            {embedUrl && (
-              <div className="rounded-xl overflow-hidden border border-border">
-                <iframe
-                  src={embedUrl}
-                  width="100%"
-                  height="500"
-                  style={{ border: 0, pointerEvents: isDragging ? 'none' : 'auto' }}
-                  loading="lazy"
-                  allowFullScreen
-                  referrerPolicy="no-referrer-when-downgrade"
-                  title={`第 ${day.day} 天路線地圖`}
-                />
-              </div>
-            )}
-            {onAddRecommendation && (
-              <DayRecommendations
-                recommendations={recommendations}
-                dateIso={dayDate(startDate, day.day)}
-                onAdd={onAddRecommendation}
-                backfilling={backfilling}
-                hasCenter={recsHasCenter}
-                center={day.recommendationCenter}
-                onSetCenter={onSetRecommendationCenter}
-                onClearCenter={onClearRecommendationCenter}
-                onRefreshCategory={onRefreshRecommendationCategory}
-                refreshing={recsRefreshing}
-                error={recsError}
-              />
-            )}
-            {candidates && onAddCandidate && (
-              <DayCandidateSuggestions candidates={candidates} onAdd={onAddCandidate} />
-            )}
+        {onAddRecommendation && (
+          <div className="w-96 shrink-0">
+            <SidePanel
+              dateIso={dayDate(startDate, day.day)}
+              recommendations={recommendations}
+              onAddRecommendation={onAddRecommendation}
+              onArchiveRecommendation={onArchiveRecommendation}
+              backfilling={backfilling}
+              recsHasCenter={recsHasCenter}
+              recsCenter={day.recommendationCenter}
+              onSetRecommendationCenter={onSetRecommendationCenter}
+              onClearRecommendationCenter={onClearRecommendationCenter}
+              onRefreshRecommendationCategory={onRefreshRecommendationCategory}
+              recsRefreshing={recsRefreshing}
+              recsError={recsError}
+              candidates={candidates ?? []}
+              onAddCandidatePlace={onAddCandidatePlace ?? (() => {})}
+              onAddCandidatePlaces={onAddCandidatePlaces ?? (() => {})}
+              onRemoveCandidate={onRemoveCandidate ?? (() => {})}
+              onAddCandidateToDay={onAddCandidateToDay}
+              onArchiveCandidate={onArchiveCandidate}
+              archived={archived ?? []}
+              onAddArchivedToDay={onAddArchivedToDay ?? (() => {})}
+              onDeleteArchived={onDeleteArchived ?? (() => {})}
+            />
           </div>
         )}
       </div>

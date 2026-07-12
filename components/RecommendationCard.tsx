@@ -8,9 +8,10 @@ interface Props {
   rec: DayRecommendation
   dateIso: string
   onAdd: () => void
+  onArchive?: (rec: DayRecommendation) => void
 }
 
-export function RecommendationCard({ rec, dateIso, onAdd }: Props) {
+export function RecommendationCard({ rec, dateIso, onAdd, onArchive }: Props) {
   const meta = TYPE_META[rec.type]
   const todayHours = getHoursForDate(rec.openingHours, dateIso)
   const photos = rec.photoUrls?.length ? rec.photoUrls : rec.photoUrl ? [rec.photoUrl] : []
@@ -27,6 +28,16 @@ export function RecommendationCard({ rec, dateIso, onAdd }: Props) {
         >
           &#x2190;
         </button>
+        {onArchive && (
+          <button
+            type="button"
+            onClick={() => onArchive(rec)}
+            aria-label="封存"
+            className="shrink-0 mt-0.5 text-gray-300 hover:text-clay-deep transition-colors leading-none"
+          >
+            &#x1F4E5;
+          </button>
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h4 className="font-semibold text-gray-900 text-sm">{rec.name}</h4>

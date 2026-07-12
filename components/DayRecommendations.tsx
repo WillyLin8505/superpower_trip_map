@@ -20,11 +20,12 @@ interface Props {
   onRefreshCategory?: (category: Category) => void
   refreshing?: Partial<Record<Category, boolean>>
   error?: string | null
+  onArchive?: (rec: DayRecommendation) => void
 }
 
 export function DayRecommendations({
   recommendations, dateIso, onAdd, backfilling, hasCenter, center, onSetCenter, onClearCenter,
-  onRefreshCategory, refreshing, error,
+  onRefreshCategory, refreshing, error, onArchive,
 }: Props) {
   const [tab, setTab] = useState<Category>(REC_CATEGORIES[0])
 
@@ -100,7 +101,7 @@ export function DayRecommendations({
             ) : (
               <>
                 {list.map((rec) => (
-                  <RecommendationCard key={rec.placeId} rec={rec} dateIso={dateIso} onAdd={() => onAdd(rec)} />
+                  <RecommendationCard key={rec.placeId} rec={rec} dateIso={dateIso} onAdd={() => onAdd(rec)} onArchive={onArchive} />
                 ))}
                 {isBackfilling && (
                   <div data-testid="rec-backfilling" className="border border-dashed border-gray-200 rounded-xl p-3 text-xs text-gray-400">

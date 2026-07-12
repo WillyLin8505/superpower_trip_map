@@ -3,7 +3,7 @@ jest.mock('@/app/actions/trips', () => ({ getTrip: (...a: unknown[]) => getTrip(
 
 const listMembers = jest.fn()
 jest.mock('@/app/actions/members', () => ({ listMembers: (...a: unknown[]) => listMembers(...a) }))
-jest.mock('@/app/actions/candidates', () => ({ listCandidates: jest.fn().mockResolvedValue([]) }))
+jest.mock('@/app/actions/candidates', () => ({ listCandidates: jest.fn().mockResolvedValue([]), listArchived: jest.fn().mockResolvedValue([]) }))
 
 const getUser = jest.fn()
 jest.mock('@/lib/supabase/server', () => ({

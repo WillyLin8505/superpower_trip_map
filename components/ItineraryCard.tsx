@@ -29,10 +29,11 @@ interface Props {
   onChangeLegMode?: (placeId: string, mode: TransportMode) => void
   legBusy?: boolean
   onDeletePlace?: (placeId: string) => void
+  onArchive?: (place: ScheduledPlace) => void
   dayEnd?: string
 }
 
-export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType, onChangeLegMode, legBusy, onDeletePlace, dayEnd }: Props) {
+export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType, onChangeLegMode, legBusy, onDeletePlace, onArchive, dayEnd }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: place.id, disabled: !draggable })
 
@@ -64,6 +65,14 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
       data-testid={`card-${place.id}`}
     >
       <div className="flex items-start gap-3">
+        {onArchive && (
+          <button
+            type="button"
+            onClick={() => onArchive(place)}
+            aria-label="封存"
+            className="text-gray-300 hover:text-clay-deep transition-colors mt-1 shrink-0 leading-none"
+          >&#x1F4E5;</button>
+        )}
         {onDeletePlace && (
           <button
             type="button"

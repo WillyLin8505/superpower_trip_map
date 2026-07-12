@@ -1,5 +1,5 @@
 'use client'
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   DndContext,
@@ -33,9 +33,7 @@ import { fetchDayArrangeInputs } from '@/app/actions/arrange'
 import { arrangeDayOrder } from '@/lib/utils/arrangeDay'
 import { AiRearrangeInput } from '@/components/AiRearrangeInput'
 import { createTripSafe, saveTripSafe } from '@/app/actions/trips'
-import { CandidatePanel } from '@/components/CandidatePanel'
-import { addCandidate, removeCandidate } from '@/app/actions/candidates'
-import { groupCandidatesByDay } from '@/lib/utils/candidateArrange'
+import { addCandidate, removeCandidate, archivePlace, unarchivePlace } from '@/app/actions/candidates'
 
 // pointerWithin is essential for multi-container: it checks where the pointer
 // physically is, not center-to-center distance (closestCenter favors the source container)
@@ -53,9 +51,10 @@ interface Props {
   initial: PlanResult
   tripId?: string
   initialCandidates?: Candidate[]
+  initialArchived?: Candidate[]
 }
 
-export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Props) {
+export function ItineraryClient({ initial, tripId, initialCandidates = [], initialArchived = [] }: Props) {
   const router = useRouter()
   const [plan, setPlan] = useState<PlanResult>(initial)
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -72,6 +71,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [candidates, setCandidates] = useState<Candidate[]>(initialCandidates)
+  const [archived, setArchived] = useState<Candidate[]>(initialArchived)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const autosaveRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // planRef always tracks the latest committed plan (avoids stale closures in dnd-kit callbacks)
@@ -430,11 +430,76 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
     void onRemoveCandidate(candidateId)
   }, [scheduleRecalc, onRemoveCandidate])
 
-  // C4：衍生把候選池依地理分到各天（供每天的 ← 建議卡）
-  const candidatesByDay = useMemo(
-    () => groupCandidatesByDay(plan.days, candidates),
-    [plan.days, candidates]
-  )
+  // TASK-022：封存停車場（per-trip，跨天共用，DEC-503）
+  const handleArchivePlace = useCallback(async (dayIdx: number, place: Place) => {
+    if (!tripId) return
+    const newDays = planRef.current.days.map((d, i) =>
+      i === dayIdx ? { ...d, places: d.places.filter((p) => p.id !== place.id) } : d
+    )
+    scheduleRecalc({ ...planRef.current, days: newDays }, true)
+    try {
+      const { id } = await archivePlace(tripId, place)
+      setArchived((a) => [...a, { id, place, addedBy: 'me', addedByName: '你' }])
+    } catch { /* 卡片已從行程移除；封存失敗則使用者仍可從行程重新加入 */ }
+  }, [tripId, scheduleRecalc])
+
+  const handleArchiveRecommendation = useCallback(async (dayIdx: number, rec: DayRecommendation) => {
+    // 推薦是每次算出的 ephemeral 清單；封存後本 session 從顯示隱藏即可，不需改推薦計算。
+    const cat = rec.type as 'dessert' | 'attraction' | 'restaurant'
+    const cur = recsRef.current
+    if (cur && cur[dayIdx]) {
+      const bucket = cur[dayIdx][cat]
+      const next: RecommendationsByDay = cur.map((b, i) =>
+        i === dayIdx ? { ...b, [cat]: { ...bucket, shown: bucket.shown.filter((r) => r.placeId !== rec.placeId) } } : b
+      )
+      commitRecs(next)
+    }
+    if (!tripId) return
+    try {
+      const { id } = await archivePlace(tripId, rec)
+      setArchived((a) => [...a, { id, place: rec, addedBy: 'me', addedByName: '你' }])
+    } catch { /* 推薦卡已隱藏；封存失敗不影響顯示 */ }
+  }, [tripId, commitRecs])
+
+  const handleArchiveCandidate = useCallback(async (candidateId: string) => {
+    if (!tripId) return
+    const found = candidates.find((c) => c.id === candidateId)
+    if (!found) return
+    setCandidates((cs) => cs.filter((c) => c.id !== candidateId))
+    try {
+      // 既有候選列已存在同 place_id row；archivePlace 遇到 duplicate 會把該 row 的
+      // list 更新為 'archived'（見 app/actions/candidates.ts），不是另外新增一筆。
+      const { id } = await archivePlace(tripId, found.place)
+      setArchived((a) => [...a, { id, place: found.place, addedBy: 'me', addedByName: '你' }])
+    } catch { /* 保留在候選池；封存失敗則使用者可重試 */ }
+  }, [tripId, candidates])
+
+  const handleAddArchivedToDay = useCallback((candidateId: string, place: Place, dayIndex: number) => {
+    const newPlace: ScheduledPlace = {
+      ...place,
+      startTime: '09:00',
+      durationMin: DWELL[place.type],
+      travelMinToNext: null,
+      aiDescription: null,
+      outsideHours: false,
+      lateExit: false,
+      startLocked: false,
+      durationLocked: false,
+    }
+    const newDays = planRef.current.days.map((d, i) =>
+      i === dayIndex ? { ...d, places: [...d.places, newPlace] } : d
+    )
+    scheduleRecalc({ ...planRef.current, days: newDays }, true)
+    setArchived((a) => a.filter((c) => c.id !== candidateId))
+    void unarchivePlace(candidateId).catch(() => { /* 已從畫面移除；背景刪除失敗不影響已加入行程的結果 */ })
+  }, [scheduleRecalc])
+
+  const handleDeleteArchived = useCallback(async (candidateId: string) => {
+    setArchived((a) => a.filter((c) => c.id !== candidateId))
+    try {
+      await unarchivePlace(candidateId)
+    } catch { /* 畫面已移除；背景刪除失敗則下次載入會再次出現，可再刪一次 */ }
+  }, [])
 
   const buildExcludeIds = useCallback((): string[] => {
     const ids = new Set<string>()
@@ -771,16 +836,6 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
         <h2 className="text-sm font-semibold text-ink">新增行程</h2>
         <CombinedInput onAdd={handleAddPlace} onAddPlaces={handleAddPlaces} />
       </section>
-      {tripId && (
-        <div className="mb-6">
-          <CandidatePanel
-            candidates={candidates}
-            onAddPlace={onAddCandidate}
-            onAddPlaces={onAddCandidates}
-            onRemove={onRemoveCandidate}
-          />
-        </div>
-      )}
       <DndContext
         sensors={sensors}
         collisionDetection={multiContainerCollision}
@@ -827,8 +882,17 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [] }: Pro
                 draggable
                 recommendations={recsByDay?.[dayIdx]}
                 onAddRecommendation={(rec) => handleAddRecommendation(dayIdx, rec)}
-                candidates={tripId ? candidatesByDay[dayIdx] : undefined}
-                onAddCandidate={tripId ? (candidateId, place) => handleAddCandidateToDay(place, dayIdx, candidateId) : undefined}
+                onArchiveRecommendation={tripId ? (rec) => handleArchiveRecommendation(dayIdx, rec) : undefined}
+                candidates={tripId ? candidates : undefined}
+                onAddCandidatePlace={tripId ? onAddCandidate : undefined}
+                onAddCandidatePlaces={tripId ? onAddCandidates : undefined}
+                onRemoveCandidate={tripId ? onRemoveCandidate : undefined}
+                onAddCandidateToDay={tripId ? (candidateId, place) => handleAddCandidateToDay(place, dayIdx, candidateId) : undefined}
+                onArchiveCandidate={tripId ? handleArchiveCandidate : undefined}
+                archived={tripId ? archived : undefined}
+                onAddArchivedToDay={tripId ? (candidateId, place) => handleAddArchivedToDay(candidateId, place, dayIdx) : undefined}
+                onDeleteArchived={tripId ? handleDeleteArchived : undefined}
+                onArchivePlace={tripId ? (place) => handleArchivePlace(dayIdx, place) : undefined}
                 backfilling={{
                   dessert: backfillKeys.has(`${dayIdx}:dessert`),
                   attraction: backfillKeys.has(`${dayIdx}:attraction`),

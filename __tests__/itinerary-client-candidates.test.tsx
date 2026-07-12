@@ -9,6 +9,8 @@ jest.mock('@/app/actions/candidates', () => ({
   addCandidate: (...a: unknown[]) => addCandidate(...a),
   removeCandidate: (...a: unknown[]) => removeCandidate(...a),
   listCandidates: jest.fn(),
+  archivePlace: jest.fn(),
+  unarchivePlace: jest.fn(),
 }))
 
 jest.mock('next/navigation', () => ({ useRouter: () => ({ push: jest.fn() }) }))
@@ -83,33 +85,42 @@ function dayOrder(): string[] {
 
 beforeEach(() => { addCandidate.mockReset(); removeCandidate.mockReset() })
 
-it('persistent mode renders the candidate pool with initial candidates', () => {
+// TASK-022: the trip-wide candidate pool now lives inside each day's SidePanel,
+// under the "LINE 討論" tab (was: a standalone top-level <CandidatePanel> section).
+function openLineTab(dayIdx = 0) {
+  const day = screen.getByTestId(`day-${dayIdx}`)
+  fireEvent.click(within(day).getByTestId('side-panel-tab-candidates'))
+  return day
+}
+
+it('persistent mode renders the candidate pool with initial candidates under the LINE 討論 tab', () => {
   render(<ItineraryClient initial={plan()} tripId="t1" initialCandidates={[cand('c1', '台北101')]} />)
-  // 名稱同時出現在候選池清單與每天 ← 建議卡，故 assertion scope 到候選池 section
-  const pool = screen.getByText('候選池').closest('section') as HTMLElement
-  expect(within(pool).getByText('台北101')).toBeInTheDocument()
-  expect(within(pool).getByText(/小明/)).toBeInTheDocument()
+  const day = openLineTab()
+  expect(within(day).getByText('候選池')).toBeInTheDocument()
+  expect(within(day).getByText('台北101')).toBeInTheDocument()
+  expect(within(day).getByText(/小明/)).toBeInTheDocument()
 })
 
-it('anonymous mode (no tripId) does not render the candidate pool', () => {
+it('anonymous mode (no tripId) shows the LINE 討論 tab with an empty pool, not the persisted candidates UI', () => {
   render(<ItineraryClient initial={plan()} />)
-  expect(screen.queryByText('候選池')).not.toBeInTheDocument()
+  const day = openLineTab()
+  expect(within(day).getByText('候選池')).toBeInTheDocument()
+  expect(within(day).getByText('還沒有候選，搜尋想去的地方加進來吧')).toBeInTheDocument()
 })
 
 it('search-add calls addCandidate and shows the new candidate in the pool', async () => {
   addCandidate.mockResolvedValue({ id: 'np' })
   render(<ItineraryClient initial={plan()} tripId="t1" initialCandidates={[]} />)
-  // click the POOL's CombinedInput (scoped to the 候選池 section, not the 新增行程 one)
-  const pool = screen.getByText('候選池').closest('section') as HTMLElement
-  fireEvent.click(within(pool).getByText('pool-add'))
+  const day = openLineTab()
+  fireEvent.click(within(day).getByText('pool-add'))
   await waitFor(() => expect(addCandidate).toHaveBeenCalledWith('t1', expect.objectContaining({ name: '新候選' })))
-  await waitFor(() => expect(within(pool).getByText('新候選')).toBeInTheDocument())
+  await waitFor(() => expect(within(day).getByText('新候選')).toBeInTheDocument())
 })
 
-it('shows the pool candidate as a ← suggestion under its geographic day and accepts it on click', async () => {
+it('shows the pool candidate with an 加入本天 action and accepts it into that day on click', async () => {
   removeCandidate.mockResolvedValue(undefined)
-  // plan() 的地點與 cand 皆在 lat/lng 0,0 → findClosestDay 指向 day 0
   render(<ItineraryClient initial={plan()} tripId="t1" initialCandidates={[cand('c1', '台北101')]} />)
+  openLineTab()
   const addBtn = await screen.findByTestId('cand-add-c1')
   fireEvent.click(addBtn)
   expect(removeCandidate).toHaveBeenCalledWith('c1')
