@@ -12,6 +12,7 @@ import { SUGGESTED_DURATION, TYPE_META } from '@/lib/placeType'
 import { effectivePinned, isDerived } from '@/lib/utils/lockDerive'
 
 const ARCHIVE_LABEL = '\u79fb\u5230\u5099\u7528'
+const ARCHIVE_ICON = '\uD83D\uDCBE'
 
 function toMin(t: string): number {
   const [h, m] = t.split(':').map(Number)
@@ -72,9 +73,11 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
             type="button"
             onClick={() => onArchive(place)}
             aria-label={ARCHIVE_LABEL}
-            className="mt-0.5 shrink-0 rounded-full border border-clay/40 px-2 py-1 text-xs font-medium text-clay-deep bg-white hover:bg-clay-tint transition-colors"
+            title={ARCHIVE_LABEL}
+            className="mt-0.5 shrink-0 w-8 h-8 rounded-full bg-clay text-white text-base flex items-center justify-center hover:bg-clay-deep transition-colors shadow-sm"
           >
-            {ARCHIVE_LABEL}
+            <span aria-hidden="true" className="leading-none">{ARCHIVE_ICON}</span>
+            <span className="sr-only">{ARCHIVE_LABEL}</span>
           </button>
         )}
         {onDeletePlace && (

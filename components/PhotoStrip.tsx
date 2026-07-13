@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { PhotoLightbox } from './PhotoLightbox'
 
 interface Props {
@@ -10,16 +10,18 @@ interface Props {
 }
 
 export function PhotoStrip({ photos, placeId, placeName, className = '' }: Props) {
-  const [resolvedPhotos, setResolvedPhotos] = useState(photos)
+  const photoKey = photos.join('\u0000')
+  const incomingPhotos = useMemo(() => (photoKey ? photoKey.split('\u0000') : []), [photoKey])
+  const [resolvedPhotos, setResolvedPhotos] = useState(incomingPhotos)
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const visiblePhotos = resolvedPhotos.slice(0, 5)
 
   useEffect(() => {
-    setResolvedPhotos(photos)
-  }, [photos])
+    setResolvedPhotos(incomingPhotos)
+  }, [incomingPhotos, placeId])
 
   useEffect(() => {
-    if (!placeId || photos.length >= 5 || typeof fetch !== 'function') return
+    if (!placeId || incomingPhotos.length >= 5 || typeof fetch !== 'function') return
 
     let cancelled = false
     fetch(`/api/place-photos?placeId=${encodeURIComponent(placeId)}`)
@@ -33,7 +35,7 @@ export function PhotoStrip({ photos, placeId, placeName, className = '' }: Props
     return () => {
       cancelled = true
     }
-  }, [photos, placeId])
+  }, [incomingPhotos.length, photoKey, placeId])
 
   if (visiblePhotos.length === 0) return null
 

@@ -35,6 +35,8 @@ import { AiRearrangeInput } from '@/components/AiRearrangeInput'
 import { createTripSafe, saveTripSafe } from '@/app/actions/trips'
 import { archivePlace, unarchivePlace } from '@/app/actions/candidates'
 
+type SidePanelTab = 'recommend' | 'line' | 'reserve'
+
 // pointerWithin is essential for multi-container: it checks where the pointer
 // physically is, not center-to-center distance (closestCenter favors the source container)
 const multiContainerCollision: CollisionDetection = (args) => {
@@ -45,6 +47,22 @@ const multiContainerCollision: CollisionDetection = (args) => {
 // Pure helper — no component state, so defined at module level to avoid exhaustive-deps churn
 function renumberDays<T extends { day: number }>(days: T[]): T[] {
   return days.map((d, i) => ({ ...d, day: i + 1 }))
+}
+
+function archivePlaceKey(place: Place): string {
+  return place.placeId ? `place:${place.placeId}` : `local:${place.id}`
+}
+
+function upsertArchived(current: Candidate[], next: Candidate, previousId?: string): Candidate[] {
+  const nextKey = archivePlaceKey(next.place)
+  return [
+    ...current.filter((candidate) =>
+      candidate.id !== previousId &&
+      candidate.id !== next.id &&
+      archivePlaceKey(candidate.place) !== nextKey
+    ),
+    next,
+  ]
 }
 
 interface Props {
@@ -74,6 +92,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   const [actionError, setActionError] = useState<string | null>(null)
   const [candidates] = useState<Candidate[]>(initialCandidates)
   const [archived, setArchived] = useState<Candidate[]>(initialArchived)
+  const [sidePanelTabs, setSidePanelTabs] = useState<Record<number, SidePanelTab>>({})
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const autosaveRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // planRef always tracks the latest committed plan (avoids stale closures in dnd-kit callbacks)
@@ -412,9 +431,10 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     if (!targetTripId) return
     try {
       const { id } = await archivePlace(targetTripId, place)
-      setArchived((a) => [...a, { id, place, addedBy: 'me', addedByName: '你', source: null }])
+      setArchived((current) => upsertArchived(current, { id, place, addedBy: 'me', addedByName: '\u4f60', source: null }))
       setActionError(null)
     } catch (error) {
+      console.error('[reserve] failed to add reserve place', { tripId: targetTripId, placeId: place.placeId || place.id }, error)
       showActionError('加入備用行程失敗，請稍後再試', error)
     }
   }, [currentTripId, ensureTripSaved, showActionError])
@@ -422,6 +442,10 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   const handleAddReservePlaces = useCallback((places: Place[]) => {
     places.forEach((place) => { void handleAddReservePlace(place) })
   }, [handleAddReservePlace])
+
+  const handleSidePanelTabChange = useCallback((dayIdx: number, tab: SidePanelTab) => {
+    setSidePanelTabs((current) => current[dayIdx] === tab ? current : { ...current, [dayIdx]: tab })
+  }, [])
 
   const pendingArchiveId = useCallback((place: Place) => `pending-${place.id || place.placeId}`, [])
 
@@ -434,20 +458,16 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       index === dayIdx ? { ...day, places: day.places.filter((currentPlace) => currentPlace.id !== place.id) } : day
     )
     scheduleRecalc({ ...previousPlan, days: optimisticDays }, true)
-    setArchived((current) => [
-      ...current,
-      { id: pendingId, place, addedBy: 'me', addedByName: '\u4f60', source: null },
-    ])
+    setArchived((current) => upsertArchived(current, { id: pendingId, place, addedBy: 'me', addedByName: '\u4f60', source: null }))
     try {
       const { id } = await archivePlace(targetTripId, place)
-      setArchived((current) => current.map((candidate) =>
-        candidate.id === pendingId ? { ...candidate, id } : candidate
-      ))
+      setArchived((current) => upsertArchived(current, { id, place, addedBy: 'me', addedByName: '\u4f60', source: null }, pendingId))
       setActionError(null)
     } catch (error) {
       planRef.current = previousPlan
       setPlan(previousPlan)
       setArchived((current) => current.filter((candidate) => candidate.id !== pendingId))
+      console.error('[reserve] failed to archive itinerary card', { tripId: targetTripId, placeId: place.placeId || place.id }, error)
       showActionError('\u79fb\u5230\u5099\u7528\u884c\u7a0b\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66\u3002', error)
     }
   }, [currentTripId, ensureTripSaved, pendingArchiveId, scheduleRecalc, showActionError])
@@ -467,19 +487,15 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       )
       commitRecs(next)
     }
-    setArchived((current) => [
-      ...current,
-      { id: pendingId, place: rec, addedBy: 'me', addedByName: '\u4f60', source: null },
-    ])
+    setArchived((current) => upsertArchived(current, { id: pendingId, place: rec, addedBy: 'me', addedByName: '\u4f60', source: null }))
     try {
       const { id } = await archivePlace(targetTripId, rec)
-      setArchived((current) => current.map((candidate) =>
-        candidate.id === pendingId ? { ...candidate, id } : candidate
-      ))
+      setArchived((current) => upsertArchived(current, { id, place: rec, addedBy: 'me', addedByName: '\u4f60', source: null }, pendingId))
       setActionError(null)
     } catch (error) {
       commitRecs(previousRecs)
       setArchived((current) => current.filter((candidate) => candidate.id !== pendingId))
+      console.error('[reserve] failed to archive recommendation card', { tripId: targetTripId, placeId: rec.placeId || rec.id }, error)
       showActionError('\u79fb\u5230\u5099\u7528\u884c\u7a0b\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66\u3002', error)
     }
   }, [currentTripId, ensureTripSaved, pendingArchiveId, commitRecs, showActionError])
@@ -569,6 +585,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       openingHours: rec.openingHours,
       rating: rec.rating,
       photoUrl: rec.photoUrl,
+      photoUrls: rec.photoUrls,
       description: rec.description,
       startTime: '09:00',
       durationMin: DWELL[rec.type],
@@ -913,6 +930,8 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
                 onAddArchivedToDay={(candidateId, place) => handleAddArchivedToDay(candidateId, place, dayIdx)}
                 onDeleteArchived={handleDeleteArchived}
                 onArchivePlace={(place) => handleArchivePlace(dayIdx, place)}
+                sidePanelTab={sidePanelTabs[dayIdx]}
+                onSidePanelTabChange={(tab) => handleSidePanelTabChange(dayIdx, tab)}
                 backfilling={{
                   dessert: backfillKeys.has(`${dayIdx}:dessert`),
                   attraction: backfillKeys.has(`${dayIdx}:attraction`),

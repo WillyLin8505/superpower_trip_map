@@ -5,6 +5,7 @@ import { TYPE_META } from '@/lib/placeType'
 import { PhotoStrip } from './PhotoStrip'
 
 const ARCHIVE_LABEL = '\u79fb\u5230\u5099\u7528'
+const ARCHIVE_ICON = '\uD83D\uDCBE'
 
 interface Props {
   rec: DayRecommendation
@@ -37,9 +38,11 @@ export function RecommendationCard({ rec, dateIso, onAdd, onArchive }: Props) {
             type="button"
             onClick={() => onArchive(rec)}
             aria-label={ARCHIVE_LABEL}
-            className="shrink-0 mt-0.5 rounded-full border border-clay/40 px-2 py-1 text-xs font-medium text-clay-deep bg-white hover:bg-clay-tint transition-colors"
+            title={ARCHIVE_LABEL}
+            className="shrink-0 mt-0.5 w-8 h-8 rounded-full bg-clay text-white text-base flex items-center justify-center hover:bg-clay-deep transition-colors shadow-sm"
           >
-            {ARCHIVE_LABEL}
+            <span aria-hidden="true" className="leading-none">{ARCHIVE_ICON}</span>
+            <span className="sr-only">{ARCHIVE_LABEL}</span>
           </button>
         )}
         <div className="flex-1 min-w-0">

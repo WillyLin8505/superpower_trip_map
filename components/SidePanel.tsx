@@ -6,7 +6,8 @@ import { CandidatePanel } from './CandidatePanel'
 import { CombinedInput } from '@/components/CombinedInput'
 import { RecommendationCard } from './RecommendationCard'
 
-type Tab = 'recommend' | 'line' | 'reserve'
+export type SidePanelTab = 'recommend' | 'line' | 'reserve'
+type Tab = SidePanelTab
 type Category = 'dessert' | 'attraction' | 'restaurant'
 
 interface Props {
@@ -28,6 +29,8 @@ interface Props {
   onAddReservePlaces: (places: Place[]) => void
   onAddArchivedToDay: (candidateId: string, place: Place) => void
   onDeleteArchived: (candidateId: string) => void
+  activeTab?: SidePanelTab
+  onTabChange?: (tab: SidePanelTab) => void
 }
 
 const TABS: { key: Tab; label: string }[] = [
@@ -45,7 +48,13 @@ function archivedToRecommendation(candidate: Candidate): DayRecommendation {
 }
 
 export function SidePanel(props: Props) {
-  const [tab, setTab] = useState<Tab>('recommend')
+  const [localTab, setLocalTab] = useState<Tab>('recommend')
+  const tab = props.activeTab ?? localTab
+
+  const selectTab = (nextTab: Tab) => {
+    if (props.activeTab === undefined) setLocalTab(nextTab)
+    props.onTabChange?.(nextTab)
+  }
 
   return (
     <div className="flex flex-col h-full" data-testid="side-panel">
@@ -54,7 +63,7 @@ export function SidePanel(props: Props) {
           <button
             key={t.key}
             type="button"
-            onClick={() => setTab(t.key)}
+            onClick={() => selectTab(t.key)}
             data-testid={`side-panel-tab-${t.key}`}
             className={`text-xs px-2 py-1 rounded-full border ${
               tab === t.key ? 'border-clay bg-clay-tint text-clay-deep' : 'border-gray-200 text-gray-500'
