@@ -119,6 +119,16 @@ function archivedCandidate(id: string, placeId = id): Candidate {
   }
 }
 
+function lineCandidate(id: string, placeId = id): Candidate {
+  return {
+    id,
+    place: place(placeId),
+    addedBy: 'line-user',
+    addedByName: 'Line User',
+    source: { kind: 'line_group', lineGroupId: 'g1', messageId: `m-${id}` },
+  }
+}
+
 function recommendationBuckets(recs: DayRecommendation[]) {
   return [{
     dessert: { shown: recs, reserve: [] },
@@ -152,6 +162,23 @@ it('filters archived places out of recommendations loaded after mount', async ()
   expect(within(screen.getByTestId('reserve-card-archived-A')).getByTestId('rec-A')).toBeInTheDocument()
 })
 
+it('filters current itinerary and LINE discussion places out of recommendations loaded after mount', async () => {
+  // Regression: recommendations duplicated places already present in my itinerary or LINE discussion.
+  // Found by /qa on 2026-07-13.
+  // Report: .gstack/qa-reports/qa-report-localhost-2026-07-13.md
+  getDayRecommendations.mockResolvedValue(recommendationBuckets([
+    recommendation('A'),
+    recommendation('line-place'),
+    recommendation('safe-rec'),
+  ]))
+
+  render(<ItineraryClient initial={plan()} tripId="t1" initialCandidates={[lineCandidate('line-candidate', 'line-place')]} />)
+
+  await waitFor(() => expect(screen.queryByTestId('rec-A')).not.toBeInTheDocument())
+  expect(screen.queryByTestId('rec-line-place')).not.toBeInTheDocument()
+  expect(screen.getByTestId('rec-safe-rec')).toBeInTheDocument()
+})
+
 it('does not reintroduce an archived itinerary card when stale recommendations finish loading', async () => {
   // Regression: moving a card to reserve while recommendations were loading could let the stale recommendation response show it again.
   // Found by /qa on 2026-07-13.
@@ -173,4 +200,20 @@ it('does not reintroduce an archived itinerary card when stale recommendations f
   await waitFor(() => expect(screen.getByTestId('reserve-card-archived-A')).toBeInTheDocument())
   fireEvent.click(within(screen.getByTestId('day-0')).getByTestId('side-panel-tab-recommend'))
   expect(screen.queryByTestId('rec-A')).not.toBeInTheDocument()
+})
+
+it('does not call archivePlace again when moving an itinerary card that already exists in reserve', async () => {
+  // Regression: clicking save-to-reserve on a place already in reserve re-saved a duplicate.
+  // Found by /qa on 2026-07-13.
+  // Report: .gstack/qa-reports/qa-report-localhost-2026-07-13.md
+  getDayRecommendations.mockResolvedValue(recommendationBuckets([]))
+
+  render(<ItineraryClient initial={plan()} tripId="t1" initialArchived={[archivedCandidate('archived-A', 'A')]} />)
+
+  fireEvent.click(within(screen.getByTestId('card-A')).getByRole('button', { name: '\u79fb\u5230\u5099\u7528' }))
+
+  await waitFor(() => expect(screen.queryByTestId('card-A')).not.toBeInTheDocument())
+  expect(archivePlace).not.toHaveBeenCalled()
+  fireEvent.click(within(screen.getByTestId('day-0')).getByTestId('side-panel-tab-reserve'))
+  expect(screen.getByTestId('reserve-card-archived-A')).toBeInTheDocument()
 })

@@ -65,29 +65,36 @@ function upsertArchived(current: Candidate[], next: Candidate, previousId?: stri
   ]
 }
 
-function archivedPlaceKeys(candidates: Candidate[]): Set<string> {
-  return new Set(candidates.map((candidate) => archivePlaceKey(candidate.place)))
+function unavailableRecommendationKeys(
+  days: PlanResult['days'],
+  lineCandidates: Candidate[],
+  archivedCandidates: Candidate[]
+): Set<string> {
+  const keys = new Set<string>()
+  days.forEach((day) => day.places.forEach((place) => keys.add(archivePlaceKey(place))))
+  lineCandidates.forEach((candidate) => keys.add(archivePlaceKey(candidate.place)))
+  archivedCandidates.forEach((candidate) => keys.add(archivePlaceKey(candidate.place)))
+  return keys
 }
 
-function filterRecommendationsByArchived(
+function filterRecommendationsByUnavailable(
   recommendations: RecommendationsByDay | null,
-  archivedCandidates: Candidate[]
+  unavailableKeys: Set<string>
 ): RecommendationsByDay | null {
-  if (!recommendations || archivedCandidates.length === 0) return recommendations
-  const keys = archivedPlaceKeys(archivedCandidates)
+  if (!recommendations || unavailableKeys.size === 0) return recommendations
 
   return recommendations.map((dayRecommendations) => ({
     dessert: {
-      shown: dayRecommendations.dessert.shown.filter((recommendation) => !keys.has(archivePlaceKey(recommendation))),
-      reserve: dayRecommendations.dessert.reserve.filter((recommendation) => !keys.has(archivePlaceKey(recommendation))),
+      shown: dayRecommendations.dessert.shown.filter((recommendation) => !unavailableKeys.has(archivePlaceKey(recommendation))),
+      reserve: dayRecommendations.dessert.reserve.filter((recommendation) => !unavailableKeys.has(archivePlaceKey(recommendation))),
     },
     attraction: {
-      shown: dayRecommendations.attraction.shown.filter((recommendation) => !keys.has(archivePlaceKey(recommendation))),
-      reserve: dayRecommendations.attraction.reserve.filter((recommendation) => !keys.has(archivePlaceKey(recommendation))),
+      shown: dayRecommendations.attraction.shown.filter((recommendation) => !unavailableKeys.has(archivePlaceKey(recommendation))),
+      reserve: dayRecommendations.attraction.reserve.filter((recommendation) => !unavailableKeys.has(archivePlaceKey(recommendation))),
     },
     restaurant: {
-      shown: dayRecommendations.restaurant.shown.filter((recommendation) => !keys.has(archivePlaceKey(recommendation))),
-      reserve: dayRecommendations.restaurant.reserve.filter((recommendation) => !keys.has(archivePlaceKey(recommendation))),
+      shown: dayRecommendations.restaurant.shown.filter((recommendation) => !unavailableKeys.has(archivePlaceKey(recommendation))),
+      reserve: dayRecommendations.restaurant.reserve.filter((recommendation) => !unavailableKeys.has(archivePlaceKey(recommendation))),
     },
   }))
 }
@@ -146,9 +153,17 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   }, [])
 
   const commitRecs = useCallback((next: RecommendationsByDay | null) => {
-    const filtered = filterRecommendationsByArchived(next, archivedRef.current)
+    const filtered = filterRecommendationsByUnavailable(
+      next,
+      unavailableRecommendationKeys(planRef.current.days, candidates, archivedRef.current)
+    )
     recsRef.current = filtered
     setRecsByDay(filtered)
+  }, [candidates])
+
+  const isAlreadyArchived = useCallback((place: Place): boolean => {
+    const key = archivePlaceKey(place)
+    return archivedRef.current.some((candidate) => archivePlaceKey(candidate.place) === key)
   }, [])
 
   useEffect(() => {
@@ -462,6 +477,11 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   }, [])
 
   const handleAddReservePlace = useCallback(async (place: Place) => {
+    if (isAlreadyArchived(place)) {
+      commitRecs(recsRef.current)
+      setActionError(null)
+      return
+    }
     const targetTripId = currentTripId ?? await ensureTripSaved()
     if (!targetTripId) return
     try {
@@ -473,7 +493,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       console.error('[reserve] failed to add reserve place', { tripId: targetTripId, placeId: place.placeId || place.id }, error)
       showActionError('加入備用行程失敗，請稍後再試', error)
     }
-  }, [currentTripId, ensureTripSaved, showActionError, updateArchived, commitRecs])
+  }, [currentTripId, ensureTripSaved, showActionError, updateArchived, commitRecs, isAlreadyArchived])
 
   const handleAddReservePlaces = useCallback((places: Place[]) => {
     places.forEach((place) => { void handleAddReservePlace(place) })
@@ -486,15 +506,22 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   const pendingArchiveId = useCallback((place: Place) => `pending-${place.id || place.placeId}`, [])
 
   const handleArchivePlace = useCallback(async (dayIdx: number, place: Place) => {
-    const targetTripId = currentTripId ?? await ensureTripSaved()
-    if (!targetTripId) return
-    const pendingId = pendingArchiveId(place)
+    const alreadyArchived = isAlreadyArchived(place)
+    const targetTripId = alreadyArchived ? currentTripId : currentTripId ?? await ensureTripSaved()
+    if (!alreadyArchived && !targetTripId) return
     const previousPlan = planRef.current
     const previousRecs = recsRef.current
     const optimisticDays = previousPlan.days.map((day, index) =>
       index === dayIdx ? { ...day, places: day.places.filter((currentPlace) => currentPlace.id !== place.id) } : day
     )
     scheduleRecalc({ ...previousPlan, days: optimisticDays }, true)
+    if (alreadyArchived) {
+      commitRecs(previousRecs)
+      setActionError(null)
+      return
+    }
+    if (!targetTripId) return
+    const pendingId = pendingArchiveId(place)
     updateArchived((current) => upsertArchived(current, { id: pendingId, place, addedBy: 'me', addedByName: '\u4f60', source: null }))
     commitRecs(recsRef.current)
     try {
@@ -510,9 +537,14 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       console.error('[reserve] failed to archive itinerary card', { tripId: targetTripId, placeId: place.placeId || place.id }, error)
       showActionError('\u79fb\u5230\u5099\u7528\u884c\u7a0b\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66\u3002', error)
     }
-  }, [currentTripId, ensureTripSaved, pendingArchiveId, scheduleRecalc, showActionError, updateArchived, commitRecs])
+  }, [currentTripId, ensureTripSaved, pendingArchiveId, scheduleRecalc, showActionError, updateArchived, commitRecs, isAlreadyArchived])
 
   const handleArchiveRecommendation = useCallback(async (dayIdx: number, rec: DayRecommendation) => {
+    if (isAlreadyArchived(rec)) {
+      commitRecs(recsRef.current)
+      setActionError(null)
+      return
+    }
     const targetTripId = currentTripId ?? await ensureTripSaved()
     if (!targetTripId) return
     const pendingId = pendingArchiveId(rec)
@@ -530,7 +562,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       console.error('[reserve] failed to archive recommendation card', { tripId: targetTripId, placeId: rec.placeId || rec.id }, error)
       showActionError('\u79fb\u5230\u5099\u7528\u884c\u7a0b\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66\u3002', error)
     }
-  }, [currentTripId, ensureTripSaved, pendingArchiveId, commitRecs, showActionError, updateArchived])
+  }, [currentTripId, ensureTripSaved, pendingArchiveId, commitRecs, showActionError, updateArchived, isAlreadyArchived])
 
   const handleAddArchivedToDay = useCallback(async (candidateId: string, place: Place, dayIndex: number) => {
     const newPlace: ScheduledPlace = {
@@ -570,6 +602,9 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   const buildExcludeIds = useCallback((): string[] => {
     const ids = new Set<string>()
     planRef.current.days.forEach((d) => d.places.forEach((p) => ids.add(p.placeId)))
+    candidates.forEach((candidate) => {
+      if (candidate.place.placeId) ids.add(candidate.place.placeId)
+    })
     archivedRef.current.forEach((candidate) => {
       if (candidate.place.placeId) ids.add(candidate.place.placeId)
     })
@@ -583,7 +618,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       )
     }
     return Array.from(ids)
-  }, [])
+  }, [candidates])
 
   // 抽出可重用的「智慧排程單日」核心;智慧排程按鈕與新增推薦後自動排程共用。
   const arrangeDay = useCallback(async (dayIdx: number) => {
