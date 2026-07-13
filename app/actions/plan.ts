@@ -16,7 +16,7 @@ export async function planItinerary(
   // Enrich with full details (opening hours, rating, etc.)
   const enriched = await Promise.all(
     places.map(async (p) => {
-      const details = await getPlaceDetails(p.placeId)
+      const details = await getPlaceDetails(p.placeId, p.localizedName?.original ?? p.name)
       return details ? { ...details, id: p.id, type: p.type } : p
     })
   )

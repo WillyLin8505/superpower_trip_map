@@ -42,29 +42,51 @@ function latinizedName(value: string | null | undefined): string | null {
   return latinized && latinized !== original ? latinized : null
 }
 
-async function fetchPlaceDetails(placeId: string, language: 'zh-TW' | 'en') {
-  const url = `${BASE}/details/json?place_id=${placeId}&fields=${DETAILS_FIELDS}&key=${KEY}&language=${language}`
+function isAsciiText(value: string | null | undefined): value is string {
+  return Boolean(value && /^[\x00-\x7F]+$/.test(value) && /[A-Za-z]/.test(value))
+}
+
+function resolveEnglishName(
+  enName: string | null | undefined,
+  zhResultName: string | null | undefined,
+  originalName: string | null
+): string | null {
+  const candidates = [cleanText(enName), cleanText(zhResultName)]
+  const asciiCandidate = candidates.find((candidate) => candidate !== null && candidate !== originalName && isAsciiText(candidate))
+  if (asciiCandidate) return asciiCandidate
+  const translatedCandidate = candidates.find((candidate) => candidate !== null && candidate !== originalName)
+  return translatedCandidate ?? latinizedName(originalName)
+}
+
+async function fetchPlaceDetails(placeId: string, language?: 'zh-TW' | 'en') {
+  const params = new URLSearchParams({
+    place_id: placeId,
+    fields: DETAILS_FIELDS,
+    key: KEY,
+  })
+  if (language) params.set('language', language)
+  const url = `${BASE}/details/json?${params.toString()}`
   const res = await fetch(url, { next: { revalidate: 3600 } })
   const data = await res.json()
   return data.status === 'OK' ? data.result : null
 }
 
 export async function getPlaceDetails(placeId: string, originalNameHint?: string | null): Promise<Place | null> {
-  const zhResult = await fetchPlaceDetails(placeId, 'zh-TW')
+  const [zhResult, nativeResult] = await Promise.all([
+    fetchPlaceDetails(placeId, 'zh-TW'),
+    originalNameHint ? Promise.resolve(null) : fetchPlaceDetails(placeId),
+  ])
   if (!zhResult) return null
 
-  const originalName = cleanText(originalNameHint) ?? cleanText(zhResult.name)
+  const originalName = cleanText(originalNameHint) ?? cleanText(nativeResult?.name) ?? cleanText(zhResult.name)
+  const originalAddress = cleanText(nativeResult?.formatted_address) ?? cleanText(zhResult.formatted_address)
   const zhName = hasHanText(zhResult.name) ? cleanText(zhResult.name) : null
   const zhAddress = hasHanText(zhResult.formatted_address) ? cleanText(zhResult.formatted_address) : null
   const needsEnglish = !zhName || !zhAddress
   const enResult = needsEnglish ? await fetchPlaceDetails(placeId, 'en') : null
   const cleanEnName = cleanText(enResult?.name)
   const cleanEnAddress = cleanText(enResult?.formatted_address)
-  const enName = cleanEnName && cleanEnName !== zhResult.name
-    ? cleanEnName
-    : !zhName
-      ? latinizedName(originalName)
-      : null
+  const enName = !zhName ? resolveEnglishName(cleanEnName, zhResult.name, originalName) : null
   const enAddress = cleanEnAddress && cleanEnAddress !== zhResult.formatted_address ? cleanEnAddress : null
   const displayName = zhName ?? enName ?? originalName ?? zhResult.name
   const displayAddress = zhAddress ?? enAddress ?? zhResult.formatted_address ?? ''
@@ -86,7 +108,7 @@ export async function getPlaceDetails(placeId: string, originalNameHint?: string
     localizedAddress: {
       zhTw: zhAddress,
       ...(enAddress ? { en: enAddress } : {}),
-      original: zhResult.formatted_address ?? null,
+      original: originalAddress,
     },
     openingHours: zhResult.opening_hours?.weekday_text ?? null,
     rating: zhResult.rating ?? null,
