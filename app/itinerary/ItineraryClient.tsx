@@ -65,6 +65,33 @@ function upsertArchived(current: Candidate[], next: Candidate, previousId?: stri
   ]
 }
 
+function archivedPlaceKeys(candidates: Candidate[]): Set<string> {
+  return new Set(candidates.map((candidate) => archivePlaceKey(candidate.place)))
+}
+
+function filterRecommendationsByArchived(
+  recommendations: RecommendationsByDay | null,
+  archivedCandidates: Candidate[]
+): RecommendationsByDay | null {
+  if (!recommendations || archivedCandidates.length === 0) return recommendations
+  const keys = archivedPlaceKeys(archivedCandidates)
+
+  return recommendations.map((dayRecommendations) => ({
+    dessert: {
+      shown: dayRecommendations.dessert.shown.filter((recommendation) => !keys.has(archivePlaceKey(recommendation))),
+      reserve: dayRecommendations.dessert.reserve.filter((recommendation) => !keys.has(archivePlaceKey(recommendation))),
+    },
+    attraction: {
+      shown: dayRecommendations.attraction.shown.filter((recommendation) => !keys.has(archivePlaceKey(recommendation))),
+      reserve: dayRecommendations.attraction.reserve.filter((recommendation) => !keys.has(archivePlaceKey(recommendation))),
+    },
+    restaurant: {
+      shown: dayRecommendations.restaurant.shown.filter((recommendation) => !keys.has(archivePlaceKey(recommendation))),
+      reserve: dayRecommendations.restaurant.reserve.filter((recommendation) => !keys.has(archivePlaceKey(recommendation))),
+    },
+  }))
+}
+
 interface Props {
   initial: PlanResult
   tripId?: string
@@ -91,7 +118,8 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   const [saveError, setSaveError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [candidates] = useState<Candidate[]>(initialCandidates)
-  const [archived, setArchived] = useState<Candidate[]>(initialArchived)
+  const [archived, setArchivedState] = useState<Candidate[]>(initialArchived)
+  const archivedRef = useRef<Candidate[]>(initialArchived)
   const [sidePanelTabs, setSidePanelTabs] = useState<Record<number, SidePanelTab>>({})
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const autosaveRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -111,19 +139,26 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     }
   }, [])
 
-  useEffect(() => {
-    let active = true
-    getDayRecommendations(planRef.current.days)
-      .then((r) => { if (active) { recsRef.current = r; setRecsByDay(r); setRecsError(null) } })
-      .catch(() => { if (active) { recsRef.current = null; setRecsByDay(null); setRecsError('推薦載入失敗，請稍後再試') } })
-    return () => { active = false }
-  // run once on mount
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const updateArchived = useCallback((updater: (current: Candidate[]) => Candidate[]) => {
+    const next = updater(archivedRef.current)
+    archivedRef.current = next
+    setArchivedState(next)
   }, [])
 
   const commitRecs = useCallback((next: RecommendationsByDay | null) => {
-    recsRef.current = next
-    setRecsByDay(next)
+    const filtered = filterRecommendationsByArchived(next, archivedRef.current)
+    recsRef.current = filtered
+    setRecsByDay(filtered)
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    getDayRecommendations(planRef.current.days)
+      .then((r) => { if (active) { commitRecs(r); setRecsError(null) } })
+      .catch(() => { if (active) { commitRecs(null); setRecsError('推薦載入失敗，請稍後再試') } })
+    return () => { active = false }
+  // run once on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // 匿名：建立 trip
@@ -431,13 +466,14 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     if (!targetTripId) return
     try {
       const { id } = await archivePlace(targetTripId, place)
-      setArchived((current) => upsertArchived(current, { id, place, addedBy: 'me', addedByName: '\u4f60', source: null }))
+      updateArchived((current) => upsertArchived(current, { id, place, addedBy: 'me', addedByName: '\u4f60', source: null }))
+      commitRecs(recsRef.current)
       setActionError(null)
     } catch (error) {
       console.error('[reserve] failed to add reserve place', { tripId: targetTripId, placeId: place.placeId || place.id }, error)
       showActionError('加入備用行程失敗，請稍後再試', error)
     }
-  }, [currentTripId, ensureTripSaved, showActionError])
+  }, [currentTripId, ensureTripSaved, showActionError, updateArchived, commitRecs])
 
   const handleAddReservePlaces = useCallback((places: Place[]) => {
     places.forEach((place) => { void handleAddReservePlace(place) })
@@ -454,51 +490,47 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     if (!targetTripId) return
     const pendingId = pendingArchiveId(place)
     const previousPlan = planRef.current
+    const previousRecs = recsRef.current
     const optimisticDays = previousPlan.days.map((day, index) =>
       index === dayIdx ? { ...day, places: day.places.filter((currentPlace) => currentPlace.id !== place.id) } : day
     )
     scheduleRecalc({ ...previousPlan, days: optimisticDays }, true)
-    setArchived((current) => upsertArchived(current, { id: pendingId, place, addedBy: 'me', addedByName: '\u4f60', source: null }))
+    updateArchived((current) => upsertArchived(current, { id: pendingId, place, addedBy: 'me', addedByName: '\u4f60', source: null }))
+    commitRecs(recsRef.current)
     try {
       const { id } = await archivePlace(targetTripId, place)
-      setArchived((current) => upsertArchived(current, { id, place, addedBy: 'me', addedByName: '\u4f60', source: null }, pendingId))
+      updateArchived((current) => upsertArchived(current, { id, place, addedBy: 'me', addedByName: '\u4f60', source: null }, pendingId))
+      commitRecs(recsRef.current)
       setActionError(null)
     } catch (error) {
       planRef.current = previousPlan
       setPlan(previousPlan)
-      setArchived((current) => current.filter((candidate) => candidate.id !== pendingId))
+      updateArchived((current) => current.filter((candidate) => candidate.id !== pendingId))
+      commitRecs(previousRecs)
       console.error('[reserve] failed to archive itinerary card', { tripId: targetTripId, placeId: place.placeId || place.id }, error)
       showActionError('\u79fb\u5230\u5099\u7528\u884c\u7a0b\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66\u3002', error)
     }
-  }, [currentTripId, ensureTripSaved, pendingArchiveId, scheduleRecalc, showActionError])
+  }, [currentTripId, ensureTripSaved, pendingArchiveId, scheduleRecalc, showActionError, updateArchived, commitRecs])
 
   const handleArchiveRecommendation = useCallback(async (dayIdx: number, rec: DayRecommendation) => {
-    const category = rec.type as 'dessert' | 'attraction' | 'restaurant'
     const targetTripId = currentTripId ?? await ensureTripSaved()
     if (!targetTripId) return
     const pendingId = pendingArchiveId(rec)
     const previousRecs = recsRef.current
-    if (previousRecs && previousRecs[dayIdx]) {
-      const bucket = previousRecs[dayIdx][category]
-      const next: RecommendationsByDay = previousRecs.map((dayRecs, index) =>
-        index === dayIdx
-          ? { ...dayRecs, [category]: { ...bucket, shown: bucket.shown.filter((shownRec) => shownRec.placeId !== rec.placeId) } }
-          : dayRecs
-      )
-      commitRecs(next)
-    }
-    setArchived((current) => upsertArchived(current, { id: pendingId, place: rec, addedBy: 'me', addedByName: '\u4f60', source: null }))
+    updateArchived((current) => upsertArchived(current, { id: pendingId, place: rec, addedBy: 'me', addedByName: '\u4f60', source: null }))
+    commitRecs(previousRecs)
     try {
       const { id } = await archivePlace(targetTripId, rec)
-      setArchived((current) => upsertArchived(current, { id, place: rec, addedBy: 'me', addedByName: '\u4f60', source: null }, pendingId))
+      updateArchived((current) => upsertArchived(current, { id, place: rec, addedBy: 'me', addedByName: '\u4f60', source: null }, pendingId))
+      commitRecs(recsRef.current)
       setActionError(null)
     } catch (error) {
+      updateArchived((current) => current.filter((candidate) => candidate.id !== pendingId))
       commitRecs(previousRecs)
-      setArchived((current) => current.filter((candidate) => candidate.id !== pendingId))
       console.error('[reserve] failed to archive recommendation card', { tripId: targetTripId, placeId: rec.placeId || rec.id }, error)
       showActionError('\u79fb\u5230\u5099\u7528\u884c\u7a0b\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66\u3002', error)
     }
-  }, [currentTripId, ensureTripSaved, pendingArchiveId, commitRecs, showActionError])
+  }, [currentTripId, ensureTripSaved, pendingArchiveId, commitRecs, showActionError, updateArchived])
 
   const handleAddArchivedToDay = useCallback(async (candidateId: string, place: Place, dayIndex: number) => {
     const newPlace: ScheduledPlace = {
@@ -518,26 +550,29 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
         i === dayIndex ? { ...d, places: [...d.places, newPlace] } : d
       )
       scheduleRecalc({ ...planRef.current, days: newDays }, true)
-      setArchived((a) => a.filter((c) => c.id !== candidateId))
+      updateArchived((a) => a.filter((c) => c.id !== candidateId))
       setActionError(null)
     } catch (error) {
       showActionError('加入行程失敗，請稍後再試', error)
     }
-  }, [scheduleRecalc, showActionError])
+  }, [scheduleRecalc, showActionError, updateArchived])
 
   const handleDeleteArchived = useCallback(async (candidateId: string) => {
     try {
       await unarchivePlace(candidateId)
-      setArchived((a) => a.filter((c) => c.id !== candidateId))
+      updateArchived((a) => a.filter((c) => c.id !== candidateId))
       setActionError(null)
     } catch (error) {
       showActionError('刪除備用行程失敗，請稍後再試', error)
     }
-  }, [showActionError])
+  }, [showActionError, updateArchived])
 
   const buildExcludeIds = useCallback((): string[] => {
     const ids = new Set<string>()
     planRef.current.days.forEach((d) => d.places.forEach((p) => ids.add(p.placeId)))
+    archivedRef.current.forEach((candidate) => {
+      if (candidate.place.placeId) ids.add(candidate.place.placeId)
+    })
     const cur = recsRef.current
     if (cur) {
       cur.forEach((b) =>
