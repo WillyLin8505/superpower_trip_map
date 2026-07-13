@@ -42,7 +42,7 @@ function formatUnknownError(fallback: string, error: unknown): { error: string }
   return { error: fallback }
 }
 
-async function requireTripWriteAccess(tripId: string, userId: string): Promise<SaveTripResult> {
+async function requireTripAccess(tripId: string, userId: string): Promise<SaveTripResult> {
   const admin = createAdminClient()
   const { data: trip, error: tripError } = await admin
     .from('trips')
@@ -125,7 +125,14 @@ export async function createTripSafe(plan: PlanResult, title: string): Promise<C
 
 export async function getTrip(tripId: string): Promise<{ plan: PlanResult; title: string; ownerId: string } | null> {
   const supabase = createClient()
-  const { data, error } = await supabase
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const access = await requireTripAccess(tripId, user.id)
+  if (!access.ok) return null
+
+  const admin = createAdminClient()
+  const { data, error } = await admin
     .from('trips')
     .select('plan, title, owner_id')
     .eq('id', tripId)
@@ -161,7 +168,7 @@ export async function saveTripSafe(tripId: string, plan: PlanResult): Promise<Sa
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { ok: false, error: 'NOT_AUTHENTICATED' }
 
-    const access = await requireTripWriteAccess(tripId, user.id)
+    const access = await requireTripAccess(tripId, user.id)
     if (!access.ok) return access
 
     const admin = createAdminClient()

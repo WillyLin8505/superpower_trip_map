@@ -56,6 +56,7 @@ interface Props {
 
 export function ItineraryClient({ initial, tripId, initialCandidates = [], initialArchived = [] }: Props) {
   const router = useRouter()
+  const [currentTripId, setCurrentTripId] = useState<string | undefined>(tripId)
   const [plan, setPlan] = useState<PlanResult>(initial)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [targetDays, setTargetDays] = useState<number | null>(null)
@@ -110,9 +111,13 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   const onSave = useCallback(async () => {
     try {
       setSaveError(null)
+      setSaveState('saving')
       const result = await createTripSafe(planRef.current, '未命名行程')
       if (result.ok) {
-        router.push(`/itinerary/${result.tripId}`)
+        setCurrentTripId(result.tripId)
+        savedPlanRef.current = planRef.current
+        setSaveState('saved')
+        window.history.replaceState(null, '', `/itinerary/${result.tripId}`)
       } else if (result.error === 'NOT_AUTHENTICATED') {
         router.push(`/login?next=${encodeURIComponent('/itinerary')}`)
       } else {
@@ -127,14 +132,14 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
 
   // 持久化：plan 變動 → debounced autosave（last-write-wins）
   useEffect(() => {
-    if (!tripId) return
+    if (!currentTripId) return
     if (plan === savedPlanRef.current) return
     setSaveState('saving')
     setSaveError(null)
     if (autosaveRef.current) clearTimeout(autosaveRef.current)
     autosaveRef.current = setTimeout(async () => {
       try {
-        const result = await saveTripSafe(tripId, planRef.current)
+        const result = await saveTripSafe(currentTripId, planRef.current)
         if (result.ok) {
           savedPlanRef.current = planRef.current
           setSaveState('saved')
@@ -148,15 +153,15 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       }
     }, 1500)
     return () => { if (autosaveRef.current) clearTimeout(autosaveRef.current) }
-  }, [plan, tripId])
+  }, [plan, currentTripId])
 
   // 持久化：重試按鈕直接呼叫 saveTrip（ref sentinel 方式無法重新觸發 effect）
   const onRetry = useCallback(async () => {
-    if (!tripId) return
+    if (!currentTripId) return
     setSaveState('saving')
     setSaveError(null)
     try {
-      const result = await saveTripSafe(tripId, planRef.current)
+      const result = await saveTripSafe(currentTripId, planRef.current)
       if (result.ok) {
         savedPlanRef.current = planRef.current
         setSaveState('saved')
@@ -168,7 +173,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       setSaveError(e instanceof Error ? e.message : '儲存失敗，請稍後再試')
       setSaveState('error')
     }
-  }, [tripId])
+  }, [currentTripId])
 
   const scheduleRecalc = useCallback((nextPlan: PlanResult, structural = false) => {
     planRef.current = nextPlan
@@ -396,15 +401,15 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   }, [])
 
   const handleAddReservePlace = useCallback(async (place: Place) => {
-    if (!tripId) return
+    if (!currentTripId) return
     try {
-      const { id } = await archivePlace(tripId, place)
+      const { id } = await archivePlace(currentTripId, place)
       setArchived((a) => [...a, { id, place, addedBy: 'me', addedByName: '你', source: null }])
       setActionError(null)
     } catch (error) {
       showActionError('加入備用行程失敗，請稍後再試', error)
     }
-  }, [tripId, showActionError])
+  }, [currentTripId, showActionError])
 
   const handleAddReservePlaces = useCallback((places: Place[]) => {
     places.forEach((place) => { void handleAddReservePlace(place) })
@@ -413,7 +418,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   const pendingArchiveId = useCallback((place: Place) => `pending-${place.id || place.placeId}`, [])
 
   const handleArchivePlace = useCallback(async (dayIdx: number, place: Place) => {
-    if (!tripId) return
+    if (!currentTripId) return
     const pendingId = pendingArchiveId(place)
     const previousPlan = planRef.current
     const optimisticDays = previousPlan.days.map((day, index) =>
@@ -425,7 +430,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       { id: pendingId, place, addedBy: 'me', addedByName: '\u4f60', source: null },
     ])
     try {
-      const { id } = await archivePlace(tripId, place)
+      const { id } = await archivePlace(currentTripId, place)
       setArchived((current) => current.map((candidate) =>
         candidate.id === pendingId ? { ...candidate, id } : candidate
       ))
@@ -436,11 +441,11 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       setArchived((current) => current.filter((candidate) => candidate.id !== pendingId))
       showActionError('\u79fb\u5230\u5099\u7528\u884c\u7a0b\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66\u3002', error)
     }
-  }, [tripId, pendingArchiveId, scheduleRecalc, showActionError])
+  }, [currentTripId, pendingArchiveId, scheduleRecalc, showActionError])
 
   const handleArchiveRecommendation = useCallback(async (dayIdx: number, rec: DayRecommendation) => {
     const category = rec.type as 'dessert' | 'attraction' | 'restaurant'
-    if (!tripId) return
+    if (!currentTripId) return
     const pendingId = pendingArchiveId(rec)
     const previousRecs = recsRef.current
     if (previousRecs && previousRecs[dayIdx]) {
@@ -457,7 +462,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       { id: pendingId, place: rec, addedBy: 'me', addedByName: '\u4f60', source: null },
     ])
     try {
-      const { id } = await archivePlace(tripId, rec)
+      const { id } = await archivePlace(currentTripId, rec)
       setArchived((current) => current.map((candidate) =>
         candidate.id === pendingId ? { ...candidate, id } : candidate
       ))
@@ -467,7 +472,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       setArchived((current) => current.filter((candidate) => candidate.id !== pendingId))
       showActionError('\u79fb\u5230\u5099\u7528\u884c\u7a0b\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66\u3002', error)
     }
-  }, [tripId, pendingArchiveId, commitRecs, showActionError])
+  }, [currentTripId, pendingArchiveId, commitRecs, showActionError])
 
   const handleAddArchivedToDay = useCallback(async (candidateId: string, place: Place, dayIndex: number) => {
     const newPlace: ScheduledPlace = {
@@ -765,7 +770,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     <main className="max-w-5xl mx-auto px-4 py-10">
       <div className="flex items-center justify-between mb-6">
         <a href="/" className="text-clay text-sm inline-block">&#x2190; 重新規劃</a>
-        {tripId ? (
+        {currentTripId ? (
           <span className="text-sm text-muted">
             {saveState === 'saving' && '儲存中…'}
             {saveState === 'saved' && '已儲存'}
@@ -890,14 +895,14 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
                 draggable
                 recommendations={recsByDay?.[dayIdx]}
                 onAddRecommendation={(rec) => handleAddRecommendation(dayIdx, rec)}
-                onArchiveRecommendation={tripId ? (rec) => handleArchiveRecommendation(dayIdx, rec) : undefined}
-                candidates={tripId ? candidates : undefined}
-                archived={tripId ? archived : undefined}
-                onAddReservePlace={tripId ? handleAddReservePlace : undefined}
-                onAddReservePlaces={tripId ? handleAddReservePlaces : undefined}
-                onAddArchivedToDay={tripId ? (candidateId, place) => handleAddArchivedToDay(candidateId, place, dayIdx) : undefined}
-                onDeleteArchived={tripId ? handleDeleteArchived : undefined}
-                onArchivePlace={tripId ? (place) => handleArchivePlace(dayIdx, place) : undefined}
+                onArchiveRecommendation={currentTripId ? (rec) => handleArchiveRecommendation(dayIdx, rec) : undefined}
+                candidates={currentTripId ? candidates : undefined}
+                archived={currentTripId ? archived : undefined}
+                onAddReservePlace={currentTripId ? handleAddReservePlace : undefined}
+                onAddReservePlaces={currentTripId ? handleAddReservePlaces : undefined}
+                onAddArchivedToDay={currentTripId ? (candidateId, place) => handleAddArchivedToDay(candidateId, place, dayIdx) : undefined}
+                onDeleteArchived={currentTripId ? handleDeleteArchived : undefined}
+                onArchivePlace={currentTripId ? (place) => handleArchivePlace(dayIdx, place) : undefined}
                 backfilling={{
                   dessert: backfillKeys.has(`${dayIdx}:dessert`),
                   attraction: backfillKeys.has(`${dayIdx}:attraction`),

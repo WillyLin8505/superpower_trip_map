@@ -54,6 +54,14 @@ beforeEach(() => {
   currentAdmin = makeSupabase()
 })
 
+function mockAdminTripRead(row: unknown) {
+  current = makeSupabase({ user: { id: 'u1' } })
+  currentAdmin = makeSupabase()
+  currentAdmin.spies.single
+    .mockResolvedValueOnce({ data: { owner_id: 'u1' }, error: null })
+    .mockResolvedValueOnce({ data: row, error: null })
+}
+
 it('createTrip inserts owner_id + plan and returns the new id', async () => {
   current = makeSupabase({ user: { id: 'u1' }, single: { data: { id: 'new-id' }, error: null } })
   const { createTrip } = require('@/app/actions/trips')
@@ -91,15 +99,17 @@ it('createTripSafe returns visible database errors instead of throwing', async (
 })
 
 it('getTrip returns null on error', async () => {
-  current = makeSupabase({ single: { data: null, error: { message: 'no' } } })
+  current = makeSupabase({ user: { id: 'u1' } })
+  currentAdmin = makeSupabase({ single: { data: null, error: { message: 'no' } } })
   const { getTrip } = require('@/app/actions/trips')
   expect(await getTrip('x')).toBeNull()
 })
 
-it('getTrip maps plan + title + ownerId on success', async () => {
-  current = makeSupabase({ single: { data: { plan, title: '東京', owner_id: 'u1' }, error: null } })
+it('getTrip maps plan + title + ownerId on success through the admin client', async () => {
+  mockAdminTripRead({ plan, title: 'Trip', owner_id: 'u1' })
   const { getTrip } = require('@/app/actions/trips')
-  expect(await getTrip('t1')).toEqual({ plan, title: '東京', ownerId: 'u1' })
+  expect(await getTrip('t1')).toEqual({ plan, title: 'Trip', ownerId: 'u1' })
+  expect(currentAdmin.client.from).toHaveBeenCalledWith('trips')
 })
 
 it('listTrips maps rows to TripSummary', async () => {
@@ -182,7 +192,7 @@ it('getTrip round-trips a persisted manual recommendationCenter on a day', async
     transportMode: 'driving',
     startDate: '2026-07-04',
   }
-  current = makeSupabase({ single: { data: { plan: planWithCenter, title: '東京', owner_id: 'u1' }, error: null } })
+  mockAdminTripRead({ plan: planWithCenter, title: 'Trip', owner_id: 'u1' })
   const { getTrip } = require('@/app/actions/trips')
   const result = await getTrip('t1')
   expect(result?.plan.days[0].recommendationCenter).toEqual(center)
@@ -194,7 +204,7 @@ it('getTrip round-trips a cleared (null) recommendationCenter on a day', async (
     transportMode: 'driving',
     startDate: '2026-07-04',
   }
-  current = makeSupabase({ single: { data: { plan: planWithNullCenter, title: '東京', owner_id: 'u1' }, error: null } })
+  mockAdminTripRead({ plan: planWithNullCenter, title: 'Trip', owner_id: 'u1' })
   const { getTrip } = require('@/app/actions/trips')
   const result = await getTrip('t1')
   expect(result?.plan.days[0].recommendationCenter).toBeNull()

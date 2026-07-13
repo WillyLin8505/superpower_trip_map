@@ -115,11 +115,16 @@ beforeEach(() => {
 
 // ─── anonymous mode ───────────────────────────────────────────────────────────
 
-it('anon mode: 儲存行程 click creates trip then routes to /itinerary/<id>', async () => {
+it('anon mode: 儲存行程 click creates trip without remounting the itinerary', async () => {
   createTripSafe.mockResolvedValue({ ok: true, tripId: 't1' })
+  const replaceState = jest.spyOn(window.history, 'replaceState')
   render(<ItineraryClient initial={plan()} />)
   fireEvent.click(screen.getByRole('button', { name: '儲存行程' }))
-  await waitFor(() => expect(push).toHaveBeenCalledWith('/itinerary/t1'))
+  await waitFor(() => expect(createTripSafe).toHaveBeenCalled())
+  expect(push).not.toHaveBeenCalled()
+  expect(replaceState).toHaveBeenCalledWith(null, '', '/itinerary/t1')
+  expect(screen.getByText('已儲存')).toBeInTheDocument()
+  replaceState.mockRestore()
 })
 
 it('anon mode: NOT_AUTHENTICATED routes to /login?next=/itinerary', async () => {
