@@ -1,5 +1,8 @@
 import { computeLegPlan, legInfo } from '@/app/actions/legs'
+import { buildDistanceMatrix } from '@/app/actions/directions'
 import type { Place, TransportMode } from '@/lib/types'
+
+const mockBDM = buildDistanceMatrix as jest.Mock
 
 // 每個模式回不同的固定秒數/公尺，方便驗證取最快 + 帶對的距離
 const SECS: Record<TransportMode, number> = { driving: 600, walking: 2400, transit: 1500 }
@@ -36,4 +39,22 @@ it('computeLegPlan returns [] for fewer than 2 places', async () => {
 })
 it('legInfo returns minutes + distance for one leg + mode', async () => {
   expect(await legInfo(p('A'), p('B'), 'driving')).toEqual({ travelMin: 10, travelDistanceM: 5000 })
+})
+
+// --- cost: only fetch the mode(s) the leg needs, and per-leg (never the full N×N) ---
+it('short (<=500m) leg fetches ONLY walking — no driving/transit calls', async () => {
+  mockBDM.mockClear()
+  await computeLegPlan([p('A', 0, 0), p('B', 0, 0.001)]) // ~111m
+  expect(mockBDM.mock.calls.map((c) => c[1])).toEqual(['walking'])
+})
+it('long (>500m) leg fetches ONLY driving + transit — never walking', async () => {
+  mockBDM.mockClear()
+  await computeLegPlan([p('A', 0, 0), p('B', 0, 0.01)]) // ~1113m
+  expect(mockBDM.mock.calls.map((c) => c[1]).sort()).toEqual(['driving', 'transit'])
+})
+it('each leg is a 2-place (single-element) matrix call, not the whole day matrix', async () => {
+  mockBDM.mockClear()
+  await computeLegPlan([p('A', 0, 0), p('B', 0, 0.01), p('C', 0, 0.02)]) // 2 long legs
+  expect(mockBDM.mock.calls.length).toBe(4) // 2 legs × (driving+transit)
+  for (const call of mockBDM.mock.calls) expect(call[0]).toHaveLength(2)
 })
