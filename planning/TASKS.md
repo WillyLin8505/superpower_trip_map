@@ -46,6 +46,7 @@ No active locks.
 - SPEC: README Onboarding — TASK-016
 - SPEC: LINE Group Candidate Ingest — TASK-021
 - SPEC: Archive & Tabbed Panel — TASK-022
+- SPEC: Edit-Time Cascade — TASK-023
 
 ## Conflicts
 
@@ -64,6 +65,7 @@ No active locks.
 - TASK-014 <> TASK-015: same day-count/add-day control area; run sequentially.
 - TASK-022 <> TASK-011: both modify itinerary/recommendation card internals (archive button vs photo layout).
 - TASK-022 <> TASK-012: light — both add a button to the same card components (`ItineraryCard`/`RecommendationCard`/`CandidatePanel`); no layout clash since TASK-012 is now just an external Google Maps link.
+- TASK-023 <> TASK-006/TASK-007/TASK-014/TASK-015: all touch `app/itinerary/ItineraryClient.tsx` time/day handlers and/or the scheduler; TASK-023 is run-alone (core scheduler change). Do not run concurrently with any itinerary-editor task.
 
 ## Un Spec
 
@@ -532,3 +534,23 @@ No active locks.
 - Suggested session count: 1
 - Safe to assign to any session: yes (spec/plan complete)
 - Notes: Spec/plan via `$multi-auto-spec` 2026-07-12. Decisions DEC-501..DEC-506. Plan: `docs/superpowers/plans/2026-07-12-archive-and-tabbed-panel.md`. Archive = per-trip parking-lot reusing `trip_candidates` + a `list` column (`candidate`/`archived`); place-level, re-addable. Do not run concurrently with TASK-011/TASK-012 (shared card/layout surfaces). DONE 2026-07-12: implemented in isolated worktree off `origin/main` (branch `task-022-archive-tabbed-panel`). Migration renamed `0006` → `0007_archive_list.sql` (`0006_invite_codes.sql` already existed on main). Did NOT touch `lib/types.ts`/`lib/candidates.ts` — used the existing simpler `Candidate` type (already what `CandidatePanel`/`app/actions/candidates.ts` actually use in production; `TripCandidate`/`lib/candidates.ts` are LINE-ingest-only and unused by any UI) rather than the spec's assumed `TripCandidate` extension. Corrected a real bug in `archivePlace`'s own design mid-implementation: duplicate-key on insert now flips the existing row's `list` to `'archived'` instead of a silent no-op (a plain no-op would mean archiving an already-existing LINE candidate never actually archives it). `components/DayCandidateSuggestions.tsx` + `lib/utils/candidateArrange.ts` + their tests are now dead code (kept, not deleted) — the per-day geographic candidate suggestions they provided are superseded by the trip-wide LINE 討論 tab, which intentionally shows the same list in every day (DEC-503). Verified: `tsc --noEmit` clean (same pre-existing baseline, plus confirmed the `line-bindings.test.ts`/`line-candidates.test.ts` collision already existed on clean `main` before this work), `npm test` 121/121 suites / 616/616 tests, `next build` succeeds. Pushed and opened **PR #14** (https://github.com/WillyLin8505/superpower_trip_map/pull/14). **MERGED to `main` 2026-07-12** (commit `334ace6`); reverified 121/121 suites / 618/618 tests green on `main` post-merge via a fresh worktree. **Migration `0007_archive_list.sql` still needs to be manually applied to the live Supabase project** — archive won't work in production until then.
+
+## TASK-023 - Edit-time cascade (soft anchor + neighbor yield)
+
+- Task type: frontend
+- Status: todo
+- Priority: medium
+- Spec: `docs/superpowers/specs/2026-07-14-edit-time-cascade-design.md`
+- Dependencies: TASK-022 (done — unlocks `app/itinerary/ItineraryClient.tsx`)
+- Estimated scope: medium-large
+- Files likely to change:
+  - `lib/utils/timeEdit.ts` (new `applyTimeEditCascade`)
+  - `lib/utils/clientScheduler.ts` (treat edited card as per-recalc soft anchor; leading card yields end, not start)
+  - `app/itinerary/ItineraryClient.tsx` (`handleTimeChange` calls the cascade)
+  - `__tests__/time-edit-cascade.test.ts`, `__tests__/itinerary-client-time-edit.test.tsx` (new)
+- Conflict risk: high (core scheduling; shares `ItineraryClient.tsx` time handlers + touches scheduler used by all lock tests)
+- Can run in parallel: no (run alone — core scheduler change)
+- Required review: GStack review + challenge (tricky scheduling boundaries) per CLAUDE.md
+- Suggested session count: 1
+- Safe to assign to any session: yes (spec/plan complete)
+- Notes: Spec/plan via `$multi-auto-spec`-style flow 2026-07-14 (office-hours/brainstorm collapsed — user gave product decisions directly via AUQ and confirmed root-cause understanding). Decisions DEC-601..DEC-606. Plan: `docs/superpowers/plans/2026-07-14-edit-time-cascade.md`. Root cause: `recalcDay` recomputes unlocked cards' start from day-start, so editing an unlocked card's start snaps back (verified against `client-scheduler.test.ts`). New model: editing start/end = transient anchor (no manual lock); previous card's end aligns to the edited start keeping travel time; clamp to duration 0 on inversion; symmetric both directions; explicit 3-locks still win. Run alone: touches the scheduler that ~10 lock/schedule test files depend on — only ADD tests, do not change existing test semantics.
