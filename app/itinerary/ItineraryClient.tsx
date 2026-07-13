@@ -410,41 +410,64 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     places.forEach((place) => { void handleAddReservePlace(place) })
   }, [handleAddReservePlace])
 
-  // TASK-022：封存停車場（per-trip，跨天共用，DEC-503）
+  const pendingArchiveId = useCallback((place: Place) => `pending-${place.id || place.placeId}`, [])
+
   const handleArchivePlace = useCallback(async (dayIdx: number, place: Place) => {
     if (!tripId) return
+    const pendingId = pendingArchiveId(place)
+    const previousPlan = planRef.current
+    const optimisticDays = previousPlan.days.map((day, index) =>
+      index === dayIdx ? { ...day, places: day.places.filter((currentPlace) => currentPlace.id !== place.id) } : day
+    )
+    scheduleRecalc({ ...previousPlan, days: optimisticDays }, true)
+    setArchived((current) => [
+      ...current,
+      { id: pendingId, place, addedBy: 'me', addedByName: '\u4f60', source: null },
+    ])
     try {
       const { id } = await archivePlace(tripId, place)
-      const newDays = planRef.current.days.map((d, i) =>
-        i === dayIdx ? { ...d, places: d.places.filter((p) => p.id !== place.id) } : d
-      )
-      scheduleRecalc({ ...planRef.current, days: newDays }, true)
-      setArchived((a) => [...a, { id, place, addedBy: 'me', addedByName: '你' }])
+      setArchived((current) => current.map((candidate) =>
+        candidate.id === pendingId ? { ...candidate, id } : candidate
+      ))
       setActionError(null)
     } catch (error) {
-      showActionError('加入備用行程失敗，請稍後再試', error)
+      planRef.current = previousPlan
+      setPlan(previousPlan)
+      setArchived((current) => current.filter((candidate) => candidate.id !== pendingId))
+      showActionError('\u79fb\u5230\u5099\u7528\u884c\u7a0b\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66\u3002', error)
     }
-  }, [tripId, scheduleRecalc, showActionError])
+  }, [tripId, pendingArchiveId, scheduleRecalc, showActionError])
 
   const handleArchiveRecommendation = useCallback(async (dayIdx: number, rec: DayRecommendation) => {
-    const cat = rec.type as 'dessert' | 'attraction' | 'restaurant'
+    const category = rec.type as 'dessert' | 'attraction' | 'restaurant'
     if (!tripId) return
+    const pendingId = pendingArchiveId(rec)
+    const previousRecs = recsRef.current
+    if (previousRecs && previousRecs[dayIdx]) {
+      const bucket = previousRecs[dayIdx][category]
+      const next: RecommendationsByDay = previousRecs.map((dayRecs, index) =>
+        index === dayIdx
+          ? { ...dayRecs, [category]: { ...bucket, shown: bucket.shown.filter((shownRec) => shownRec.placeId !== rec.placeId) } }
+          : dayRecs
+      )
+      commitRecs(next)
+    }
+    setArchived((current) => [
+      ...current,
+      { id: pendingId, place: rec, addedBy: 'me', addedByName: '\u4f60', source: null },
+    ])
     try {
       const { id } = await archivePlace(tripId, rec)
-      const cur = recsRef.current
-      if (cur && cur[dayIdx]) {
-        const bucket = cur[dayIdx][cat]
-        const next: RecommendationsByDay = cur.map((b, i) =>
-          i === dayIdx ? { ...b, [cat]: { ...bucket, shown: bucket.shown.filter((r) => r.placeId !== rec.placeId) } } : b
-        )
-        commitRecs(next)
-      }
-      setArchived((a) => [...a, { id, place: rec, addedBy: 'me', addedByName: '你' }])
+      setArchived((current) => current.map((candidate) =>
+        candidate.id === pendingId ? { ...candidate, id } : candidate
+      ))
       setActionError(null)
     } catch (error) {
-      showActionError('加入備用行程失敗，請稍後再試', error)
+      commitRecs(previousRecs)
+      setArchived((current) => current.filter((candidate) => candidate.id !== pendingId))
+      showActionError('\u79fb\u5230\u5099\u7528\u884c\u7a0b\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66\u3002', error)
     }
-  }, [tripId, commitRecs, showActionError])
+  }, [tripId, pendingArchiveId, commitRecs, showActionError])
 
   const handleAddArchivedToDay = useCallback(async (candidateId: string, place: Place, dayIndex: number) => {
     const newPlace: ScheduledPlace = {
