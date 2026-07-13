@@ -7,7 +7,21 @@ function p(name: string, lat = 0, lng = 0): Place {
 }
 
 const origFetch = global.fetch
-afterEach(() => { global.fetch = origFetch })
+const origGoogleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY
+const origDistanceMatrixMode = process.env.GOOGLE_MAPS_DISTANCE_MATRIX_MODE
+
+beforeEach(() => {
+  process.env.GOOGLE_MAPS_API_KEY = 'test-key'
+  process.env.GOOGLE_MAPS_DISTANCE_MATRIX_MODE = 'live'
+})
+
+afterEach(() => {
+  global.fetch = origFetch
+  if (origGoogleMapsApiKey === undefined) delete process.env.GOOGLE_MAPS_API_KEY
+  else process.env.GOOGLE_MAPS_API_KEY = origGoogleMapsApiKey
+  if (origDistanceMatrixMode === undefined) delete process.env.GOOGLE_MAPS_DISTANCE_MATRIX_MODE
+  else process.env.GOOGLE_MAPS_DISTANCE_MATRIX_MODE = origDistanceMatrixMode
+})
 
 it('parses Google distance.value into a meters matrix', async () => {
   global.fetch = jest.fn().mockResolvedValue({
@@ -44,5 +58,16 @@ it('falls back to haversine meters when an element has no distance', async () =>
 it('includes a haversine distances matrix on API failure', async () => {
   global.fetch = jest.fn().mockResolvedValue({ ok: false }) as unknown as typeof fetch
   const res = await buildDistanceMatrix([p('A', 0, 0), p('B', 0, 0.01)], 'driving')
+  expect(res.distances?.[0]?.[1]).toBeGreaterThan(1000)
+})
+
+it('uses haversine without calling Google when Distance Matrix is disabled', async () => {
+  process.env.GOOGLE_MAPS_DISTANCE_MATRIX_MODE = 'haversine'
+  global.fetch = jest.fn() as unknown as typeof fetch
+
+  const res = await buildDistanceMatrix([p('A', 0, 0), p('B', 0, 0.01)], 'driving')
+
+  expect(global.fetch).not.toHaveBeenCalled()
+  expect(res.matrix[0][1]).toBeGreaterThan(0)
   expect(res.distances?.[0]?.[1]).toBeGreaterThan(1000)
 })

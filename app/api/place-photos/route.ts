@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { googleMapsFetchOptions, googleMapsPhotoCacheControl } from '@/lib/googleMapsCost'
 
 const BASE = 'https://maps.googleapis.com/maps/api/place'
 
@@ -19,13 +20,14 @@ export async function GET(req: NextRequest) {
     language: 'zh-TW',
   })
 
-  const upstream = await fetch(`${BASE}/details/json?${params.toString()}`, {
-    next: { revalidate: 3600 },
-  })
+  const upstream = await fetch(`${BASE}/details/json?${params.toString()}`, googleMapsFetchOptions())
   if (!upstream.ok) return NextResponse.json({ error: 'failed to fetch place photos' }, { status: 502 })
 
   const data = await upstream.json()
-  if (data.status !== 'OK') return NextResponse.json({ photoUrls: [] })
+  if (data.status !== 'OK') return NextResponse.json({ photoUrls: [] }, { headers: { 'cache-control': googleMapsPhotoCacheControl() } })
 
-  return NextResponse.json({ photoUrls: mapPhotoUrls(data.result?.photos) })
+  return NextResponse.json(
+    { photoUrls: mapPhotoUrls(data.result?.photos) },
+    { headers: { 'cache-control': googleMapsPhotoCacheControl() } }
+  )
 }

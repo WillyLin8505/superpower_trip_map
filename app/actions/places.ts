@@ -1,6 +1,7 @@
 'use server'
 import type { Place } from '@/lib/types'
 import { randomUUID } from 'crypto'
+import { googleMapsFetchOptions, roundedCoordinate } from '@/lib/googleMapsCost'
 
 const KEY = process.env.GOOGLE_MAPS_API_KEY!
 const BASE = 'https://maps.googleapis.com/maps/api/place'
@@ -66,7 +67,7 @@ async function fetchPlaceDetails(placeId: string, language?: 'zh-TW' | 'en') {
   })
   if (language) params.set('language', language)
   const url = `${BASE}/details/json?${params.toString()}`
-  const res = await fetch(url, { next: { revalidate: 3600 } })
+  const res = await fetch(url, googleMapsFetchOptions())
   const data = await res.json()
   return data.status === 'OK' ? data.result : null
 }
@@ -124,7 +125,7 @@ export async function searchPlace(query: string, countryName?: string): Promise<
     `${BASE}/findplacefromtext/json` +
     `?input=${encodeURIComponent(input)}&inputtype=textquery` +
     `&fields=place_id&key=${KEY}`
-  const res = await fetch(url)
+  const res = await fetch(url, googleMapsFetchOptions())
   const data = await res.json()
   const placeId = data.candidates?.[0]?.place_id
   if (!placeId) return null
@@ -166,8 +167,10 @@ export async function nearbySearch(
   placeType: 'attraction' | 'restaurant' | 'dessert'
 ): Promise<Place[]> {
   const q = NEARBY_QUERY[placeType]
+  const searchLat = roundedCoordinate(lat)
+  const searchLng = roundedCoordinate(lng)
   const params = new URLSearchParams({
-    location: `${lat},${lng}`,
+    location: `${searchLat},${searchLng}`,
     radius: '4000',
     key: KEY,
     language: 'zh-TW',
@@ -176,7 +179,7 @@ export async function nearbySearch(
   if (q.keyword) params.set('keyword', q.keyword)
 
   const url = `${BASE}/nearbysearch/json?${params.toString()}`
-  const res = await fetch(url, { next: { revalidate: 3600 } })
+  const res = await fetch(url, googleMapsFetchOptions())
   const data = await res.json()
   if (data.status !== 'OK' || !Array.isArray(data.results)) return []
 

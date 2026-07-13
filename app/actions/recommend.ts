@@ -6,10 +6,20 @@ import { scrapeText } from './scrape'
 import { searchPlace, getPlaceDetails, nearbySearch } from './places'
 import { validateType } from '@/lib/placeType'
 import { REC_CATEGORIES, resolveDayCenter, centroidOf, dedupeAndExclude, assignToDays, bucketByCategory, splitShownReserve } from '@/lib/utils/dayRecommend'
-import type { DayItinerary, DayRecommendation, RecommendationsByDay, CategoryBuckets } from '@/lib/types'
+import type { DayItinerary, DayRecommendation, RecommendationsByDay, CategoryBuckets, Place } from '@/lib/types'
 import { callClaude } from '@/lib/claude'
+import { shouldEnrichRecommendationsWithDetails } from '@/lib/googleMapsCost'
 
 const REC_LIMIT = 5
+
+async function maybeEnrichRecommendationDetails(
+  place: Place,
+  category: 'dessert' | 'attraction' | 'restaurant'
+): Promise<Place> {
+  if (!shouldEnrichRecommendationsWithDetails()) return { ...place, type: category }
+  const detailed = await getPlaceDetails(place.placeId)
+  return detailed ? { ...place, ...detailed, type: category } : { ...place, type: category }
+}
 
 export async function getDayRecommendations(
   days: DayItinerary[]
@@ -94,8 +104,7 @@ export async function getDayRecommendations(
           for (const c of candidates) {
             if (dayResult[cat].shown.length >= REC_LIMIT) break
             if (have.has(c.placeId)) continue
-            const detailed = await getPlaceDetails(c.placeId)
-            const filled = detailed ? { ...detailed, type: cat } : c
+            const filled = await maybeEnrichRecommendationDetails(c, cat)
             dayResult[cat].shown.push({ ...filled, reason: 'Google 高評分推薦', sourceLabel: 'Google 推薦' })
             have.add(c.placeId)
             recommendedIds.add(c.placeId)
@@ -127,8 +136,7 @@ export async function refreshDayCategoryRecommendations(args: {
     for (const c of candidates) {
       if (out.length >= REC_LIMIT) break
       if (exclude.has(c.placeId)) continue
-      const detailed = await getPlaceDetails(c.placeId)
-      const filled = detailed ? { ...detailed, type: category } : c
+      const filled = await maybeEnrichRecommendationDetails(c, category)
       out.push({ ...filled, reason: 'Google 高評分推薦', sourceLabel: 'Google 推薦' })
       exclude.add(c.placeId)
     }
@@ -150,8 +158,7 @@ export async function fetchReplacementRecommendation(
     const candidates = await nearbySearch(centroid.lat, centroid.lng, category)
     for (const c of candidates) {
       if (exclude.has(c.placeId)) continue
-      const detailed = await getPlaceDetails(c.placeId)
-      const place = detailed ? { ...detailed, type: category } : c
+      const place = await maybeEnrichRecommendationDetails(c, category)
       return { ...place, reason: 'Google 高評分推薦', sourceLabel: 'Google 推薦' }
     }
   } catch {

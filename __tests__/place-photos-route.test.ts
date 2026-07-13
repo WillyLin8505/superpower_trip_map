@@ -32,6 +32,7 @@ describe('GET /api/place-photos', () => {
     const body = await res.json()
 
     expect(fetch).toHaveBeenCalledWith(expect.stringContaining('place_id=place-1'), expect.any(Object))
+    expect(res.headers.get('cache-control')).toContain('s-maxage=')
     expect(body.photoUrls).toEqual([
       '/api/photo?ref=ref1',
       '/api/photo?ref=ref2',

@@ -20,6 +20,7 @@ const cc = callClaude as jest.Mock
 const sp = searchPlace as jest.Mock
 const gd = getPlaceDetails as jest.Mock
 const ns = nearbySearch as jest.Mock
+const origRecommendationDetailsMode = process.env.GOOGLE_MAPS_RECOMMENDATION_DETAILS_MODE
 
 function place(id: string, type: Place['type']): Place {
   return {
@@ -39,7 +40,11 @@ function oneDay(existingPlaceId: string): DayItinerary {
   }
 }
 
-beforeEach(() => jest.clearAllMocks())
+beforeEach(() => {
+  jest.clearAllMocks()
+  if (origRecommendationDetailsMode === undefined) delete process.env.GOOGLE_MAPS_RECOMMENDATION_DETAILS_MODE
+  else process.env.GOOGLE_MAPS_RECOMMENDATION_DETAILS_MODE = origRecommendationDetailsMode
+})
 
 it('fills each category to 5 with nearby results, excluding existing places', async () => {
   r.mockResolvedValue('[]')                       // no sources configured
@@ -60,6 +65,20 @@ it('fills each category to 5 with nearby results, excluding existing places', as
   // fill items are labelled as Google and go to shown, never reserve
   expect(result[0].dessert.shown[0].sourceLabel).toBe('Google 推薦')
   expect(result[0].dessert.reserve).toEqual([])
+})
+
+it('can fill Google recommendations from Nearby Search without per-card Place Details', async () => {
+  process.env.GOOGLE_MAPS_RECOMMENDATION_DETAILS_MODE = 'nearby-only'
+  r.mockResolvedValue('[]')
+  ns.mockImplementation(async (_lat: number, _lng: number, type: string) =>
+    Array.from({ length: 5 }, (_, i) => place(`${type}-${i}`, type as Place['type']))
+  )
+  gd.mockImplementation(async (id: string) => place(id, 'attraction'))
+
+  const result = await getDayRecommendations([oneDay('existing')])
+
+  expect(result[0].dessert.shown).toHaveLength(5)
+  expect(gd).not.toHaveBeenCalled()
 })
 
 it('uses website extractions first, then fills the remainder', async () => {

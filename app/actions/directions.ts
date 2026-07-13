@@ -1,6 +1,7 @@
 'use server'
 import type { Place, TransportMode, DistanceMatrix } from '@/lib/types'
 import { haversineSeconds, haversineMeters } from '@/lib/haversine'
+import { shouldUseLiveDistanceMatrix } from '@/lib/googleMapsCost'
 
 const GOOGLE_MODE: Record<TransportMode, string> = {
   driving: 'driving',
@@ -22,10 +23,15 @@ export async function buildDistanceMatrix(
     places.map((a) => places.map((b) => haversineSeconds(a, b)))
   const haversineDistanceMatrix = () =>
     places.map((a) => places.map((b) => haversineMeters(a, b)))
+  const fallback = () => ({ indices, matrix: haversineMatrix(), distances: haversineDistanceMatrix() })
+
+  if (!shouldUseLiveDistanceMatrix() || !process.env.GOOGLE_MAPS_API_KEY) {
+    return fallback()
+  }
 
   if (n > 25) {
     // Fallback: straight-line haversine for all pairs
-    return { indices, matrix: haversineMatrix(), distances: haversineDistanceMatrix() }
+    return fallback()
   }
 
   const origins = places.map((p) => `${p.lat},${p.lng}`).join('|')
@@ -42,13 +48,13 @@ export async function buildDistanceMatrix(
     const res = await fetch(url)
 
     // Fix 2: Check res.ok before parsing JSON
-    if (!res.ok) return { indices, matrix: haversineMatrix(), distances: haversineDistanceMatrix() }
+    if (!res.ok) return fallback()
 
     const data = await res.json()
 
     if (data.status !== 'OK') {
       // Fallback on API error
-      return { indices, matrix: haversineMatrix(), distances: haversineDistanceMatrix() }
+      return fallback()
     }
 
     // Fix 1: Track row index i and column index j for correct haversine fallback
@@ -67,7 +73,6 @@ export async function buildDistanceMatrix(
     return { indices, matrix, distances }
   } catch {
     // Fallback on network failure or JSON parse error
-    return { indices, matrix: haversineMatrix(), distances: haversineDistanceMatrix() }
+    return fallback()
   }
 }
-

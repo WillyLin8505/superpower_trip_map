@@ -32,6 +32,7 @@ describe('GET /api/photo', () => {
     )
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toBe('image/jpeg')
+    expect(res.headers.get('cache-control')).toContain('s-maxage=')
   })
 
   it('returns 502 when Google fetch fails', async () => {

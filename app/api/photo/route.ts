@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { googleMapsPhotoCacheControl } from '@/lib/googleMapsCost'
 
 export async function GET(req: NextRequest) {
   const ref = req.nextUrl.searchParams.get('ref')
@@ -17,7 +18,7 @@ export async function GET(req: NextRequest) {
   return new Response(body, {
     headers: {
       'content-type': contentType,
-      'cache-control': 'public, max-age=86400',
+      'cache-control': googleMapsPhotoCacheControl(),
     },
   })
 }
