@@ -2,7 +2,13 @@
 import React from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { SidePanel } from '@/components/SidePanel'
-import type { CategoryBuckets, Candidate } from '@/lib/types'
+import type { CategoryBuckets, Candidate, Place } from '@/lib/types'
+
+jest.mock('@/components/CombinedInput', () => ({
+  CombinedInput: ({ onAdd }: { onAdd: (place: Place) => void }) => (
+    <button onClick={() => onAdd(place('manual', '手動搜尋'))}>mock-reserve-search</button>
+  ),
+}))
 
 const emptyRecs: CategoryBuckets = {
   dessert: { shown: [], reserve: [] },
@@ -10,14 +16,29 @@ const emptyRecs: CategoryBuckets = {
   restaurant: { shown: [], reserve: [] },
 }
 
-function candidate(id: string, name: string): Candidate {
+function place(id: string, name: string): Place {
   return {
     id,
-    place: {
-      id: `p-${id}`, placeId: `gp-${id}`, name, type: 'attraction', lat: 25, lng: 121, address: '',
-      openingHours: null, rating: null, photoUrl: null, description: null,
-    },
-    addedBy: 'u1', addedByName: 'User',
+    placeId: id,
+    name,
+    type: 'attraction',
+    lat: 25,
+    lng: 121,
+    address: '',
+    openingHours: null,
+    rating: null,
+    photoUrl: null,
+    description: null,
+  }
+}
+
+function candidate(id: string, name: string, source: Candidate['source'] = null): Candidate {
+  return {
+    id,
+    place: place(`p-${id}`, name),
+    addedBy: 'u1',
+    addedByName: 'User',
+    source,
   }
 }
 
@@ -27,10 +48,9 @@ function baseProps() {
     recommendations: emptyRecs,
     onAddRecommendation: jest.fn(),
     candidates: [] as Candidate[],
-    onAddCandidatePlace: jest.fn(),
-    onAddCandidatePlaces: jest.fn(),
-    onRemoveCandidate: jest.fn(),
     archived: [] as Candidate[],
+    onAddReservePlace: jest.fn(),
+    onAddReservePlaces: jest.fn(),
     onAddArchivedToDay: jest.fn(),
     onDeleteArchived: jest.fn(),
   }
@@ -41,33 +61,51 @@ it('defaults to the recommendation tab', () => {
   expect(screen.getByTestId('day-recommendations')).toBeInTheDocument()
 })
 
-it('reserve tab contains LINE discussion candidates and archived items', () => {
-  render(<SidePanel {...baseProps()} candidates={[candidate('c1', 'LINE A')]} archived={[candidate('a1', 'Archive A')]} />)
-  fireEvent.click(screen.getByTestId('side-panel-tab-reserve'))
-  expect(screen.getByTestId('reserve-panel')).toBeInTheDocument()
-  expect(screen.getByTestId('candidate-card-c1')).toBeInTheDocument()
-  expect(screen.getByText('Archive A')).toBeInTheDocument()
-})
-
-it('reserve tab shows an empty archived state when nothing is archived', () => {
+it('has separate recommendation, LINE discussion, and reserve tabs', () => {
   render(<SidePanel {...baseProps()} />)
-  fireEvent.click(screen.getByTestId('side-panel-tab-reserve'))
-  expect(screen.getByTestId('archive-empty')).toHaveTextContent('尚未加入任何備用行程')
+  expect(screen.getByTestId('side-panel-tab-recommend')).toHaveTextContent('推薦行程')
+  expect(screen.getByTestId('side-panel-tab-line')).toHaveTextContent('LINE 討論')
+  expect(screen.getByTestId('side-panel-tab-reserve')).toHaveTextContent('備用行程')
 })
 
-it('archived item add calls onAddArchivedToDay with id and place', () => {
+it('LINE tab is read-only and shows only LINE candidates', () => {
+  render(
+    <SidePanel
+      {...baseProps()}
+      candidates={[candidate('c1', 'LINE A', { kind: 'line_group', lineGroupId: 'g', messageId: 'm' })]}
+    />,
+  )
+  fireEvent.click(screen.getByTestId('side-panel-tab-line'))
+  expect(screen.getByTestId('line-candidate-card-c1')).toBeInTheDocument()
+  expect(screen.queryByText('mock-reserve-search')).not.toBeInTheDocument()
+  expect(screen.queryByTestId('rec-add-p-c1')).not.toBeInTheDocument()
+})
+
+it('reserve tab has a search input and renders searched/archived items as recommendation cards', () => {
+  const onAddReservePlace = jest.fn()
+  render(<SidePanel {...baseProps()} archived={[candidate('a1', 'Reserve A')]} onAddReservePlace={onAddReservePlace} />)
+  fireEvent.click(screen.getByTestId('side-panel-tab-reserve'))
+  fireEvent.click(screen.getByText('mock-reserve-search'))
+  expect(onAddReservePlace).toHaveBeenCalledWith(expect.objectContaining({ name: '手動搜尋' }))
+  expect(screen.getByTestId('reserve-card-a1')).toBeInTheDocument()
+  expect(screen.getByTestId('rec-p-a1')).toBeInTheDocument()
+})
+
+it('reserve item add/delete calls the correct handlers', () => {
   const onAddArchivedToDay = jest.fn()
-  const archived = candidate('a1', 'Archive A')
-  render(<SidePanel {...baseProps()} archived={[archived]} onAddArchivedToDay={onAddArchivedToDay} />)
-  fireEvent.click(screen.getByTestId('side-panel-tab-reserve'))
-  fireEvent.click(screen.getByTestId('archive-add-a1'))
-  expect(onAddArchivedToDay).toHaveBeenCalledWith('a1', archived.place)
-})
-
-it('archived item delete calls onDeleteArchived with the candidate id', () => {
   const onDeleteArchived = jest.fn()
-  render(<SidePanel {...baseProps()} archived={[candidate('a1', 'Archive A')]} onDeleteArchived={onDeleteArchived} />)
+  const archived = candidate('a1', 'Reserve A')
+  render(
+    <SidePanel
+      {...baseProps()}
+      archived={[archived]}
+      onAddArchivedToDay={onAddArchivedToDay}
+      onDeleteArchived={onDeleteArchived}
+    />,
+  )
   fireEvent.click(screen.getByTestId('side-panel-tab-reserve'))
+  fireEvent.click(screen.getByTestId('rec-add-p-a1'))
+  expect(onAddArchivedToDay).toHaveBeenCalledWith('a1', archived.place)
   fireEvent.click(screen.getByTestId('archive-delete-a1'))
   expect(onDeleteArchived).toHaveBeenCalledWith('a1')
 })

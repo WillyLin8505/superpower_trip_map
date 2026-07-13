@@ -7,7 +7,7 @@ import { PhotoStrip } from './PhotoStrip'
 interface Props {
   rec: DayRecommendation
   dateIso: string
-  onAdd: () => void
+  onAdd?: () => void
   onArchive?: (rec: DayRecommendation) => void
 }
 
@@ -19,15 +19,17 @@ export function RecommendationCard({ rec, dateIso, onAdd, onArchive }: Props) {
   return (
     <div className={`border border-border rounded-xl p-3 ${meta.cardBg}`} data-testid={`rec-${rec.placeId}`}>
       <div className="flex items-start gap-2">
-        <button
-          type="button"
-          onClick={onAdd}
-          aria-label={`加入 ${rec.name}`}
-          data-testid={`rec-add-${rec.placeId}`}
-          className="shrink-0 mt-0.5 w-7 h-7 rounded-full bg-clay text-white text-sm flex items-center justify-center hover:bg-clay-deep"
-        >
-          &#x2190;
-        </button>
+        {onAdd && (
+          <button
+            type="button"
+            onClick={onAdd}
+            aria-label={`加入 ${rec.name}`}
+            data-testid={`rec-add-${rec.placeId}`}
+            className="shrink-0 mt-0.5 w-7 h-7 rounded-full bg-clay text-white text-sm flex items-center justify-center hover:bg-clay-deep"
+          >
+            &#x2190;
+          </button>
+        )}
         {onArchive && (
           <button
             type="button"

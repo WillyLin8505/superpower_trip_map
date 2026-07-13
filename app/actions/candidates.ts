@@ -1,7 +1,7 @@
 'use server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { Candidate, Place } from '@/lib/types'
+import type { Candidate, CandidateSource, Place } from '@/lib/types'
 
 function isDuplicateKeyError(error: unknown): boolean {
   return (error as { code?: string } | null)?.code === '23505'
@@ -17,7 +17,7 @@ function missingArchiveMigrationError(): Error {
 }
 
 async function resolveCandidateNames(
-  rows: { id: string; place: Place; added_by: string; created_at: string }[]
+  rows: { id: string; place: Place; added_by: string; created_at: string; source?: CandidateSource | null }[]
 ): Promise<Candidate[]> {
   const admin = createAdminClient()
   const nameCache = new Map<string, string>()
@@ -30,7 +30,7 @@ async function resolveCandidateNames(
       name = meta.name ?? meta.full_name ?? u?.user?.email ?? '使用者'
       nameCache.set(r.added_by, name)
     }
-    out.push({ id: r.id, place: r.place, addedBy: r.added_by, addedByName: name })
+    out.push({ id: r.id, place: r.place, addedBy: r.added_by, addedByName: name, source: r.source ?? null })
   }
   return out
 }
@@ -54,21 +54,23 @@ export async function listCandidates(tripId: string): Promise<Candidate[]> {
   if (!user) return []
   const { data, error } = await supabase
     .from('trip_candidates')
-    .select('id, place, added_by, created_at')
+    .select('id, place, added_by, source, created_at')
     .eq('trip_id', tripId)
     .eq('list', 'candidate')
     .order('created_at', { ascending: true })
   if (isMissingListColumn(error)) {
     const { data: fallback, error: fallbackError } = await supabase
       .from('trip_candidates')
-      .select('id, place, added_by, created_at')
+      .select('id, place, added_by, source, created_at')
       .eq('trip_id', tripId)
       .order('created_at', { ascending: true })
     if (fallbackError || !fallback) return []
-    return resolveCandidateNames(fallback as { id: string; place: Place; added_by: string; created_at: string }[])
+    return resolveCandidateNames((fallback as { id: string; place: Place; added_by: string; source?: CandidateSource | null; created_at: string }[])
+      .filter((row) => row.source?.kind === 'line_group'))
   }
   if (error || !data) return []
-  return resolveCandidateNames(data as { id: string; place: Place; added_by: string; created_at: string }[])
+  return resolveCandidateNames((data as { id: string; place: Place; added_by: string; source?: CandidateSource | null; created_at: string }[])
+    .filter((row) => row.source?.kind === 'line_group'))
 }
 
 export async function removeCandidate(candidateId: string): Promise<void> {
@@ -123,13 +125,13 @@ export async function listArchived(tripId: string): Promise<Candidate[]> {
   if (!user) return []
   const { data, error } = await supabase
     .from('trip_candidates')
-    .select('id, place, added_by, created_at')
+    .select('id, place, added_by, source, created_at')
     .eq('trip_id', tripId)
     .eq('list', 'archived')
     .order('created_at', { ascending: true })
   if (isMissingListColumn(error)) return []
   if (error || !data) return []
-  return resolveCandidateNames(data as { id: string; place: Place; added_by: string; created_at: string }[])
+  return resolveCandidateNames(data as { id: string; place: Place; added_by: string; source?: CandidateSource | null; created_at: string }[])
 }
 
 export async function unarchivePlace(candidateId: string): Promise<void> {

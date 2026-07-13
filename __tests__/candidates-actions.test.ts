@@ -1,9 +1,9 @@
-import type { Candidate, Place } from '@/lib/types'
+import type { Candidate, CandidateSource, Place } from '@/lib/types'
 
 type AuthUser = { id: string } | null
 type QueryResult<T> = { data: T; error: unknown }
 type InsertPayload = Record<string, unknown>
-type CandidateRow = { id: string; place: Place; added_by: string; created_at: string }
+type CandidateRow = { id: string; place: Place; added_by: string; source?: CandidateSource | null; created_at: string }
 type UserProfile = {
   email?: string
   user_metadata?: {
@@ -151,12 +151,14 @@ beforeEach(() => {
           id: 'candidate-1',
           place: placeFixture,
           added_by: 'user-a',
+          source: { kind: 'line_group', lineGroupId: 'group-1', messageId: 'msg-1' },
           created_at: '2026-07-04T01:00:00.000Z',
         },
         {
           id: 'candidate-2',
           place: { ...placeFixture, id: 'place-local-2', placeId: 'google-place-2', name: 'Second Cafe' },
           added_by: 'user-b',
+          source: null,
           created_at: '2026-07-04T02:00:00.000Z',
         },
       ],
@@ -237,14 +239,14 @@ it('listCandidates returns [] when RLS hides rows', async () => {
   await expect(listCandidates('trip-hidden')).resolves.toEqual([])
 })
 
-it('listCandidates maps rows to Candidate[] with names from user_metadata.name, filtered to list=candidate', async () => {
+it('listCandidates maps only LINE-sourced rows to read-only discussion candidates', async () => {
   const expected: Candidate[] = [
-    { id: 'candidate-1', place: placeFixture, addedBy: 'user-a', addedByName: 'Alice' },
     {
-      id: 'candidate-2',
-      place: { ...placeFixture, id: 'place-local-2', placeId: 'google-place-2', name: 'Second Cafe' },
-      addedBy: 'user-b',
-      addedByName: 'Bob',
+      id: 'candidate-1',
+      place: placeFixture,
+      addedBy: 'user-a',
+      addedByName: 'Alice',
+      source: { kind: 'line_group', lineGroupId: 'group-1', messageId: 'msg-1' },
     },
   ]
 
@@ -252,7 +254,7 @@ it('listCandidates maps rows to Candidate[] with names from user_metadata.name, 
 
   await expect(listCandidates('trip-1')).resolves.toEqual(expected)
 
-  expect(state.lastListSelect).toBe('id, place, added_by, created_at')
+  expect(state.lastListSelect).toBe('id, place, added_by, source, created_at')
   expect(state.lastListPredicates).toEqual([
     { column: 'trip_id', value: 'trip-1' },
     { column: 'list', value: 'candidate' },
@@ -345,12 +347,13 @@ it('listArchived filters to list=archived and maps rows the same way as listCand
   const { listArchived } = loadActions()
 
   const expected: Candidate[] = [
-    { id: 'candidate-1', place: placeFixture, addedBy: 'user-a', addedByName: 'Alice' },
+    { id: 'candidate-1', place: placeFixture, addedBy: 'user-a', addedByName: 'Alice', source: { kind: 'line_group', lineGroupId: 'group-1', messageId: 'msg-1' } },
     {
       id: 'candidate-2',
       place: { ...placeFixture, id: 'place-local-2', placeId: 'google-place-2', name: 'Second Cafe' },
       addedBy: 'user-b',
       addedByName: 'Bob',
+      source: null,
     },
   ]
 

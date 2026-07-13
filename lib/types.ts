@@ -143,6 +143,7 @@ export interface Candidate {
   place: Place
   addedBy: string
   addedByName: string
+  source?: CandidateSource | null
 }
 
 // --- LINE group candidate ingest (C5) ---

@@ -3,8 +3,10 @@ import { useState } from 'react'
 import type { CategoryBuckets, DayRecommendation, RecommendationCenter, Candidate, Place } from '@/lib/types'
 import { DayRecommendations } from './DayRecommendations'
 import { CandidatePanel } from './CandidatePanel'
+import { CombinedInput } from '@/components/CombinedInput'
+import { RecommendationCard } from './RecommendationCard'
 
-type Tab = 'recommend' | 'reserve'
+type Tab = 'recommend' | 'line' | 'reserve'
 type Category = 'dessert' | 'attraction' | 'restaurant'
 
 interface Props {
@@ -21,20 +23,26 @@ interface Props {
   recsError?: string | null
   onArchiveRecommendation?: (rec: DayRecommendation) => void
   candidates: Candidate[]
-  onAddCandidatePlace: (place: Place) => void
-  onAddCandidatePlaces: (places: Place[]) => void
-  onRemoveCandidate: (candidateId: string) => void
-  onAddCandidateToDay?: (candidateId: string, place: Place) => void
-  onArchiveCandidate?: (candidateId: string) => void
   archived: Candidate[]
+  onAddReservePlace: (place: Place) => void
+  onAddReservePlaces: (places: Place[]) => void
   onAddArchivedToDay: (candidateId: string, place: Place) => void
   onDeleteArchived: (candidateId: string) => void
 }
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'recommend', label: '推薦行程' },
+  { key: 'line', label: 'LINE 討論' },
   { key: 'reserve', label: '備用行程' },
 ]
+
+function archivedToRecommendation(candidate: Candidate): DayRecommendation {
+  return {
+    ...candidate.place,
+    reason: '備用行程中的地點',
+    sourceLabel: `備用行程 / ${candidate.addedByName}`,
+  }
+}
 
 export function SidePanel(props: Props) {
   const [tab, setTab] = useState<Tab>('recommend')
@@ -73,51 +81,39 @@ export function SidePanel(props: Props) {
             onArchive={props.onArchiveRecommendation}
           />
         )}
+        {tab === 'line' && (
+          <CandidatePanel candidates={props.candidates} dateIso={props.dateIso} />
+        )}
         {tab === 'reserve' && (
-          <div className="space-y-4" data-testid="reserve-panel">
-            <CandidatePanel
-              candidates={props.candidates}
-              onAddPlace={props.onAddCandidatePlace}
-              onAddPlaces={props.onAddCandidatePlaces}
-              onRemove={props.onRemoveCandidate}
-              onAddToDay={props.onAddCandidateToDay}
-              onArchive={props.onArchiveCandidate}
-              dateIso={props.dateIso}
-            />
-            <section className="border border-border rounded-lg p-4 bg-surface">
-              <h2 className="font-medium text-ink mb-3">已移入備用</h2>
-              {props.archived.length === 0 ? (
-                <p className="text-sm text-muted py-2" data-testid="archive-empty">尚未加入任何備用行程</p>
-              ) : (
-                <ul className="flex flex-col gap-2" data-testid="archive-list">
-                  {props.archived.map((archived) => (
-                    <li
-                      key={archived.id}
-                      className="flex items-center justify-between gap-2 text-sm border border-border rounded px-2 py-1 text-ink"
-                    >
-                      <span className="flex-1">{archived.place.name}</span>
-                      <button
-                        type="button"
-                        onClick={() => props.onAddArchivedToDay(archived.id, archived.place)}
-                        data-testid={`archive-add-${archived.id}`}
-                        className="text-clay-deep hover:underline"
-                      >
-                        加入行程
-                      </button>
+          <section className="border border-border rounded-lg p-4 bg-surface flex flex-col gap-3" data-testid="reserve-panel">
+            <h2 className="font-medium text-ink">備用行程</h2>
+            <CombinedInput onAdd={props.onAddReservePlace} onAddPlaces={props.onAddReservePlaces} />
+            {props.archived.length === 0 ? (
+              <p className="text-sm text-muted py-2" data-testid="archive-empty">尚未加入任何備用行程</p>
+            ) : (
+              <ul className="flex flex-col gap-3" data-testid="archive-list">
+                {props.archived.map((archived) => (
+                  <li key={archived.id} className="space-y-2" data-testid={`reserve-card-${archived.id}`}>
+                    <RecommendationCard
+                      rec={archivedToRecommendation(archived)}
+                      dateIso={props.dateIso}
+                      onAdd={() => props.onAddArchivedToDay(archived.id, archived.place)}
+                    />
+                    <div className="flex justify-end">
                       <button
                         type="button"
                         onClick={() => props.onDeleteArchived(archived.id)}
                         data-testid={`archive-delete-${archived.id}`}
-                        className="text-error hover:underline"
+                        className="text-sm text-error hover:underline"
                       >
                         永久刪除
                       </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         )}
       </div>
     </div>

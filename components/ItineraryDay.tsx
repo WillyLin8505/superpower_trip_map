@@ -42,12 +42,9 @@ interface Props {
   recsRefreshing?: Partial<Record<'dessert' | 'attraction' | 'restaurant', boolean>>
   recsError?: string | null
   candidates?: Candidate[]
-  onAddCandidatePlace?: (place: Place) => void
-  onAddCandidatePlaces?: (places: Place[]) => void
-  onRemoveCandidate?: (candidateId: string) => void
-  onAddCandidateToDay?: (candidateId: string, place: Place) => void
-  onArchiveCandidate?: (candidateId: string) => void
   archived?: Candidate[]
+  onAddReservePlace?: (place: Place) => void
+  onAddReservePlaces?: (places: Place[]) => void
   onAddArchivedToDay?: (candidateId: string, place: Place) => void
   onDeleteArchived?: (candidateId: string) => void
   isLastDay?: boolean
@@ -60,7 +57,7 @@ interface Props {
   onArchivePlace?: (place: ScheduledPlace) => void
 }
 
-export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, onArchiveRecommendation, candidates, onAddCandidatePlace, onAddCandidatePlaces, onRemoveCandidate, onAddCandidateToDay, onArchiveCandidate, archived, onAddArchivedToDay, onDeleteArchived, backfilling, recsHasCenter, onSetRecommendationCenter, onClearRecommendationCenter, onRefreshRecommendationCategory, recsRefreshing, recsError, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId, onDeletePlace, onArchivePlace }: Props) {
+export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, onArchiveRecommendation, candidates, archived, onAddReservePlace, onAddReservePlaces, onAddArchivedToDay, onDeleteArchived, backfilling, recsHasCenter, onSetRecommendationCenter, onClearRecommendationCenter, onRefreshRecommendationCategory, recsRefreshing, recsError, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId, onDeletePlace, onArchivePlace }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
 
@@ -228,12 +225,9 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
               recsRefreshing={recsRefreshing}
               recsError={recsError}
               candidates={candidates ?? []}
-              onAddCandidatePlace={onAddCandidatePlace ?? (() => {})}
-              onAddCandidatePlaces={onAddCandidatePlaces ?? (() => {})}
-              onRemoveCandidate={onRemoveCandidate ?? (() => {})}
-              onAddCandidateToDay={onAddCandidateToDay}
-              onArchiveCandidate={onArchiveCandidate}
               archived={archived ?? []}
+              onAddReservePlace={onAddReservePlace ?? (() => {})}
+              onAddReservePlaces={onAddReservePlaces ?? (() => {})}
               onAddArchivedToDay={onAddArchivedToDay ?? (() => {})}
               onDeleteArchived={onDeleteArchived ?? (() => {})}
             />

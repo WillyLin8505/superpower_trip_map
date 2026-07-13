@@ -3,8 +3,7 @@ import React from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { ItineraryCard } from '@/components/ItineraryCard'
 import { RecommendationCard } from '@/components/RecommendationCard'
-import { CandidatePanel } from '@/components/CandidatePanel'
-import type { ScheduledPlace, DayRecommendation, Candidate } from '@/lib/types'
+import type { ScheduledPlace, DayRecommendation } from '@/lib/types'
 
 function scheduledPlace(): ScheduledPlace {
   return {
@@ -20,17 +19,6 @@ function recommendation(): DayRecommendation {
     id: 'r1', placeId: 'gp2', name: '推薦景點', type: 'dessert', lat: 25, lng: 121, address: '',
     openingHours: null, rating: null, photoUrl: null, description: null,
     reason: '好吃', sourceLabel: 'Google 推薦',
-  }
-}
-
-function candidate(): Candidate {
-  return {
-    id: 'c1',
-    place: {
-      id: 'cp1', placeId: 'gp3', name: '候選景點', type: 'attraction', lat: 25, lng: 121, address: '',
-      openingHours: null, rating: null, photoUrl: null, description: null,
-    },
-    addedBy: 'user-1', addedByName: '小美',
   }
 }
 
@@ -57,20 +45,3 @@ describe('RecommendationCard archive button', () => {
   })
 })
 
-describe('CandidatePanel archive button', () => {
-  it('renders an archive entry per candidate and calls onArchive with the candidate id', () => {
-    const onArchive = jest.fn()
-    render(
-      <CandidatePanel
-        candidates={[candidate()]}
-        onAddPlace={() => {}}
-        onAddPlaces={() => {}}
-        onRemove={() => {}}
-        onArchive={onArchive}
-        dateIso="2026-07-01"
-      />
-    )
-    fireEvent.click(screen.getByRole('button', { name: '移到備用' }))
-    expect(onArchive).toHaveBeenCalledWith('c1')
-  })
-})

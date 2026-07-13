@@ -33,7 +33,7 @@ import { fetchDayArrangeInputs } from '@/app/actions/arrange'
 import { arrangeDayOrder } from '@/lib/utils/arrangeDay'
 import { AiRearrangeInput } from '@/components/AiRearrangeInput'
 import { createTripSafe, saveTripSafe } from '@/app/actions/trips'
-import { addCandidate, removeCandidate, archivePlace, unarchivePlace } from '@/app/actions/candidates'
+import { archivePlace, unarchivePlace } from '@/app/actions/candidates'
 
 // pointerWithin is essential for multi-container: it checks where the pointer
 // physically is, not center-to-center distance (closestCenter favors the source container)
@@ -71,7 +71,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [candidates, setCandidates] = useState<Candidate[]>(initialCandidates)
+  const [candidates] = useState<Candidate[]>(initialCandidates)
   const [archived, setArchived] = useState<Candidate[]>(initialArchived)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const autosaveRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -391,49 +391,24 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     scheduleRecalc(next, true)
   }, [scheduleRecalc])
 
-  // 加候選：先呼叫 action 取得 id，再樂觀加入本地池
-  const onAddCandidate = useCallback(async (place: Place) => {
-    if (!tripId) return
-    try {
-      const { id } = await addCandidate(tripId, place)
-      setCandidates((cs) => [...cs, { id, place, addedBy: 'me', addedByName: '你' }])
-    } catch { /* 靜默失敗（未登入/非participant/RLS）；候選不進池 */ }
-  }, [tripId])
-
-  const onAddCandidates = useCallback((places: Place[]) => {
-    places.forEach((p) => { void onAddCandidate(p) })
-  }, [onAddCandidate])
-
-  const onRemoveCandidate = useCallback(async (candidateId: string) => {
-    try {
-      await removeCandidate(candidateId)
-      setCandidates((cs) => cs.filter((c) => c.id !== candidateId))
-    } catch { /* 保留在池 */ }
-  }, [])
-
-  // 放進指定天（移動語義）：比照 handleAddPlace 建卡加到 dayIndex 末尾 → recalc/autosave → 從池移除
-  const handleAddCandidateToDay = useCallback((place: Place, dayIndex: number, candidateId: string) => {
-    const newPlace: ScheduledPlace = {
-      ...place,
-      startTime: '09:00',
-      durationMin: DWELL[place.type],
-      travelMinToNext: null,
-      aiDescription: null,
-      outsideHours: false,
-      lateExit: false,
-      startLocked: false,
-      durationLocked: false,
-    }
-    const newDays = planRef.current.days.map((d, i) =>
-      i === dayIndex ? { ...d, places: [...d.places, newPlace] } : d
-    )
-    scheduleRecalc({ ...planRef.current, days: newDays }, true)
-    void onRemoveCandidate(candidateId)
-  }, [scheduleRecalc, onRemoveCandidate])
-
   const showActionError = useCallback((fallback: string, error: unknown) => {
     setActionError(error instanceof Error ? error.message : fallback)
   }, [])
+
+  const handleAddReservePlace = useCallback(async (place: Place) => {
+    if (!tripId) return
+    try {
+      const { id } = await archivePlace(tripId, place)
+      setArchived((a) => [...a, { id, place, addedBy: 'me', addedByName: '你', source: null }])
+      setActionError(null)
+    } catch (error) {
+      showActionError('加入備用行程失敗，請稍後再試', error)
+    }
+  }, [tripId, showActionError])
+
+  const handleAddReservePlaces = useCallback((places: Place[]) => {
+    places.forEach((place) => { void handleAddReservePlace(place) })
+  }, [handleAddReservePlace])
 
   // TASK-022：封存停車場（per-trip，跨天共用，DEC-503）
   const handleArchivePlace = useCallback(async (dayIdx: number, place: Place) => {
@@ -470,22 +445,6 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       showActionError('加入備用行程失敗，請稍後再試', error)
     }
   }, [tripId, commitRecs, showActionError])
-
-  const handleArchiveCandidate = useCallback(async (candidateId: string) => {
-    if (!tripId) return
-    const found = candidates.find((c) => c.id === candidateId)
-    if (!found) return
-    try {
-      // 既有候選列已存在同 place_id row；archivePlace 遇到 duplicate 會把該 row 的
-      // list 更新為 'archived'（見 app/actions/candidates.ts），不是另外新增一筆。
-      const { id } = await archivePlace(tripId, found.place)
-      setCandidates((cs) => cs.filter((c) => c.id !== candidateId))
-      setArchived((a) => [...a, { id, place: found.place, addedBy: 'me', addedByName: '你' }])
-      setActionError(null)
-    } catch (error) {
-      showActionError('加入備用行程失敗，請稍後再試', error)
-    }
-  }, [tripId, candidates, showActionError])
 
   const handleAddArchivedToDay = useCallback(async (candidateId: string, place: Place, dayIndex: number) => {
     const newPlace: ScheduledPlace = {
@@ -910,12 +869,9 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
                 onAddRecommendation={(rec) => handleAddRecommendation(dayIdx, rec)}
                 onArchiveRecommendation={tripId ? (rec) => handleArchiveRecommendation(dayIdx, rec) : undefined}
                 candidates={tripId ? candidates : undefined}
-                onAddCandidatePlace={tripId ? onAddCandidate : undefined}
-                onAddCandidatePlaces={tripId ? onAddCandidates : undefined}
-                onRemoveCandidate={tripId ? onRemoveCandidate : undefined}
-                onAddCandidateToDay={tripId ? (candidateId, place) => handleAddCandidateToDay(place, dayIdx, candidateId) : undefined}
-                onArchiveCandidate={tripId ? handleArchiveCandidate : undefined}
                 archived={tripId ? archived : undefined}
+                onAddReservePlace={tripId ? handleAddReservePlace : undefined}
+                onAddReservePlaces={tripId ? handleAddReservePlaces : undefined}
                 onAddArchivedToDay={tripId ? (candidateId, place) => handleAddArchivedToDay(candidateId, place, dayIdx) : undefined}
                 onDeleteArchived={tripId ? handleDeleteArchived : undefined}
                 onArchivePlace={tripId ? (place) => handleArchivePlace(dayIdx, place) : undefined}
