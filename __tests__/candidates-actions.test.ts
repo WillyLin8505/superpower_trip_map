@@ -16,6 +16,8 @@ type OrderCall = { column: string; options: { ascending: boolean } }
 
 type TestState = {
   authUser: AuthUser
+  tripOwnerId: string | null
+  tripMembership: { user_id: string } | null
   insertResult: QueryResult<{ id: string } | null>
   insertError: { message: string; code?: string } | null
   listResult: QueryResult<CandidateRow[] | null>
@@ -71,8 +73,38 @@ jest.mock('@/lib/supabase/admin', () => ({
         })),
       },
     },
+    from: jest.fn((table: string) => {
+      if (table === 'trip_candidates') return makeCandidatesBuilder()
+      if (table === 'trips') return makeTripAccessBuilder()
+      if (table === 'trip_members') return makeMembershipAccessBuilder()
+      throw new Error(`Unexpected admin table ${table}`)
+    }),
   }),
 }))
+
+function makeTripAccessBuilder() {
+  return {
+    select: jest.fn(() => ({
+      eq: jest.fn(() => ({
+        single: jest.fn(async () => (
+          state.tripOwnerId
+            ? { data: { owner_id: state.tripOwnerId }, error: null }
+            : { data: null, error: { message: 'missing trip' } }
+        )),
+      })),
+    })),
+  }
+}
+
+function makeMembershipAccessBuilder() {
+  const chain = {
+    eq: jest.fn(() => chain),
+    maybeSingle: jest.fn(async () => ({ data: state.tripMembership, error: null })),
+  }
+  return {
+    select: jest.fn(() => chain),
+  }
+}
 
 function makeCandidatesBuilder() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- self-referential test mock, same pattern as trips-actions.test.ts
@@ -143,6 +175,8 @@ function loadActions() {
 beforeEach(() => {
   state = {
     authUser: { id: 'user-self' },
+    tripOwnerId: 'user-self',
+    tripMembership: null,
     insertResult: { data: { id: 'candidate-1' }, error: null },
     insertError: null,
     listResult: {

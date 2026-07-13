@@ -16,6 +16,25 @@ function missingArchiveMigrationError(): Error {
   return new Error('備用行程資料庫尚未更新，請套用 migration 0007_archive_list.sql')
 }
 
+async function canAccessTrip(tripId: string, userId: string): Promise<boolean> {
+  const admin = createAdminClient()
+  const { data: trip, error: tripError } = await admin
+    .from('trips')
+    .select('owner_id')
+    .eq('id', tripId)
+    .single()
+  if (tripError || !trip) return false
+  if ((trip as { owner_id: string }).owner_id === userId) return true
+
+  const { data: membership, error: membershipError } = await admin
+    .from('trip_members')
+    .select('user_id')
+    .eq('trip_id', tripId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  return !membershipError && !!membership
+}
+
 async function resolveCandidateNames(
   rows: { id: string; place: Place; added_by: string; created_at: string; source?: CandidateSource | null }[]
 ): Promise<Candidate[]> {
@@ -94,7 +113,10 @@ export async function archivePlace(tripId: string, place: Place): Promise<{ id: 
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('NOT_AUTHENTICATED')
-  const { data, error } = await supabase
+  if (!(await canAccessTrip(tripId, user.id))) throw new Error('NOT_AUTHORIZED')
+
+  const admin = createAdminClient()
+  const { data, error } = await admin
     .from('trip_candidates')
     .insert({ trip_id: tripId, place, place_id: place.placeId || null, added_by: user.id, list: 'archived' })
     .select('id')
@@ -102,7 +124,7 @@ export async function archivePlace(tripId: string, place: Place): Promise<{ id: 
   if (error) {
     if (isMissingListColumn(error)) throw missingArchiveMigrationError()
     if (isDuplicateKeyError(error) && place.placeId) {
-      const { data: updated, error: updateError } = await supabase
+      const { data: updated, error: updateError } = await admin
         .from('trip_candidates')
         .update({ list: 'archived' })
         .eq('trip_id', tripId)
@@ -110,12 +132,12 @@ export async function archivePlace(tripId: string, place: Place): Promise<{ id: 
         .select('id')
         .single()
       if (isMissingListColumn(updateError)) throw missingArchiveMigrationError()
-      if (updateError || !updated) throw new Error('封存失敗，請稍後再試')
+      if (updateError || !updated) throw new Error('\u5c01\u5b58\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66')
       return { id: (updated as { id: string }).id }
     }
-    throw new Error('封存失敗，請稍後再試')
+    throw new Error('\u5c01\u5b58\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66')
   }
-  if (!data) throw new Error('封存失敗，請稍後再試')
+  if (!data) throw new Error('\u5c01\u5b58\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66')
   return { id: (data as { id: string }).id }
 }
 
@@ -123,7 +145,10 @@ export async function listArchived(tripId: string): Promise<Candidate[]> {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
-  const { data, error } = await supabase
+  if (!(await canAccessTrip(tripId, user.id))) return []
+
+  const admin = createAdminClient()
+  const { data, error } = await admin
     .from('trip_candidates')
     .select('id, place, added_by, source, created_at')
     .eq('trip_id', tripId)
