@@ -35,7 +35,7 @@ function latinizedName(value: string | null | undefined): string | null {
   if (!original || hasHanText(original) || !/[A-Za-z]/.test(original)) return null
   const latinized = original
     .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/Đ/g, 'D')
     .replace(/đ/g, 'd')
     .trim()
