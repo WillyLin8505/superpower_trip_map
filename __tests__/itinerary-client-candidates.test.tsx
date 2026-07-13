@@ -5,6 +5,7 @@ import type { DayRecommendation, PlanResult, ScheduledPlace, Candidate, Place, R
 
 const archivePlace = jest.fn()
 const unarchivePlace = jest.fn()
+const createTripSafe = jest.fn()
 const getDayRecommendations = jest.fn()
 
 jest.mock('@/app/actions/candidates', () => ({
@@ -26,7 +27,7 @@ jest.mock('@/app/actions/trips', () => ({
   createTrip: jest.fn(),
   saveTrip: jest.fn(async () => undefined),
   getTrip: jest.fn(),
-  createTripSafe: jest.fn(),
+  createTripSafe: (...args: unknown[]) => createTripSafe(...args),
   saveTripSafe: jest.fn(async () => ({ ok: true })),
   listTrips: jest.fn(),
   renameTrip: jest.fn(),
@@ -149,6 +150,8 @@ function dayOrder(): string[] {
 beforeEach(() => {
   archivePlace.mockReset()
   unarchivePlace.mockReset()
+  createTripSafe.mockReset()
+  createTripSafe.mockResolvedValue({ ok: true, tripId: 't-created' })
   getDayRecommendations.mockReset()
   getDayRecommendations.mockResolvedValue([])
 })
@@ -165,6 +168,18 @@ it('renders LINE Bot candidates only in the read-only LINE tab', () => {
   expect(within(day).getByText('LINE 討論的行程')).toBeInTheDocument()
   expect(within(day).getByText('台北101')).toBeInTheDocument()
   expect(within(day).queryByTestId('rec-add-c1')).not.toBeInTheDocument()
+})
+
+it('shows reserve controls on an unsaved searched itinerary and saves before archiving', async () => {
+  archivePlace.mockResolvedValue({ id: 'archived-A' })
+  render(<ItineraryClient initial={plan()} />)
+
+  fireEvent.click(within(screen.getByTestId('card-A')).getByRole('button', { name: '\u79fb\u5230\u5099\u7528' }))
+
+  await waitFor(() => expect(createTripSafe).toHaveBeenCalled())
+  await waitFor(() => expect(archivePlace).toHaveBeenCalledWith('t-created', expect.objectContaining({ id: 'A' })))
+  openTab('side-panel-tab-reserve')
+  expect(screen.getByTestId('reserve-card-archived-A')).toBeInTheDocument()
 })
 
 it('reserve search archives the searched place and renders it as a recommendation-style card', async () => {
