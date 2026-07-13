@@ -14,14 +14,19 @@ export function resolveLocalizedText(
   localized: LocalizedText | null | undefined,
   fallback: string | null | undefined
 ): ResolvedLocalizedText {
-  const values = [
+  const primaryValues = [
     cleanText(localized?.zhTw),
     cleanText(localized?.en),
     cleanText(localized?.original),
     cleanText(fallback),
   ]
-  const primary = values.find((value): value is string => value !== null) ?? ''
-  const secondary = values.find((value): value is string => value !== null && value !== primary) ?? null
+  const primary = primaryValues.find((value): value is string => value !== null) ?? ''
+  const secondaryValues = [
+    cleanText(localized?.original),
+    cleanText(localized?.en),
+    cleanText(fallback),
+  ]
+  const secondary = secondaryValues.find((value): value is string => value !== null && value !== primary) ?? null
 
   return { primary, secondary }
 }

@@ -19,6 +19,17 @@ function hasHanText(value: string | null | undefined): boolean {
   return /[\u3400-\u9fff]/.test(value ?? '')
 }
 
+function cleanText(value: string | null | undefined): string | null {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : null
+}
+
+function originalNameHintFromQuery(query: string): string | null {
+  const trimmed = query.trim()
+  if (!trimmed || /^https?:\/\//i.test(trimmed) || /^www\./i.test(trimmed)) return null
+  return trimmed
+}
+
 async function fetchPlaceDetails(placeId: string, language: 'zh-TW' | 'en') {
   const url = `${BASE}/details/json?place_id=${placeId}&fields=${DETAILS_FIELDS}&key=${KEY}&language=${language}`
   const res = await fetch(url, { next: { revalidate: 3600 } })
@@ -26,19 +37,20 @@ async function fetchPlaceDetails(placeId: string, language: 'zh-TW' | 'en') {
   return data.status === 'OK' ? data.result : null
 }
 
-export async function getPlaceDetails(placeId: string): Promise<Place | null> {
+export async function getPlaceDetails(placeId: string, originalNameHint?: string | null): Promise<Place | null> {
   const zhResult = await fetchPlaceDetails(placeId, 'zh-TW')
   if (!zhResult) return null
 
-  const zhName = hasHanText(zhResult.name) ? zhResult.name : null
-  const zhAddress = hasHanText(zhResult.formatted_address) ? zhResult.formatted_address : null
+  const originalName = cleanText(originalNameHint) ?? cleanText(zhResult.name)
+  const zhName = hasHanText(zhResult.name) ? cleanText(zhResult.name) : null
+  const zhAddress = hasHanText(zhResult.formatted_address) ? cleanText(zhResult.formatted_address) : null
   const needsEnglish = !zhName || !zhAddress
   const enResult = needsEnglish ? await fetchPlaceDetails(placeId, 'en') : null
-  const enName = enResult?.name && enResult.name !== zhResult.name ? enResult.name : null
-  const enAddress = enResult?.formatted_address && enResult.formatted_address !== zhResult.formatted_address
-    ? enResult.formatted_address
-    : null
-  const displayName = zhName ?? enName ?? zhResult.name
+  const cleanEnName = cleanText(enResult?.name)
+  const cleanEnAddress = cleanText(enResult?.formatted_address)
+  const enName = cleanEnName && cleanEnName !== zhResult.name ? cleanEnName : null
+  const enAddress = cleanEnAddress && cleanEnAddress !== zhResult.formatted_address ? cleanEnAddress : null
+  const displayName = zhName ?? enName ?? originalName ?? zhResult.name
   const displayAddress = zhAddress ?? enAddress ?? zhResult.formatted_address ?? ''
   const photoUrls = mapPhotoUrls(zhResult.photos)
 
@@ -49,7 +61,7 @@ export async function getPlaceDetails(placeId: string): Promise<Place | null> {
     localizedName: {
       zhTw: zhName,
       ...(enName ? { en: enName } : {}),
-      original: zhResult.name ?? null,
+      original: originalName,
     },
     type: 'attraction',  // caller sets the correct type
     lat: zhResult.geometry.location.lat,
@@ -78,7 +90,7 @@ export async function searchPlace(query: string, countryName?: string): Promise<
   const data = await res.json()
   const placeId = data.candidates?.[0]?.place_id
   if (!placeId) return null
-  return getPlaceDetails(placeId)
+  return getPlaceDetails(placeId, originalNameHintFromQuery(query))
 }
 
 export async function verifyPlace(
