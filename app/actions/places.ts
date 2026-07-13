@@ -30,6 +30,18 @@ function originalNameHintFromQuery(query: string): string | null {
   return trimmed
 }
 
+function latinizedName(value: string | null | undefined): string | null {
+  const original = cleanText(value)
+  if (!original || hasHanText(original) || !/[A-Za-z]/.test(original)) return null
+  const latinized = original
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/Đ/g, 'D')
+    .replace(/đ/g, 'd')
+    .trim()
+  return latinized && latinized !== original ? latinized : null
+}
+
 async function fetchPlaceDetails(placeId: string, language: 'zh-TW' | 'en') {
   const url = `${BASE}/details/json?place_id=${placeId}&fields=${DETAILS_FIELDS}&key=${KEY}&language=${language}`
   const res = await fetch(url, { next: { revalidate: 3600 } })
@@ -48,7 +60,11 @@ export async function getPlaceDetails(placeId: string, originalNameHint?: string
   const enResult = needsEnglish ? await fetchPlaceDetails(placeId, 'en') : null
   const cleanEnName = cleanText(enResult?.name)
   const cleanEnAddress = cleanText(enResult?.formatted_address)
-  const enName = cleanEnName && cleanEnName !== zhResult.name ? cleanEnName : null
+  const enName = cleanEnName && cleanEnName !== zhResult.name
+    ? cleanEnName
+    : !zhName
+      ? latinizedName(originalName)
+      : null
   const enAddress = cleanEnAddress && cleanEnAddress !== zhResult.formatted_address ? cleanEnAddress : null
   const displayName = zhName ?? enName ?? originalName ?? zhResult.name
   const displayAddress = zhAddress ?? enAddress ?? zhResult.formatted_address ?? ''
@@ -145,10 +161,19 @@ export async function nearbySearch(
   return (data.results as NearbyPlaceResult[]).map(
     (r): Place => {
       const photoUrls = mapPhotoUrls(r.photos)
+      const zhName = hasHanText(r.name) ? cleanText(r.name) : null
+      const originalName = cleanText(r.name)
+      const enName = zhName ? null : latinizedName(originalName)
+      const displayName = zhName ?? enName ?? originalName ?? r.name
       return {
         id: randomUUID(),
         placeId: r.place_id,
-        name: r.name,
+        name: displayName,
+        localizedName: {
+          zhTw: zhName,
+          ...(enName ? { en: enName } : {}),
+          original: originalName,
+        },
         type: placeType,
         lat: r.geometry?.location?.lat ?? lat,
         lng: r.geometry?.location?.lng ?? lng,
