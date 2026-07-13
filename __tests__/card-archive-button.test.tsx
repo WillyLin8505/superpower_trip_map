@@ -26,13 +26,14 @@ describe('ItineraryCard archive button', () => {
   it('renders an archive button and calls onArchive with the place when clicked', () => {
     const onArchive = jest.fn()
     render(<ItineraryCard place={scheduledPlace()} index={0} dateIso="2026-07-01" onArchive={onArchive} />)
-    fireEvent.click(screen.getByLabelText('移到備用'))
+    expect(screen.getByRole('button', { name: '\u79fb\u5230\u5099\u7528' })).toHaveTextContent('\u79fb\u5230\u5099\u7528')
+    fireEvent.click(screen.getByRole('button', { name: '\u79fb\u5230\u5099\u7528' }))
     expect(onArchive).toHaveBeenCalledWith(scheduledPlace())
   })
 
   it('does not render an archive button when onArchive is not provided', () => {
     render(<ItineraryCard place={scheduledPlace()} index={0} dateIso="2026-07-01" />)
-    expect(screen.queryByLabelText('移到備用')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('\u79fb\u5230\u5099\u7528')).not.toBeInTheDocument()
   })
 })
 
@@ -40,7 +41,8 @@ describe('RecommendationCard archive button', () => {
   it('renders an archive button and calls onArchive with the recommendation when clicked', () => {
     const onArchive = jest.fn()
     render(<RecommendationCard rec={recommendation()} dateIso="2026-07-01" onAdd={() => {}} onArchive={onArchive} />)
-    fireEvent.click(screen.getByLabelText('移到備用'))
+    expect(screen.getByRole('button', { name: '\u79fb\u5230\u5099\u7528' })).toHaveTextContent('\u79fb\u5230\u5099\u7528')
+    fireEvent.click(screen.getByRole('button', { name: '\u79fb\u5230\u5099\u7528' }))
     expect(onArchive).toHaveBeenCalledWith(recommendation())
   })
 })

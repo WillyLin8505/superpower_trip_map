@@ -4,6 +4,8 @@ import { getHoursForDate } from '@/lib/utils/hours'
 import { TYPE_META } from '@/lib/placeType'
 import { PhotoStrip } from './PhotoStrip'
 
+const ARCHIVE_LABEL = '\u79fb\u5230\u5099\u7528'
+
 interface Props {
   rec: DayRecommendation
   dateIso: string
@@ -34,10 +36,10 @@ export function RecommendationCard({ rec, dateIso, onAdd, onArchive }: Props) {
           <button
             type="button"
             onClick={() => onArchive(rec)}
-            aria-label="移到備用"
-            className="shrink-0 mt-0.5 text-gray-300 hover:text-clay-deep transition-colors leading-none"
+            aria-label={ARCHIVE_LABEL}
+            className="shrink-0 mt-0.5 rounded-full border border-clay/40 px-2 py-1 text-xs font-medium text-clay-deep bg-white hover:bg-clay-tint transition-colors"
           >
-            &#x1F4E5;
+            {ARCHIVE_LABEL}
           </button>
         )}
         <div className="flex-1 min-w-0">

@@ -11,6 +11,8 @@ import type { PlaceType, ScheduledPlace, TransportMode } from '@/lib/types'
 import { SUGGESTED_DURATION, TYPE_META } from '@/lib/placeType'
 import { effectivePinned, isDerived } from '@/lib/utils/lockDerive'
 
+const ARCHIVE_LABEL = '\u79fb\u5230\u5099\u7528'
+
 function toMin(t: string): number {
   const [h, m] = t.split(':').map(Number)
   return h * 60 + m
@@ -69,9 +71,11 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
           <button
             type="button"
             onClick={() => onArchive(place)}
-            aria-label="移到備用"
-            className="text-gray-300 hover:text-clay-deep transition-colors mt-1 shrink-0 leading-none"
-          >&#x1F4E5;</button>
+            aria-label={ARCHIVE_LABEL}
+            className="mt-0.5 shrink-0 rounded-full border border-clay/40 px-2 py-1 text-xs font-medium text-clay-deep bg-white hover:bg-clay-tint transition-colors"
+          >
+            {ARCHIVE_LABEL}
+          </button>
         )}
         {onDeletePlace && (
           <button
