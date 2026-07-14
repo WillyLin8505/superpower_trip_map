@@ -39,14 +39,14 @@ it('renders the full card when not compact', () => {
   expect(screen.getByText(/Google/)).toBeInTheDocument()
 })
 
-it('renders only name, category, and one cover photo in compact mode', () => {
+it('renders name, category, one cover photo, and a short explanation in compact mode', () => {
   render(<RecommendationCard rec={rec} dateIso="2026-07-01" onAdd={() => {}} compact />)
 
   expect(screen.getByText('Museum Cafe')).toBeInTheDocument()
   expect(screen.getByTestId('photo-thumb-0')).toBeInTheDocument()
   expect(screen.queryByTestId('photo-thumb-1')).toBeNull()
   expect(screen.queryByText(/4.7/)).not.toBeInTheDocument()
-  expect(screen.queryByText('A scenic museum cafe.')).not.toBeInTheDocument()
+  expect(screen.getByText('A scenic museum cafe.')).toBeInTheDocument()
   expect(screen.queryByText('Good stop nearby.')).not.toBeInTheDocument()
   expect(screen.queryByText(/Google/)).not.toBeInTheDocument()
 })

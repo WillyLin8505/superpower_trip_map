@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import type { Place, PlaceType } from '@/lib/types'
 import { haversineMeters } from '@/lib/haversine'
+import { placeShortDescription } from '@/lib/utils/placeShortDescription'
 
 export type OpenPoiSource = 'overture' | 'osm' | 'wikidata' | 'user'
 
@@ -36,7 +37,7 @@ function cleanText(value: unknown): string | null {
 }
 
 export function mapOpenPoiRowToPlace(row: OpenPoiRow): OpenPoiPlace {
-  const description = cleanText(row.metadata?.description)
+  const description = cleanText(row.metadata?.description) ?? placeShortDescription(row.category)
   const zhName = cleanText(row.name_zh)
   const localName = cleanText(row.name_local)
   const primaryName = cleanText(row.name_primary) ?? row.source_place_id

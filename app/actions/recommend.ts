@@ -12,6 +12,7 @@ import { shouldEnrichRecommendationsWithDetails } from '@/lib/googleMapsCost'
 import { openPoiSearch } from '@/lib/openPoi'
 
 const REC_LIMIT = 5
+const OPEN_POI_RADII_METERS = [4000, 12000]
 const GOOGLE_SOURCE_LABEL = 'Google 推薦'
 const GOOGLE_REASON = 'Google 高評分推薦'
 const OPEN_POI_SOURCE_LABEL = 'Open POI'
@@ -23,16 +24,20 @@ async function maybeEnrichRecommendationDetails(
 ): Promise<Place> {
   if (!shouldEnrichRecommendationsWithDetails()) return { ...place, type: category }
   const detailed = await getPlaceDetails(place.placeId)
-  return detailed ? { ...place, ...detailed, type: category } : { ...place, type: category }
+  return detailed
+    ? { ...place, ...detailed, type: category, description: detailed.description ?? place.description }
+    : { ...place, type: category }
 }
 
 async function safeOpenPoiSearch(
   lat: number,
   lng: number,
-  category: 'dessert' | 'attraction' | 'restaurant'
+  category: 'dessert' | 'attraction' | 'restaurant',
+  limit = REC_LIMIT,
+  radiusMeters = OPEN_POI_RADII_METERS[0]
 ): Promise<Place[]> {
   try {
-    return await openPoiSearch(lat, lng, category, REC_LIMIT)
+    return await openPoiSearch(lat, lng, category, limit, radiusMeters)
   } catch {
     return []
   }
@@ -63,9 +68,11 @@ async function fillFromOpenPoiThenGoogle(
   category: 'dessert' | 'attraction' | 'restaurant',
   have: Set<string>
 ): Promise<void> {
-  const openCandidates = await safeOpenPoiSearch(center.lat, center.lng, category)
-  await pushRecommendationCandidates(target, openCandidates, category, have, OPEN_POI_SOURCE_LABEL, OPEN_POI_REASON)
-  if (target.length >= REC_LIMIT) return
+  for (const radius of OPEN_POI_RADII_METERS) {
+    const openCandidates = await safeOpenPoiSearch(center.lat, center.lng, category, REC_LIMIT, radius)
+    await pushRecommendationCandidates(target, openCandidates, category, have, OPEN_POI_SOURCE_LABEL, OPEN_POI_REASON)
+    if (target.length >= REC_LIMIT) return
+  }
 
   const googleCandidates = await nearbySearch(center.lat, center.lng, category)
   await pushRecommendationCandidates(target, googleCandidates, category, have, GOOGLE_SOURCE_LABEL, GOOGLE_REASON)

@@ -108,7 +108,7 @@ it('forwards the clicked recommendation to onAdd', () => {
   expect(onAdd).toHaveBeenCalledWith(buckets.dessert.shown[0])
 })
 
-it('renders recommendation-list cards in compact mode', () => {
+it('renders recommendation-list cards in compact mode with a short explanation', () => {
   const richBuckets: CategoryBuckets = {
     ...empty,
     dessert: list([{
@@ -128,7 +128,7 @@ it('renders recommendation-list cards in compact mode', () => {
   expect(screen.getByTestId('photo-thumb-0')).toBeInTheDocument()
   expect(screen.queryByTestId('photo-thumb-1')).toBeNull()
   expect(screen.queryByText(/4.9/)).not.toBeInTheDocument()
-  expect(screen.queryByText('Detailed description')).not.toBeInTheDocument()
+  expect(screen.getByText('Detailed description')).toBeInTheDocument()
   expect(screen.queryByText('Detailed reason')).not.toBeInTheDocument()
   expect(screen.queryByText(/Google/)).not.toBeInTheDocument()
 })

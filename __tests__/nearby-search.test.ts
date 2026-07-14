@@ -27,7 +27,7 @@ describe('nearbySearch', () => {
     expect(out[0]).toMatchObject({
       placeId: 'p1', name: '某甜點店', type: 'dessert',
       lat: 25.01, lng: 121.51, rating: 4.6,
-      photoUrl: '/api/photo?ref=ref1', openingHours: null, description: null,
+      photoUrl: '/api/photo?ref=ref1', openingHours: null, description: '甜點／飲料店',
     })
   })
 

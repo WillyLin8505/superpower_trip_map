@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto'
 import { googleMapsFetchOptions, roundedCoordinate } from '@/lib/googleMapsCost'
 import { trackedApiFetch } from '@/lib/apiUsageEvents'
 import { readCachedPlaceId, writeCachedPlaceId } from '@/lib/placeIdCache'
+import { placeShortDescription } from '@/lib/utils/placeShortDescription'
 
 const KEY = process.env.GOOGLE_MAPS_API_KEY!
 const BASE = 'https://maps.googleapis.com/maps/api/place'
@@ -165,11 +166,16 @@ export async function verifyPlace(
   }
 }
 
-const NEARBY_QUERY: Record<'attraction' | 'restaurant' | 'dessert', { type?: string; keyword?: string }> = {
+type NearbyPlaceType = 'attraction' | 'restaurant' | 'dessert'
+
+const NEARBY_QUERY: Record<NearbyPlaceType, { type?: string; keyword?: string }> = {
   attraction: { type: 'tourist_attraction' },
-  restaurant: { type: 'restaurant' },
-  dessert: { keyword: '甜點 dessert cafe' },
+  restaurant: { type: 'restaurant', keyword: 'local lunch dinner restaurant' },
+  dessert: { keyword: '甜點 dessert cafe bakery cake drinks' },
 }
+
+const LODGING_TYPES = new Set(['lodging', 'hotel', 'motel', 'hostel', 'resort', 'campground', 'rv_park'])
+const LODGING_NAME_RE = /\b(hotel|hostel|resort|motel|homestay|villa|suite|suites|apartment|apartments|serviced apartment)\b/i
 
 interface NearbyPlaceResult {
   place_id: string
@@ -177,13 +183,18 @@ interface NearbyPlaceResult {
   geometry?: { location?: { lat: number; lng: number } }
   vicinity?: string
   rating?: number
+  types?: string[]
   photos?: Array<{ photo_reference: string }>
+}
+
+function isLodgingLike(result: NearbyPlaceResult): boolean {
+  return (result.types ?? []).some((type) => LODGING_TYPES.has(type)) || LODGING_NAME_RE.test(result.name)
 }
 
 export async function nearbySearch(
   lat: number,
   lng: number,
-  placeType: 'attraction' | 'restaurant' | 'dessert'
+  placeType: NearbyPlaceType
 ): Promise<Place[]> {
   const q = NEARBY_QUERY[placeType]
   const searchLat = roundedCoordinate(lat)
@@ -207,7 +218,10 @@ export async function nearbySearch(
   const data = await res.json()
   if (data.status !== 'OK' || !Array.isArray(data.results)) return []
 
-  return (data.results as NearbyPlaceResult[]).map(
+  const results = (data.results as NearbyPlaceResult[])
+    .filter((result) => placeType !== 'restaurant' || !isLodgingLike(result))
+
+  return results.map(
     (r): Place => {
       const photoUrls = mapPhotoUrls(r.photos)
       const zhName = hasHanText(r.name) ? cleanText(r.name) : null
@@ -231,7 +245,7 @@ export async function nearbySearch(
         rating: r.rating ?? null,
         photoUrl: photoUrls[0] ?? null,
         photoUrls,
-        description: null,
+        description: placeShortDescription(placeType, r.types),
       }
     }
   )

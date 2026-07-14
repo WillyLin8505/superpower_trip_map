@@ -4,6 +4,7 @@ import { TypePicker } from './TypePicker'
 import { getHoursForDate } from '@/lib/utils/hours'
 import { addMinutes } from '@/lib/utils/time'
 import { resolveLocalizedText } from '@/lib/utils/localizedPlace'
+import { googleMapsSearchUrl } from '@/lib/utils/googleMapsUrl'
 import type { PlaceType, ScheduledPlace } from '@/lib/types'
 import { TYPE_META } from '@/lib/placeType'
 import { effectivePinned, isDerived } from '@/lib/utils/lockDerive'
@@ -24,12 +25,17 @@ export function CardContent({ place, dateIso, onTimeChange, onToggleStartLock, o
   const meta = TYPE_META[place.type]
   const pin = effectivePinned(place)
   const displayName = resolveLocalizedText(place.localizedName, place.name)
+  const mapsUrl = googleMapsSearchUrl(place, displayName.primary)
 
   return (
     <>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <h3 className="font-semibold text-gray-900">{displayName.primary}</h3>
+          <h3 className="font-semibold text-gray-900">
+            <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted underline-offset-2 hover:text-clay-deep">
+              {displayName.primary}
+            </a>
+          </h3>
           {onChangeType ? (
             <TypePicker type={place.type} onChange={(t) => onChangeType(place.id, t)} />
           ) : (

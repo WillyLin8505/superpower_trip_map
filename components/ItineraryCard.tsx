@@ -7,6 +7,7 @@ import { PhotoStrip } from './PhotoStrip'
 import { getHoursForDate } from '@/lib/utils/hours'
 import { addMinutes } from '@/lib/utils/time'
 import { resolveLocalizedText } from '@/lib/utils/localizedPlace'
+import { googleMapsSearchUrl } from '@/lib/utils/googleMapsUrl'
 import type { PlaceType, ScheduledPlace, TransportMode } from '@/lib/types'
 import { SUGGESTED_DURATION, TYPE_META } from '@/lib/placeType'
 import { effectivePinned, isDerived } from '@/lib/utils/lockDerive'
@@ -57,6 +58,7 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
   const meta = TYPE_META[place.type]
   const pin = effectivePinned(place)
   const displayName = resolveLocalizedText(place.localizedName, place.name)
+  const mapsUrl = googleMapsSearchUrl(place, displayName.primary)
   const endTime = addMinutes(place.startTime, place.durationMin)
   const photos = place.photoUrls?.length ? place.photoUrls : place.photoUrl ? [place.photoUrl] : []
 
@@ -101,7 +103,11 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-semibold text-ink">{displayName.primary}</h3>
+            <h3 className="font-semibold text-ink">
+              <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted underline-offset-2 hover:text-clay-deep">
+                {displayName.primary}
+              </a>
+            </h3>
             {onChangeType ? (
               <TypePicker type={place.type} onChange={(t) => onChangeType(place.id, t)} />
             ) : (
