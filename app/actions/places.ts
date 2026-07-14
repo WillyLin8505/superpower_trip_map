@@ -167,11 +167,20 @@ export async function verifyPlace(
 }
 
 type NearbyPlaceType = 'attraction' | 'restaurant' | 'dessert'
+type NearbyQuery = { type?: string; keyword?: string }
 
-const NEARBY_QUERY: Record<NearbyPlaceType, { type?: string; keyword?: string }> = {
-  attraction: { type: 'tourist_attraction' },
-  restaurant: { type: 'restaurant', keyword: 'local lunch dinner restaurant' },
-  dessert: { keyword: '甜點 dessert cafe bakery cake drinks' },
+const NEARBY_QUERIES: Record<NearbyPlaceType, NearbyQuery[]> = {
+  attraction: [
+    { type: 'tourist_attraction' },
+    { keyword: 'sightseeing landmark museum temple park tourist attraction' },
+  ],
+  restaurant: [
+    { type: 'restaurant', keyword: 'local lunch dinner restaurant' },
+    { keyword: 'local lunch dinner restaurant food' },
+  ],
+  dessert: [
+    { keyword: '甜點 dessert cafe bakery cake drinks' },
+  ],
 }
 
 const LODGING_TYPES = new Set(['lodging', 'hotel', 'motel', 'hostel', 'resort', 'campground', 'rv_park'])
@@ -196,39 +205,43 @@ export async function nearbySearch(
   lng: number,
   placeType: NearbyPlaceType
 ): Promise<Place[]> {
-  const q = NEARBY_QUERY[placeType]
   const searchLat = roundedCoordinate(lat)
   const searchLng = roundedCoordinate(lng)
-  const params = new URLSearchParams({
-    location: `${searchLat},${searchLng}`,
-    radius: '4000',
-    key: KEY,
-    language: 'zh-TW',
-  })
-  if (q.type) params.set('type', q.type)
-  if (q.keyword) params.set('keyword', q.keyword)
+  const out: Place[] = []
+  const seen = new Set<string>()
 
-  const url = `${BASE}/nearbysearch/json?${params.toString()}`
-  const res = await trackedApiFetch(url, googleMapsFetchOptions(), {
-    provider: 'google_maps',
-    endpoint: 'nearby_search',
-    skuHint: 'nearby_search_pro',
-    metadata: { placeType, radius: 4000 },
-  })
-  const data = await res.json()
-  if (data.status !== 'OK' || !Array.isArray(data.results)) return []
+  for (const q of NEARBY_QUERIES[placeType]) {
+    const params = new URLSearchParams({
+      location: `${searchLat},${searchLng}`,
+      radius: '4000',
+      key: KEY,
+      language: 'zh-TW',
+    })
+    if (q.type) params.set('type', q.type)
+    if (q.keyword) params.set('keyword', q.keyword)
 
-  const results = (data.results as NearbyPlaceResult[])
-    .filter((result) => placeType !== 'restaurant' || !isLodgingLike(result))
+    const url = `${BASE}/nearbysearch/json?${params.toString()}`
+    const res = await trackedApiFetch(url, googleMapsFetchOptions(), {
+      provider: 'google_maps',
+      endpoint: 'nearby_search',
+      skuHint: 'nearby_search_pro',
+      metadata: { placeType, radius: 4000, query: q },
+    })
+    const data = await res.json()
+    if (data.status !== 'OK' || !Array.isArray(data.results)) continue
 
-  return results.map(
-    (r): Place => {
+    const results = (data.results as NearbyPlaceResult[])
+      .filter((result) => placeType !== 'restaurant' || !isLodgingLike(result))
+
+    for (const r of results) {
+      if (seen.has(r.place_id)) continue
+      seen.add(r.place_id)
       const photoUrls = mapPhotoUrls(r.photos)
       const zhName = hasHanText(r.name) ? cleanText(r.name) : null
       const originalName = cleanText(r.name)
       const enName = zhName ? null : latinizedName(originalName)
       const displayName = zhName ?? enName ?? originalName ?? r.name
-      return {
+      out.push({
         id: randomUUID(),
         placeId: r.place_id,
         name: displayName,
@@ -246,7 +259,10 @@ export async function nearbySearch(
         photoUrl: photoUrls[0] ?? null,
         photoUrls,
         description: placeShortDescription(placeType, r.types),
-      }
+      })
     }
-  )
+    if (out.length >= 5) break
+  }
+
+  return out
 }
