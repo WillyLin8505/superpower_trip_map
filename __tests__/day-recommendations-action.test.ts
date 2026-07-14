@@ -6,12 +6,16 @@ jest.mock('@/app/actions/places', () => ({
   getPlaceDetails: jest.fn(),
   nearbySearch: jest.fn(),
 }))
+jest.mock('@/lib/openPoi', () => ({
+  openPoiSearch: jest.fn(),
+}))
 
 import { getDayRecommendations, refreshDayCategoryRecommendations } from '@/app/actions/recommend'
 import { readFile } from 'fs/promises'
 import { scrapeText } from '@/app/actions/scrape'
 import { callClaude } from '@/lib/claude'
 import { searchPlace, getPlaceDetails, nearbySearch } from '@/app/actions/places'
+import { openPoiSearch } from '@/lib/openPoi'
 import type { DayItinerary, Place } from '@/lib/types'
 
 const r = readFile as jest.Mock
@@ -20,6 +24,7 @@ const cc = callClaude as jest.Mock
 const sp = searchPlace as jest.Mock
 const gd = getPlaceDetails as jest.Mock
 const ns = nearbySearch as jest.Mock
+const ops = openPoiSearch as jest.Mock
 const origRecommendationDetailsMode = process.env.GOOGLE_MAPS_RECOMMENDATION_DETAILS_MODE
 
 function place(id: string, type: Place['type']): Place {
@@ -42,8 +47,23 @@ function oneDay(existingPlaceId: string): DayItinerary {
 
 beforeEach(() => {
   jest.clearAllMocks()
+  ops.mockResolvedValue([])
   if (origRecommendationDetailsMode === undefined) delete process.env.GOOGLE_MAPS_RECOMMENDATION_DETAILS_MODE
   else process.env.GOOGLE_MAPS_RECOMMENDATION_DETAILS_MODE = origRecommendationDetailsMode
+})
+
+it('fills recommendations from open POI before calling Google Nearby Search', async () => {
+  r.mockResolvedValue('[]')
+  ops.mockImplementation(async (_lat: number, _lng: number, type: string) =>
+    Array.from({ length: 5 }, (_, i) => place(`open-${type}-${i}`, type as Place['type']))
+  )
+  ns.mockResolvedValue([])
+
+  const result = await getDayRecommendations([oneDay('existing')])
+
+  expect(result[0].dessert.shown).toHaveLength(5)
+  expect(result[0].dessert.shown[0].sourceLabel).toBe('Open POI')
+  expect(ns).not.toHaveBeenCalled()
 })
 
 it('fills each category to 5 with nearby results, excluding existing places', async () => {

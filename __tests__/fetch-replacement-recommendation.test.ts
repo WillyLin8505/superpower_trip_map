@@ -3,13 +3,18 @@ jest.mock('@/app/actions/places', () => ({
   getPlaceDetails: jest.fn(),
   nearbySearch: jest.fn(),
 }))
+jest.mock('@/lib/openPoi', () => ({
+  openPoiSearch: jest.fn(),
+}))
 
 import { fetchReplacementRecommendation } from '@/app/actions/recommend'
 import { getPlaceDetails, nearbySearch } from '@/app/actions/places'
+import { openPoiSearch } from '@/lib/openPoi'
 import type { DayItinerary, Place } from '@/lib/types'
 
 const gd = getPlaceDetails as jest.Mock
 const ns = nearbySearch as jest.Mock
+const ops = openPoiSearch as jest.Mock
 
 function place(id: string, type: Place['type']): Place {
   return {
@@ -29,7 +34,10 @@ function dayWith(placeId: string): DayItinerary {
   }
 }
 
-beforeEach(() => jest.clearAllMocks())
+beforeEach(() => {
+  jest.clearAllMocks()
+  ops.mockResolvedValue([])
+})
 
 it('returns the first non-excluded enriched candidate', async () => {
   ns.mockResolvedValue([place('a', 'dessert'), place('b', 'dessert')])

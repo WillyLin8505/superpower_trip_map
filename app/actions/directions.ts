@@ -2,6 +2,7 @@
 import type { Place, TransportMode, DistanceMatrix } from '@/lib/types'
 import { haversineSeconds, haversineMeters } from '@/lib/haversine'
 import { shouldUseLiveDistanceMatrix } from '@/lib/googleMapsCost'
+import { trackedApiFetch } from '@/lib/apiUsageEvents'
 
 const GOOGLE_MODE: Record<TransportMode, string> = {
   driving: 'driving',
@@ -45,7 +46,13 @@ export async function buildDistanceMatrix(
 
   // Fix 3: Wrap fetch block in try-catch to handle network/JSON errors
   try {
-    const res = await fetch(url)
+    const res = await trackedApiFetch(url, undefined, {
+      provider: 'google_maps',
+      endpoint: 'distance_matrix',
+      skuHint: 'distance_matrix_essentials',
+      units: n * n,
+      metadata: { mode, places: n },
+    })
 
     // Fix 2: Check res.ok before parsing JSON
     if (!res.ok) return fallback()

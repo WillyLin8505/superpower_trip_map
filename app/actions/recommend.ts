@@ -9,8 +9,13 @@ import { REC_CATEGORIES, resolveDayCenter, centroidOf, dedupeAndExclude, assignT
 import type { DayItinerary, DayRecommendation, RecommendationsByDay, CategoryBuckets, Place } from '@/lib/types'
 import { callClaude } from '@/lib/claude'
 import { shouldEnrichRecommendationsWithDetails } from '@/lib/googleMapsCost'
+import { openPoiSearch } from '@/lib/openPoi'
 
 const REC_LIMIT = 5
+const GOOGLE_SOURCE_LABEL = 'Google 推薦'
+const GOOGLE_REASON = 'Google 高評分推薦'
+const OPEN_POI_SOURCE_LABEL = 'Open POI'
+const OPEN_POI_REASON = '開放 POI 候選池推薦'
 
 async function maybeEnrichRecommendationDetails(
   place: Place,
@@ -21,12 +26,56 @@ async function maybeEnrichRecommendationDetails(
   return detailed ? { ...place, ...detailed, type: category } : { ...place, type: category }
 }
 
+async function safeOpenPoiSearch(
+  lat: number,
+  lng: number,
+  category: 'dessert' | 'attraction' | 'restaurant'
+): Promise<Place[]> {
+  try {
+    return await openPoiSearch(lat, lng, category, REC_LIMIT)
+  } catch {
+    return []
+  }
+}
+
+async function pushRecommendationCandidates(
+  target: DayRecommendation[],
+  candidates: Place[],
+  category: 'dessert' | 'attraction' | 'restaurant',
+  have: Set<string>,
+  sourceLabel: string,
+  reason: string
+): Promise<void> {
+  for (const candidate of candidates) {
+    if (target.length >= REC_LIMIT) break
+    if (have.has(candidate.placeId)) continue
+    const filled = sourceLabel === GOOGLE_SOURCE_LABEL
+      ? await maybeEnrichRecommendationDetails(candidate, category)
+      : { ...candidate, type: category }
+    target.push({ ...filled, reason, sourceLabel })
+    have.add(candidate.placeId)
+  }
+}
+
+async function fillFromOpenPoiThenGoogle(
+  target: DayRecommendation[],
+  center: { lat: number; lng: number },
+  category: 'dessert' | 'attraction' | 'restaurant',
+  have: Set<string>
+): Promise<void> {
+  const openCandidates = await safeOpenPoiSearch(center.lat, center.lng, category)
+  await pushRecommendationCandidates(target, openCandidates, category, have, OPEN_POI_SOURCE_LABEL, OPEN_POI_REASON)
+  if (target.length >= REC_LIMIT) return
+
+  const googleCandidates = await nearbySearch(center.lat, center.lng, category)
+  await pushRecommendationCandidates(target, googleCandidates, category, have, GOOGLE_SOURCE_LABEL, GOOGLE_REASON)
+}
+
 export async function getDayRecommendations(
   days: DayItinerary[]
 ): Promise<RecommendationsByDay> {
   const existingIds = new Set(days.flatMap((d) => d.places.map((p) => p.placeId)))
 
-  // --- 1. Website extractions (best-effort) ---
   let extracted: DayRecommendation[] = []
   try {
     const raw = await readFile(join(process.cwd(), 'config/sources.json'), 'utf-8')
@@ -67,20 +116,16 @@ export async function getDayRecommendations(
       }
     }
   } catch {
-    extracted = []   // missing/invalid sources.json → Google fill only
+    extracted = []
   }
 
-  // --- 2. Assign to closest day ---
   const cleaned = dedupeAndExclude(extracted, existingIds)
   const perDay = assignToDays(cleaned, days)
-
-  // --- 3. Per day: split website picks into shown/reserve, fill shown to REC_LIMIT ---
-  // Trip-wide dedup: seed with every extracted placeId so fills never duplicate extractions from other days
   const recommendedIds = new Set<string>(cleaned.map((r) => r.placeId))
 
   const result: RecommendationsByDay = []
   for (let i = 0; i < days.length; i++) {
-    const websiteBuckets = bucketByCategory(perDay[i])   // CategoryArrays (website-only)
+    const websiteBuckets = bucketByCategory(perDay[i])
     const dayResult: CategoryBuckets = {
       dessert: splitShownReserve(websiteBuckets.dessert, REC_LIMIT),
       attraction: splitShownReserve(websiteBuckets.attraction, REC_LIMIT),
@@ -90,8 +135,8 @@ export async function getDayRecommendations(
 
     if (centroid) {
       try {
-        for (const cat of REC_CATEGORIES) {
-          if (dayResult[cat].shown.length >= REC_LIMIT) continue
+        for (const category of REC_CATEGORIES) {
+          if (dayResult[category].shown.length >= REC_LIMIT) continue
           const have = new Set<string>([
             ...Array.from(existingIds),
             ...Array.from(recommendedIds),
@@ -100,15 +145,8 @@ export async function getDayRecommendations(
               ...dayResult[c].reserve.map((x) => x.placeId),
             ]),
           ])
-          const candidates = await nearbySearch(centroid.lat, centroid.lng, cat)
-          for (const c of candidates) {
-            if (dayResult[cat].shown.length >= REC_LIMIT) break
-            if (have.has(c.placeId)) continue
-            const filled = await maybeEnrichRecommendationDetails(c, cat)
-            dayResult[cat].shown.push({ ...filled, reason: 'Google 高評分推薦', sourceLabel: 'Google 推薦' })
-            have.add(c.placeId)
-            recommendedIds.add(c.placeId)
-          }
+          await fillFromOpenPoiThenGoogle(dayResult[category].shown, centroid, category, have)
+          dayResult[category].shown.forEach((item) => recommendedIds.add(item.placeId))
         }
       } catch {
         // best-effort fill: leave this day's buckets as-is and continue
@@ -121,8 +159,6 @@ export async function getDayRecommendations(
   return result
 }
 
-// TASK-010: 換一批 — replace the current shown set for one day/category.
-// Separate from fetchReplacementRecommendation (fills one opened backfill slot).
 export async function refreshDayCategoryRecommendations(args: {
   category: 'dessert' | 'attraction' | 'restaurant'
   center: { lat: number; lng: number }
@@ -132,16 +168,9 @@ export async function refreshDayCategoryRecommendations(args: {
   const exclude = new Set(excludeIds)
   const out: DayRecommendation[] = []
   try {
-    const candidates = await nearbySearch(center.lat, center.lng, category)
-    for (const c of candidates) {
-      if (out.length >= REC_LIMIT) break
-      if (exclude.has(c.placeId)) continue
-      const filled = await maybeEnrichRecommendationDetails(c, category)
-      out.push({ ...filled, reason: 'Google 高評分推薦', sourceLabel: 'Google 推薦' })
-      exclude.add(c.placeId)
-    }
+    await fillFromOpenPoiThenGoogle(out, center, category, exclude)
   } catch {
-    return []   // recoverable: caller preserves previous shown cards on empty result
+    return []
   }
   return out
 }
@@ -155,11 +184,17 @@ export async function fetchReplacementRecommendation(
   if (!centroid) return null
   const exclude = new Set(excludeIds)
   try {
+    const openCandidates = await safeOpenPoiSearch(centroid.lat, centroid.lng, category)
+    for (const candidate of openCandidates) {
+      if (exclude.has(candidate.placeId)) continue
+      return { ...candidate, type: category, reason: OPEN_POI_REASON, sourceLabel: OPEN_POI_SOURCE_LABEL }
+    }
+
     const candidates = await nearbySearch(centroid.lat, centroid.lng, category)
-    for (const c of candidates) {
-      if (exclude.has(c.placeId)) continue
-      const place = await maybeEnrichRecommendationDetails(c, category)
-      return { ...place, reason: 'Google 高評分推薦', sourceLabel: 'Google 推薦' }
+    for (const candidate of candidates) {
+      if (exclude.has(candidate.placeId)) continue
+      const place = await maybeEnrichRecommendationDetails(candidate, category)
+      return { ...place, reason: GOOGLE_REASON, sourceLabel: GOOGLE_SOURCE_LABEL }
     }
   } catch {
     return null

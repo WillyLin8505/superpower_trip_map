@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { googleMapsFetchOptions, googleMapsPhotoCacheControl } from '@/lib/googleMapsCost'
+import { trackedApiFetch } from '@/lib/apiUsageEvents'
 
 const BASE = 'https://maps.googleapis.com/maps/api/place'
 
@@ -28,7 +29,12 @@ export async function GET(req: NextRequest) {
     language: 'zh-TW',
   })
 
-  const upstream = await fetch(`${BASE}/details/json?${params.toString()}`, googleMapsFetchOptions())
+  const upstream = await trackedApiFetch(`${BASE}/details/json?${params.toString()}`, googleMapsFetchOptions(), {
+    provider: 'google_maps',
+    endpoint: 'place_photos_metadata',
+    skuHint: 'place_details_photos',
+    metadata: { limit },
+  })
   if (!upstream.ok) return NextResponse.json({ error: 'failed to fetch place photos' }, { status: 502 })
 
   const data = await upstream.json()

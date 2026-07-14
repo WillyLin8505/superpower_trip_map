@@ -2,6 +2,7 @@
 import type { Place } from '@/lib/types'
 import { randomUUID } from 'crypto'
 import { googleMapsFetchOptions, roundedCoordinate } from '@/lib/googleMapsCost'
+import { trackedApiFetch } from '@/lib/apiUsageEvents'
 import { readCachedPlaceId, writeCachedPlaceId } from '@/lib/placeIdCache'
 
 const KEY = process.env.GOOGLE_MAPS_API_KEY!
@@ -68,7 +69,12 @@ async function fetchPlaceDetails(placeId: string, language?: 'zh-TW' | 'en') {
   })
   if (language) params.set('language', language)
   const url = `${BASE}/details/json?${params.toString()}`
-  const res = await fetch(url, googleMapsFetchOptions())
+  const res = await trackedApiFetch(url, googleMapsFetchOptions(), {
+    provider: 'google_maps',
+    endpoint: 'place_details',
+    skuHint: 'place_details_pro',
+    metadata: { language: language ?? 'default' },
+  })
   const data = await res.json()
   return data.status === 'OK' ? data.result : null
 }
@@ -132,7 +138,11 @@ export async function searchPlace(query: string, countryName?: string): Promise<
     `${BASE}/findplacefromtext/json` +
     `?input=${encodeURIComponent(input)}&inputtype=textquery` +
     `&fields=place_id&key=${KEY}`
-  const res = await fetch(url, googleMapsFetchOptions())
+  const res = await trackedApiFetch(url, googleMapsFetchOptions(), {
+    provider: 'google_maps',
+    endpoint: 'find_place_from_text',
+    skuHint: 'find_place_from_text_id_only',
+  })
   const data = await res.json()
   const placeId = data.candidates?.[0]?.place_id
   if (!placeId) return null
@@ -188,7 +198,12 @@ export async function nearbySearch(
   if (q.keyword) params.set('keyword', q.keyword)
 
   const url = `${BASE}/nearbysearch/json?${params.toString()}`
-  const res = await fetch(url, googleMapsFetchOptions())
+  const res = await trackedApiFetch(url, googleMapsFetchOptions(), {
+    provider: 'google_maps',
+    endpoint: 'nearby_search',
+    skuHint: 'nearby_search_pro',
+    metadata: { placeType, radius: 4000 },
+  })
   const data = await res.json()
   if (data.status !== 'OK' || !Array.isArray(data.results)) return []
 

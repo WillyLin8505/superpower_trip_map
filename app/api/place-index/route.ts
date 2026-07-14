@@ -1,17 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { buildUserPlaceIndexRow } from '@/lib/userPlaceIndex'
+import { buildUserPlaceIndexRow, type PlaceIndexSource } from '@/lib/userPlaceIndex'
 import type { PlaceType } from '@/lib/types'
 
 const PLACE_TYPES: PlaceType[] = ['attraction', 'restaurant', 'dessert', 'accommodation']
+const PLACE_INDEX_SOURCES: PlaceIndexSource[] = ['google', 'overture', 'osm', 'wikidata', 'user']
 
 function isPlaceType(value: unknown): value is PlaceType {
   return typeof value === 'string' && PLACE_TYPES.includes(value as PlaceType)
 }
 
+function isPlaceIndexSource(value: unknown): value is PlaceIndexSource {
+  return typeof value === 'string' && PLACE_INDEX_SOURCES.includes(value as PlaceIndexSource)
+}
+
 function isMissingIndexTable(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code
   return code === '42P01' || code === 'PGRST205'
+}
+
+function isLegacyIndexSchema(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code
+  return code === '42703' || code === '42P10'
 }
 
 export async function POST(request: NextRequest) {
@@ -21,6 +31,7 @@ export async function POST(request: NextRequest) {
     lat?: unknown
     lng?: unknown
     category?: unknown
+    source?: unknown
   } | null
 
   if (
@@ -46,10 +57,32 @@ export async function POST(request: NextRequest) {
     lat: body.lat,
     lng: body.lng,
     type: body.category,
-  })
+  }, { source: isPlaceIndexSource(body.source) ? body.source : 'google' })
   const { error } = await supabase
     .from('user_place_index')
-    .upsert(row, { onConflict: 'owner_id,place_id,category' })
+    .upsert(row, { onConflict: 'owner_id,source,place_id,category' })
+
+  if (isLegacyIndexSchema(error)) {
+    const legacyRow = {
+      owner_id: row.owner_id,
+      place_id: row.place_id,
+      name: row.name,
+      lat: row.lat,
+      lng: row.lng,
+      category: row.category,
+    }
+    const { error: legacyError } = await supabase
+      .from('user_place_index')
+      .upsert(legacyRow, { onConflict: 'owner_id,place_id,category' })
+
+    if (isMissingIndexTable(legacyError)) {
+      return NextResponse.json({ ok: false, skipped: 'missing_table' }, { status: 200 })
+    }
+    if (!legacyError) {
+      return NextResponse.json({ ok: true })
+    }
+    return NextResponse.json({ error: legacyError.message }, { status: 500 })
+  }
 
   if (isMissingIndexTable(error)) {
     return NextResponse.json({ ok: false, skipped: 'missing_table' }, { status: 200 })

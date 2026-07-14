@@ -59,9 +59,9 @@ import { getDayRecommendations } from '@/app/actions/recommend'
 import { fetchDayArrangeInputs } from '@/app/actions/arrange'
 import type { PlanResult, RecommendationsByDay, DayRecommendation, Place } from '@/lib/types'
 
-function drec(placeId: string): DayRecommendation {
+function drec(placeId: string, source?: DayRecommendation['source']): DayRecommendation {
   return {
-    id: placeId, placeId, name: placeId, type: 'dessert', lat: 25, lng: 121, address: '',
+    id: placeId, placeId, source, name: placeId, type: 'dessert', lat: 25, lng: 121, address: '',
     openingHours: null, rating: null, photoUrl: '/api/photo?ref=cover', photoUrls: ['/api/photo?ref=cover'],
     description: null, reason: 'nearby', sourceLabel: 'Google',
   }
@@ -156,6 +156,30 @@ it('enriches details and stores the minimal place index only after add', async (
     lat: 25.1,
     lng: 121.1,
     category: 'dessert',
+    source: 'google',
   })
   expect(screen.getByText('Detailed Dessert')).toBeInTheDocument()
+})
+
+it('adds open POI recommendations without calling Google details and stores the open source', async () => {
+  const openRecs: RecommendationsByDay = [{
+    dessert: { shown: [drec('overture:ov-1', 'overture')], reserve: [] },
+    attraction: { shown: [], reserve: [] },
+    restaurant: { shown: [], reserve: [] },
+  }]
+  ;(getDayRecommendations as jest.Mock).mockResolvedValue(openRecs)
+  render(<ItineraryClient initial={plan} />)
+  await waitFor(() => expect(getDayRecommendations).toHaveBeenCalledTimes(1))
+
+  fireEvent.click(await screen.findByTestId('rec-add-overture:ov-1'))
+
+  await waitFor(() => expect(screen.getByText('overture:ov-1')).toBeInTheDocument())
+  expect(mockGetPlaceDetails).not.toHaveBeenCalled()
+  const placeIndexCall = mockFetch.mock.calls.find(([input, init]) =>
+    String(input) === '/api/place-index' && init?.method === 'POST'
+  )
+  expect(JSON.parse(String(placeIndexCall?.[1]?.body))).toMatchObject({
+    placeId: 'overture:ov-1',
+    source: 'overture',
+  })
 })

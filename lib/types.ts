@@ -2,6 +2,7 @@ import type { CrowdForecast } from '@/lib/crowd/types'
 
 export type PlaceType = 'attraction' | 'restaurant' | 'dessert' | 'accommodation'
 export type TransportMode = 'driving' | 'walking' | 'transit'
+export type PlaceDataSource = 'google' | 'overture' | 'osm' | 'wikidata' | 'user'
 
 export interface LocalizedText {
   zhTw?: string | null
@@ -12,6 +13,7 @@ export interface LocalizedText {
 export interface Place {
   id: string            // UUID generated client-side
   placeId: string       // Google Place ID
+  source?: PlaceDataSource
   name: string
   localizedName?: LocalizedText | null
   type: PlaceType

@@ -16,6 +16,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import type { PlanResult, ScheduledPlace, Place, PlaceType, TransportMode, RecommendationsByDay, DayRecommendation, RecommendationCenter, Candidate } from '@/lib/types'
+import type { PlaceIndexSource } from '@/lib/userPlaceIndex'
 import { recalcPlan } from '@/lib/utils/clientScheduler'
 import { addDays, daysBetween, dayDate } from '@/lib/utils/date'
 import { legInfo, computeLegPlan } from '@/app/actions/legs'
@@ -126,7 +127,16 @@ function refreshPlanWarningsOnly(plan: PlanResult): PlanResult {
   }
 }
 
+function inferPlaceIndexSource(placeId: string, source?: Place['source']): PlaceIndexSource {
+  if (source) return source
+  const prefix = placeId.split(':', 1)[0]
+  return prefix === 'overture' || prefix === 'osm' || prefix === 'wikidata' || prefix === 'user'
+    ? prefix
+    : 'google'
+}
+
 async function fetchDetailsOnAdd(rec: DayRecommendation): Promise<Place | null> {
+  if (inferPlaceIndexSource(rec.placeId, rec.source) !== 'google') return null
   if (typeof fetch !== 'function') return null
   const params = new URLSearchParams({ placeId: rec.placeId })
   const originalName = rec.localizedName?.original ?? rec.name
@@ -142,7 +152,7 @@ async function fetchDetailsOnAdd(rec: DayRecommendation): Promise<Place | null> 
   }
 }
 
-async function savePlaceIndexOnAdd(place: Pick<Place, 'placeId' | 'name' | 'lat' | 'lng' | 'type'>): Promise<void> {
+async function savePlaceIndexOnAdd(place: Pick<Place, 'placeId' | 'name' | 'lat' | 'lng' | 'type' | 'source'>): Promise<void> {
   if (typeof fetch !== 'function' || !place.placeId) return
   try {
     await fetch('/api/place-index', {
@@ -154,6 +164,7 @@ async function savePlaceIndexOnAdd(place: Pick<Place, 'placeId' | 'name' | 'lat'
         lat: place.lat,
         lng: place.lng,
         category: place.type,
+        source: inferPlaceIndexSource(place.placeId, place.source),
       }),
     })
   } catch {
@@ -717,6 +728,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     const newPlace: ScheduledPlace = {
       id: crypto.randomUUID(),
       placeId: enriched.placeId,
+      source: enriched.source,
       name: enriched.name,
       localizedName: enriched.localizedName,
       type: rec.type,
