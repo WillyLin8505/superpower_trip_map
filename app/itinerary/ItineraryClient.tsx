@@ -106,11 +106,6 @@ function filterRecommendationsByUnavailable(
   }))
 }
 
-function timeToMin(time: string): number {
-  const [hours, minutes] = time.split(':').map(Number)
-  return hours * 60 + minutes
-}
-
 function refreshPlanWarningsOnly(plan: PlanResult): PlanResult {
   return {
     ...plan,
