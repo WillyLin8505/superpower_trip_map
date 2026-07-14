@@ -143,7 +143,7 @@ it('fetches a Google replacement when the reserve is empty', async () => {
 
   fireEvent.click(await screen.findByTestId('rec-add-d1'))
 
-  await waitFor(() => expect(fetchReplacementRecommendation).toHaveBeenCalledTimes(1))
+  await waitFor(() => expect(fetchReplacementRecommendation).toHaveBeenCalledTimes(2))
   expect(await screen.findByTestId('rec-add-g1')).toBeInTheDocument()
 })
 

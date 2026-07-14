@@ -41,4 +41,25 @@ describe('GET /api/place-photos', () => {
       '/api/photo?ref=ref5',
     ])
   })
+
+  it('honors limit=1 for cover-only photo fetches', async () => {
+    ;(fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        status: 'OK',
+        result: {
+          photos: [
+            { photo_reference: 'ref1' },
+            { photo_reference: 'ref2' },
+          ],
+        },
+      }),
+    })
+
+    const req = new NextRequest('http://localhost/api/place-photos?placeId=place-1&limit=1')
+    const res = await GET(req)
+    const body = await res.json()
+
+    expect(body.photoUrls).toEqual(['/api/photo?ref=ref1'])
+  })
 })

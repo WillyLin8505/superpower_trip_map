@@ -5,21 +5,50 @@ import { RecommendationCard } from '@/components/RecommendationCard'
 import type { DayRecommendation } from '@/lib/types'
 
 const rec: DayRecommendation = {
-  id: 'p1', placeId: 'p1', name: '某景點', type: 'attraction',
-  lat: 25, lng: 121, address: '台北',
-  openingHours: ['星期一: 09:00 – 18:00', '星期二: 09:00 – 18:00', '星期三: 09:00 – 18:00',
-    '星期四: 09:00 – 18:00', '星期五: 09:00 – 18:00', '星期六: 09:00 – 18:00', '星期日: 09:00 – 18:00'],
-  rating: 4.7, photoUrl: null, description: '很棒的地方',
-  reason: '必訪', sourceLabel: '部落格',
+  id: 'p1',
+  placeId: 'p1',
+  name: 'Museum Cafe',
+  type: 'attraction',
+  lat: 25,
+  lng: 121,
+  address: 'Taipei',
+  openingHours: [
+    'Monday: 9:00 AM – 6:00 PM',
+    'Tuesday: 9:00 AM – 6:00 PM',
+    'Wednesday: 9:00 AM – 6:00 PM',
+    'Thursday: 9:00 AM – 6:00 PM',
+    'Friday: 9:00 AM – 6:00 PM',
+    'Saturday: 9:00 AM – 6:00 PM',
+    'Sunday: 9:00 AM – 6:00 PM',
+  ],
+  rating: 4.7,
+  photoUrl: '/api/photo?ref=one',
+  photoUrls: ['/api/photo?ref=one', '/api/photo?ref=two'],
+  description: 'A scenic museum cafe.',
+  reason: 'Good stop nearby.',
+  sourceLabel: 'Google',
 }
 
-it('renders name, type badge, rating, description and source', () => {
+it('renders the full card when not compact', () => {
   render(<RecommendationCard rec={rec} dateIso="2026-07-01" onAdd={() => {}} />)
-  expect(screen.getByText('某景點')).toBeInTheDocument()
-  expect(screen.getByText('景點')).toBeInTheDocument()
+
+  expect(screen.getByText('Museum Cafe')).toBeInTheDocument()
   expect(screen.getByText(/4.7/)).toBeInTheDocument()
-  expect(screen.getByText('很棒的地方')).toBeInTheDocument()
-  expect(screen.getByText(/部落格/)).toBeInTheDocument()
+  expect(screen.getByText('A scenic museum cafe.')).toBeInTheDocument()
+  expect(screen.getByText('Good stop nearby.')).toBeInTheDocument()
+  expect(screen.getByText(/Google/)).toBeInTheDocument()
+})
+
+it('renders only name, category, and one cover photo in compact mode', () => {
+  render(<RecommendationCard rec={rec} dateIso="2026-07-01" onAdd={() => {}} compact />)
+
+  expect(screen.getByText('Museum Cafe')).toBeInTheDocument()
+  expect(screen.getByTestId('photo-thumb-0')).toBeInTheDocument()
+  expect(screen.queryByTestId('photo-thumb-1')).toBeNull()
+  expect(screen.queryByText(/4.7/)).not.toBeInTheDocument()
+  expect(screen.queryByText('A scenic museum cafe.')).not.toBeInTheDocument()
+  expect(screen.queryByText('Good stop nearby.')).not.toBeInTheDocument()
+  expect(screen.queryByText(/Google/)).not.toBeInTheDocument()
 })
 
 it('calls onAdd when the arrow button is clicked', () => {

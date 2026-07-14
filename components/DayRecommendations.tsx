@@ -101,7 +101,7 @@ export function DayRecommendations({
             ) : (
               <>
                 {list.map((rec) => (
-                  <RecommendationCard key={rec.placeId} rec={rec} dateIso={dateIso} onAdd={() => onAdd(rec)} onArchive={onArchive} />
+                  <RecommendationCard key={rec.placeId} rec={rec} dateIso={dateIso} onAdd={() => onAdd(rec)} onArchive={onArchive} compact />
                 ))}
                 {isBackfilling && (
                   <div data-testid="rec-backfilling" className="border border-dashed border-gray-200 rounded-xl p-3 text-xs text-gray-400">

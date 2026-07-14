@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { DayRecommendation } from '@/lib/types'
 import { RecommendationCard } from '@/components/RecommendationCard'
 
@@ -20,13 +20,14 @@ const rec: DayRecommendation = {
   sourceLabel: 'Google',
 }
 
-it('opens photo lightbox without triggering add', () => {
+it('opens photo lightbox without triggering add', async () => {
   const onAdd = jest.fn()
   render(<RecommendationCard rec={rec} dateIso="2026-07-12" onAdd={onAdd} />)
 
-  fireEvent.click(screen.getByRole('button', { name: '檢視 Avoccino 照片 2' }))
+  fireEvent.click(screen.getByTestId('photo-thumb-0'))
 
   expect(onAdd).not.toHaveBeenCalled()
   expect(screen.getByRole('dialog')).toBeInTheDocument()
-  expect(screen.getByAltText('Avoccino 照片 2')).toHaveAttribute('src', '/api/photo?ref=two')
+  fireEvent.click(screen.getByTestId('photo-next'))
+  await waitFor(() => expect(screen.getByAltText('Avoccino 照片 2')).toHaveAttribute('src', '/api/photo?ref=two'))
 })

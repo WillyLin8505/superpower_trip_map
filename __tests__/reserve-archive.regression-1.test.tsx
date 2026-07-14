@@ -211,7 +211,7 @@ it('restores the reserve tab after the controlled SidePanel remounts', async () 
   expect(screen.getByTestId('reserve-panel')).toBeInTheDocument()
 })
 
-it('keeps fetched photos on reserve cards after parent rerenders', async () => {
+it('keeps fetched photos available in the reserve-card lightbox after parent rerenders', async () => {
   // Regression: ISSUE-002 - reserve cards used the recommendation card layout, but fetched photos were cleared by parent rerenders.
   // Found by /qa on 2026-07-13.
   // Report: .gstack/qa-reports/qa-report-localhost-2026-07-13.md
@@ -228,13 +228,19 @@ it('keeps fetched photos on reserve cards after parent rerenders', async () => {
 
   expect(await screen.findByTestId('photo-thumb-0')).toBeInTheDocument()
   expect(screen.getByTestId('photo-thumb-0').querySelector('img')).toHaveAttribute('src', '/api/photo?ref=reserve-one')
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/place-photos?placeId=reserve-a&limit=1'))
 
   fireEvent.click(screen.getByText('rerender-reserve'))
 
   await waitFor(() => expect(screen.getByTestId('reserve-photo-version')).toHaveTextContent('1'))
   expect(fetchMock).toHaveBeenCalledTimes(1)
   expect(screen.getByTestId('photo-thumb-0').querySelector('img')).toHaveAttribute('src', '/api/photo?ref=reserve-one')
+
+  fireEvent.click(screen.getByTestId('photo-thumb-0'))
+  fireEvent.click(screen.getByTestId('photo-next'))
+
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+  await waitFor(() => expect(screen.getByAltText('reserve-a 照片 2')).toHaveAttribute('src', '/api/photo?ref=reserve-two'))
 })
 
 it('keeps recommendation photoUrls when adding a recommendation into my itinerary', async () => {
@@ -262,11 +268,18 @@ it('keeps recommendation photoUrls when adding a recommendation into my itinerar
 
   fireEvent.click(await screen.findByTestId('rec-add-photo-rec'))
 
-  const cardTitle = await screen.findByText('Photo Recommendation')
-  const itineraryCard = cardTitle.closest('[data-testid^="card-"]')
-  expect(itineraryCard).not.toBeNull()
+  let itineraryCard: Element | null = null
+  await waitFor(() => {
+    itineraryCard = screen
+      .getAllByText('Photo Recommendation')
+      .map((element) => element.closest('[data-testid^="card-"]'))
+      .find((element): element is Element => element !== null) ?? null
+    expect(itineraryCard).not.toBeNull()
+  })
   expect(within(itineraryCard as HTMLElement).getByTestId('photo-thumb-0').querySelector('img')).toHaveAttribute('src', '/api/photo?ref=itinerary-one')
-  expect(within(itineraryCard as HTMLElement).getByTestId('photo-thumb-1').querySelector('img')).toHaveAttribute('src', '/api/photo?ref=itinerary-two')
+  fireEvent.click(within(itineraryCard as HTMLElement).getByTestId('photo-thumb-0'))
+  fireEvent.click(screen.getByTestId('photo-next'))
+  await waitFor(() => expect(screen.getByAltText('Photo Recommendation 照片 2')).toHaveAttribute('src', '/api/photo?ref=itinerary-two'))
 })
 
 it('keeps an archived itinerary card visible after the delayed route recalculation', async () => {

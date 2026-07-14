@@ -108,6 +108,31 @@ it('forwards the clicked recommendation to onAdd', () => {
   expect(onAdd).toHaveBeenCalledWith(buckets.dessert.shown[0])
 })
 
+it('renders recommendation-list cards in compact mode', () => {
+  const richBuckets: CategoryBuckets = {
+    ...empty,
+    dessert: list([{
+      ...rec('rich-1', 'dessert'),
+      rating: 4.9,
+      photoUrl: '/api/photo?ref=one',
+      photoUrls: ['/api/photo?ref=one', '/api/photo?ref=two'],
+      description: 'Detailed description',
+      reason: 'Detailed reason',
+      sourceLabel: 'Google',
+    }]),
+  }
+
+  render(<DayRecommendations recommendations={richBuckets} dateIso="2026-07-01" onAdd={() => {}} />)
+
+  expect(screen.getByText('rich-1')).toBeInTheDocument()
+  expect(screen.getByTestId('photo-thumb-0')).toBeInTheDocument()
+  expect(screen.queryByTestId('photo-thumb-1')).toBeNull()
+  expect(screen.queryByText(/4.9/)).not.toBeInTheDocument()
+  expect(screen.queryByText('Detailed description')).not.toBeInTheDocument()
+  expect(screen.queryByText('Detailed reason')).not.toBeInTheDocument()
+  expect(screen.queryByText(/Google/)).not.toBeInTheDocument()
+})
+
 it('renders a placeholder for a category that is backfilling', () => {
   render(
     <DayRecommendations recommendations={buckets} dateIso="2026-07-01" onAdd={() => {}} backfilling={{ dessert: true }} />

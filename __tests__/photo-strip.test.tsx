@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { PhotoStrip } from '@/components/PhotoStrip'
 
 describe('PhotoStrip', () => {
@@ -7,65 +7,30 @@ describe('PhotoStrip', () => {
 
   afterEach(() => {
     global.fetch = realFetch
+    jest.restoreAllMocks()
   })
 
-  it('opens the selected photo in a lightbox and closes with Escape', () => {
+  it('renders only the cover thumbnail by default and does not prefetch more photos', () => {
+    global.fetch = jest.fn() as unknown as typeof fetch
+
     render(
       <PhotoStrip
-        placeName="Avoccino"
-        photos={['/api/photo?ref=one', '/api/photo?ref=two']}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: '檢視 Avoccino 照片 2' }))
-
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByAltText('Avoccino 照片 2')).toHaveAttribute('src', '/api/photo?ref=two')
-
-    fireEvent.keyDown(document, { key: 'Escape' })
-    expect(screen.queryByRole('dialog')).toBeNull()
-  })
-
-  it('navigates between photos in the lightbox', () => {
-    render(
-      <PhotoStrip
-        placeName="Avoccino"
-        photos={['/api/photo?ref=one', '/api/photo?ref=two']}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: '檢視 Avoccino 照片 1' }))
-    fireEvent.click(screen.getByRole('button', { name: '下一張照片' }))
-
-    expect(screen.getByAltText('Avoccino 照片 2')).toHaveAttribute('src', '/api/photo?ref=two')
-  })
-  it('renders five thumbnails and keeps lightbox arrows fixed on the viewport', () => {
-    render(
-      <PhotoStrip
+        placeId="place-1"
         placeName="Avoccino"
         photos={[
           '/api/photo?ref=one',
           '/api/photo?ref=two',
           '/api/photo?ref=three',
-          '/api/photo?ref=four',
-          '/api/photo?ref=five',
-          '/api/photo?ref=six',
         ]}
       />
     )
 
-    expect(screen.getByTestId('photo-thumb-4')).toBeInTheDocument()
-    expect(screen.queryByTestId('photo-thumb-5')).toBeNull()
-
-    fireEvent.click(screen.getByTestId('photo-thumb-0'))
-
-    expect(screen.getByTestId('photo-prev')).toHaveClass('fixed')
-    expect(screen.getByTestId('photo-prev')).toHaveClass('left-4')
-    expect(screen.getByTestId('photo-next')).toHaveClass('fixed')
-    expect(screen.getByTestId('photo-next')).toHaveClass('right-4')
+    expect(screen.getByTestId('photo-thumb-0')).toBeInTheDocument()
+    expect(screen.queryByTestId('photo-thumb-1')).toBeNull()
+    expect(global.fetch).not.toHaveBeenCalled()
   })
 
-  it('fetches a fifth photo when persisted place photos only contain four', async () => {
+  it('loads additional photos only after the user previews past the cover', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -83,16 +48,53 @@ describe('PhotoStrip', () => {
       <PhotoStrip
         placeId="place-1"
         placeName="Avoccino"
-        photos={[
-          '/api/photo?ref=one',
-          '/api/photo?ref=two',
-          '/api/photo?ref=three',
-          '/api/photo?ref=four',
-        ]}
+        photos={['/api/photo?ref=one']}
       />
     )
 
-    expect(await screen.findByTestId('photo-thumb-4')).toBeInTheDocument()
-    expect(global.fetch).toHaveBeenCalledWith('/api/place-photos?placeId=place-1')
+    fireEvent.click(screen.getByTestId('photo-thumb-0'))
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Avoccino 照片 1' })).toHaveAttribute('src', '/api/photo?ref=one')
+    expect(global.fetch).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByTestId('photo-next'))
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/place-photos?placeId=place-1'))
+    expect(await screen.findByRole('img', { name: 'Avoccino 照片 2' })).toHaveAttribute('src', '/api/photo?ref=two')
+  })
+
+  it('fetches only one cover photo when no photo URL is already available', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ photoUrls: ['/api/photo?ref=cover', '/api/photo?ref=extra'] }),
+    }) as unknown as typeof fetch
+
+    render(
+      <PhotoStrip
+        placeId="place-1"
+        placeName="Avoccino"
+        photos={[]}
+      />
+    )
+
+    expect(await screen.findByTestId('photo-thumb-0')).toBeInTheDocument()
+    expect(screen.getByTestId('photo-thumb-0').querySelector('img')).toHaveAttribute('src', '/api/photo?ref=cover')
+    expect(global.fetch).toHaveBeenCalledWith('/api/place-photos?placeId=place-1&limit=1')
+  })
+
+  it('closes the lightbox with Escape', () => {
+    render(
+      <PhotoStrip
+        placeName="Avoccino"
+        photos={['/api/photo?ref=one']}
+      />
+    )
+
+    fireEvent.click(screen.getByTestId('photo-thumb-0'))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })

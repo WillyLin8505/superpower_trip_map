@@ -1,34 +1,78 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 interface Props {
   photos: string[]
   placeName: string
   initialIndex: number
   onClose: () => void
+  canLoadMore?: boolean
+  onLoadMore?: () => Promise<string[]>
 }
 
-export function PhotoLightbox({ photos, placeName, initialIndex, onClose }: Props) {
+export function PhotoLightbox({ photos, placeName, initialIndex, onClose, canLoadMore = false, onLoadMore }: Props) {
+  const photoKey = photos.join('\u0000')
+  const initialPhotos = useMemo(() => (photoKey ? photoKey.split('\u0000') : []), [photoKey])
   const [index, setIndex] = useState(initialIndex)
-  const hasMultiple = photos.length > 1
+  const [displayPhotos, setDisplayPhotos] = useState(initialPhotos.slice(0, 5))
+  const [loadingMore, setLoadingMore] = useState(false)
+  const hasNavigation = displayPhotos.length > 1 || canLoadMore
 
-  const goPrevious = () => setIndex((current) => (current - 1 + photos.length) % photos.length)
-  const goNext = () => setIndex((current) => (current + 1) % photos.length)
+  useEffect(() => {
+    setDisplayPhotos(initialPhotos.slice(0, 5))
+    setIndex(Math.min(initialIndex, Math.max(initialPhotos.length - 1, 0)))
+  }, [initialIndex, initialPhotos])
+
+  const loadMore = useCallback(async (): Promise<string[]> => {
+    if (!canLoadMore || !onLoadMore || loadingMore) return displayPhotos
+    setLoadingMore(true)
+    try {
+      const nextPhotos = (await onLoadMore()).slice(0, 5)
+      if (nextPhotos.length > 0) setDisplayPhotos(nextPhotos)
+      return nextPhotos.length > 0 ? nextPhotos : displayPhotos
+    } catch {
+      return displayPhotos
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [canLoadMore, displayPhotos, loadingMore, onLoadMore])
+
+  const goPrevious = useCallback(async () => {
+    if (displayPhotos.length <= 1) {
+      const nextPhotos = await loadMore()
+      if (nextPhotos.length > 1) setIndex(nextPhotos.length - 1)
+      return
+    }
+    setIndex((current) => (current - 1 + displayPhotos.length) % displayPhotos.length)
+  }, [displayPhotos.length, loadMore])
+
+  const goNext = useCallback(async () => {
+    if (index >= displayPhotos.length - 1) {
+      const nextPhotos = await loadMore()
+      if (nextPhotos.length > displayPhotos.length) {
+        setIndex(Math.min(index + 1, nextPhotos.length - 1))
+        return
+      }
+      if (displayPhotos.length > 1) setIndex(0)
+      return
+    }
+    setIndex((current) => current + 1)
+  }, [displayPhotos.length, index, loadMore])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
-      if (event.key === 'ArrowLeft' && hasMultiple) goPrevious()
-      if (event.key === 'ArrowRight' && hasMultiple) goNext()
+      if (event.key === 'ArrowLeft' && hasNavigation) void goPrevious()
+      if (event.key === 'ArrowRight' && hasNavigation) void goNext()
     }
 
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [hasMultiple, onClose])
+  }, [goNext, goPrevious, hasNavigation, onClose])
 
-  if (photos.length === 0) return null
+  if (displayPhotos.length === 0) return null
 
-  const photo = photos[index]
+  const photo = displayPhotos[index] ?? displayPhotos[0]
   const alt = `${placeName} 照片 ${index + 1}`
 
   return (
@@ -48,14 +92,15 @@ export function PhotoLightbox({ photos, placeName, initialIndex, onClose }: Prop
           ×
         </button>
         <img src={photo} alt={alt} className="max-h-[85vh] max-w-full rounded-xl object-contain shadow-2xl" />
-        {hasMultiple && (
+        {hasNavigation && (
           <>
             <button
               type="button"
               data-testid="photo-prev"
               aria-label="上一張照片"
-              onClick={goPrevious}
-              className="fixed left-4 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-3 py-2 text-xl text-gray-800 shadow"
+              onClick={() => { void goPrevious() }}
+              disabled={loadingMore}
+              className="fixed left-4 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-3 py-2 text-xl text-gray-800 shadow disabled:opacity-60"
             >
               ‹
             </button>
@@ -63,8 +108,9 @@ export function PhotoLightbox({ photos, placeName, initialIndex, onClose }: Prop
               type="button"
               data-testid="photo-next"
               aria-label="下一張照片"
-              onClick={goNext}
-              className="fixed right-4 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-3 py-2 text-xl text-gray-800 shadow"
+              onClick={() => { void goNext() }}
+              disabled={loadingMore}
+              className="fixed right-4 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-3 py-2 text-xl text-gray-800 shadow disabled:opacity-60"
             >
               ›
             </button>

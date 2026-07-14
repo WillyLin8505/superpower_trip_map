@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { ScheduledPlace } from '@/lib/types'
 
 jest.mock('@dnd-kit/sortable', () => ({
@@ -49,7 +49,7 @@ const basePlace: ScheduledPlace = {
   durationLocked: false,
 }
 
-it('shows multiple place photos and opens the clicked photo', () => {
+it('shows a cover photo and previews additional photos from the lightbox', async () => {
   render(
     <ItineraryCard
       place={{
@@ -67,10 +67,17 @@ it('shows multiple place photos and opens the clicked photo', () => {
     />
   )
 
-  expect(screen.getByRole('button', { name: '檢視 Avoccino 照片 1' })).toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: '檢視 Avoccino 照片 4' }))
+  expect(screen.getByTestId('photo-thumb-0')).toBeInTheDocument()
+  expect(screen.queryByTestId('photo-thumb-1')).toBeNull()
+  fireEvent.click(screen.getByTestId('photo-thumb-0'))
   expect(screen.getByRole('dialog')).toBeInTheDocument()
-  expect(screen.getByAltText('Avoccino 照片 4')).toHaveAttribute('src', '/api/photo?ref=four')
+
+  fireEvent.click(screen.getByTestId('photo-next'))
+  await waitFor(() => expect(screen.getByAltText('Avoccino 照片 2')).toHaveAttribute('src', '/api/photo?ref=two'))
+  fireEvent.click(screen.getByTestId('photo-next'))
+  await waitFor(() => expect(screen.getByAltText('Avoccino 照片 3')).toHaveAttribute('src', '/api/photo?ref=three'))
+  fireEvent.click(screen.getByTestId('photo-next'))
+  await waitFor(() => expect(screen.getByAltText('Avoccino 照片 4')).toHaveAttribute('src', '/api/photo?ref=four'))
 })
 
 it('falls back to legacy single photoUrl when photoUrls is absent', () => {
@@ -85,5 +92,5 @@ it('falls back to legacy single photoUrl when photoUrls is absent', () => {
     />
   )
 
-  expect(screen.getByRole('button', { name: '檢視 Avoccino 照片 1' })).toBeInTheDocument()
+  expect(screen.getByTestId('photo-thumb-0')).toBeInTheDocument()
 })
