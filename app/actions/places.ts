@@ -2,6 +2,7 @@
 import type { Place } from '@/lib/types'
 import { randomUUID } from 'crypto'
 import { googleMapsFetchOptions, roundedCoordinate } from '@/lib/googleMapsCost'
+import { readCachedPlaceId, writeCachedPlaceId } from '@/lib/placeIdCache'
 
 const KEY = process.env.GOOGLE_MAPS_API_KEY!
 const BASE = 'https://maps.googleapis.com/maps/api/place'
@@ -120,6 +121,12 @@ export async function getPlaceDetails(placeId: string, originalNameHint?: string
 }
 
 export async function searchPlace(query: string, countryName?: string): Promise<Place | null> {
+  const cachedPlaceId = await readCachedPlaceId(query, countryName)
+  if (cachedPlaceId) {
+    const cachedPlace = await getPlaceDetails(cachedPlaceId, originalNameHintFromQuery(query))
+    if (cachedPlace) return cachedPlace
+  }
+
   const input = countryName ? `${query}, ${countryName}` : query
   const url =
     `${BASE}/findplacefromtext/json` +
@@ -129,7 +136,9 @@ export async function searchPlace(query: string, countryName?: string): Promise<
   const data = await res.json()
   const placeId = data.candidates?.[0]?.place_id
   if (!placeId) return null
-  return getPlaceDetails(placeId, originalNameHintFromQuery(query))
+  const place = await getPlaceDetails(placeId, originalNameHintFromQuery(query))
+  if (place) await writeCachedPlaceId(query, countryName, placeId)
+  return place
 }
 
 export async function verifyPlace(
