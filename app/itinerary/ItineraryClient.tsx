@@ -20,7 +20,7 @@ import type { PlaceIndexSource } from '@/lib/userPlaceIndex'
 import { recalcPlan } from '@/lib/utils/clientScheduler'
 import { addDays, daysBetween, dayDate } from '@/lib/utils/date'
 import { legInfo, computeLegPlan } from '@/app/actions/legs'
-import { applyTimeEdit } from '@/lib/utils/timeEdit'
+import { applyTimeEditCascade } from '@/lib/utils/timeEdit'
 import { legMerge } from '@/lib/utils/legMerge'
 import { ItineraryDay } from '@/components/ItineraryDay'
 import { ItineraryCard } from '@/components/ItineraryCard'
@@ -49,6 +49,11 @@ const multiContainerCollision: CollisionDetection = (args) => {
 // Pure helper — no component state, so defined at module level to avoid exhaustive-deps churn
 function renumberDays<T extends { day: number }>(days: T[]): T[] {
   return days.map((d, i) => ({ ...d, day: i + 1 }))
+}
+
+function timeToMin(t: string): number {
+  const [h, m] = t.split(':').map(Number)
+  return h * 60 + m
 }
 
 function archivePlaceKey(place: Place): string {
@@ -476,18 +481,21 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
 
   const handleTimeChange = useCallback(
     (dayIdx: number, placeId: string, field: 'startTime' | 'durationMin', value: string | number) => {
-      const newDays = planRef.current.days.map((d, i) => {
-        if (i !== dayIdx) return d
-        return {
-          ...d,
-          places: d.places.map((p) =>
-            p.id === placeId ? applyTimeEdit(p, field, value) : p
-          ),
-        }
-      })
-      scheduleRecalc({ ...planRef.current, days: newDays })
+      // TASK-023: editing start/duration is a soft anchor for this one cascade — the
+      // cascade function already recomputes neighbor positions and warnings, so this
+      // bypasses scheduleRecalc/recalcPlan (same pattern as toggleLockField) rather than
+      // routing through it, which would otherwise treat the edited card as unlocked and
+      // reflow it back from day-start, snapping the edit back (the original bug).
+      const day = planRef.current.days[dayIdx]
+      const dateIso = dayDate(planRef.current.startDate, day.day)
+      const dayStartMin = timeToMin(day.dayStart)
+      const newPlaces = applyTimeEditCascade(day.places, placeId, field, value, dateIso, dayStartMin)
+      const newDays = planRef.current.days.map((d, i) => (i === dayIdx ? { ...d, places: newPlaces } : d))
+      const newPlan = { ...planRef.current, days: newDays }
+      planRef.current = newPlan
+      setPlan(newPlan)
     },
-    [scheduleRecalc]
+    []
   )
 
   const handleAddPlace = useCallback((place: Place) => {
