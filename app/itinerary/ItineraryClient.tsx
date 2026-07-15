@@ -25,6 +25,8 @@ import { legMerge } from '@/lib/utils/legMerge'
 import { ItineraryDay } from '@/components/ItineraryDay'
 import { ItineraryCard } from '@/components/ItineraryCard'
 import { getDayRecommendations, fetchReplacementRecommendation, refreshDayCategoryRecommendations } from '@/app/actions/recommend'
+import { getTripCostUsd } from '@/app/actions/cost'
+import { TripCostBadge } from '@/components/TripCostBadge'
 import { applyDragResult, findContainer } from '@/lib/utils/dragContainers'
 import { findClosestDay } from '@/lib/utils/geo'
 import { removeRecsDay, resolveDayCenter } from '@/lib/utils/dayRecommend'
@@ -135,12 +137,13 @@ function inferPlaceIndexSource(placeId: string, source?: Place['source']): Place
     : 'google'
 }
 
-async function fetchDetailsOnAdd(rec: DayRecommendation): Promise<Place | null> {
+async function fetchDetailsOnAdd(rec: DayRecommendation, tripId?: string): Promise<Place | null> {
   if (inferPlaceIndexSource(rec.placeId, rec.source) !== 'google') return null
   if (typeof fetch !== 'function') return null
   const params = new URLSearchParams({ placeId: rec.placeId })
   const originalName = rec.localizedName?.original ?? rec.name
   if (originalName) params.set('originalName', originalName)
+  if (tripId) params.set('tripId', tripId)
 
   try {
     const response = await fetch(`/api/place-details?${params.toString()}`)
@@ -177,11 +180,26 @@ interface Props {
   tripId?: string
   initialCandidates?: Candidate[]
   initialArchived?: Candidate[]
+  initialCostUsd?: number
 }
 
-export function ItineraryClient({ initial, tripId, initialCandidates = [], initialArchived = [] }: Props) {
+export function ItineraryClient({ initial, tripId, initialCandidates = [], initialArchived = [], initialCostUsd = 0 }: Props) {
   const router = useRouter()
   const [currentTripId, setCurrentTripId] = useState<string | undefined>(tripId)
+  // Latest tripId for action callbacks (many use [] deps, so reading the state
+  // directly would capture a stale value after the trip is saved mid-session).
+  const tripIdRef = useRef<string | undefined>(tripId)
+  useEffect(() => { tripIdRef.current = currentTripId }, [currentTripId])
+  const [costUsd, setCostUsd] = useState<number>(initialCostUsd)
+  const refreshCost = useCallback(async () => {
+    const id = tripIdRef.current
+    if (!id) return
+    try {
+      setCostUsd(await getTripCostUsd(id))
+    } catch {
+      // best-effort; leave the previous estimate in place
+    }
+  }, [])
   const [plan, setPlan] = useState<PlanResult>(initial)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [targetDays, setTargetDays] = useState<number | null>(null)
@@ -241,9 +259,10 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
 
   useEffect(() => {
     let active = true
-    getDayRecommendations(planRef.current.days)
+    getDayRecommendations(planRef.current.days, tripIdRef.current)
       .then((r) => { if (active) { commitRecs(r); setRecsError(null) } })
       .catch(() => { if (active) { commitRecs(null); setRecsError('推薦載入失敗，請稍後再試') } })
+      .finally(() => { if (active) void refreshCost() })
     return () => { active = false }
   // run once on mount
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -406,7 +425,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     setLegError(null)
     setLegBusy({ dayIdx, placeId })
     try {
-      const { travelMin, travelDistanceM } = await legInfo(day.places[idx], next, mode)
+      const { travelMin, travelDistanceM } = await legInfo(day.places[idx], next, mode, tripIdRef.current)
       const newDays = planRef.current.days.map((d, i) =>
         i !== dayIdx ? d : {
           ...d,
@@ -422,8 +441,9 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       setLegError('交通時間計算失敗')
     } finally {
       setLegBusy(null)
+      void refreshCost()
     }
-  }, [])
+  }, [refreshCost])
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     setActiveId(String(event.active.id))
@@ -690,7 +710,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     const current = planRef.current
     const day = current.days[dayIdx]
     const inputs = await fetchDayArrangeInputs(
-      day.places, current.transportMode, day.avoidCrowds ?? true
+      day.places, current.transportMode, day.avoidCrowds ?? true, tripIdRef.current
     )
     const reordered = arrangeDayOrder(
       day,
@@ -701,19 +721,21 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     let arrangedPlaces = reordered
     try {
       setLegError(null)
-      arrangedPlaces = legMerge(reordered, await computeLegPlan(reordered))
+      arrangedPlaces = legMerge(reordered, await computeLegPlan(reordered, tripIdRef.current))
     } catch {
       setLegError('交通時間計算失敗')
     }
     const newDays = planRef.current.days.map((d, i) => (i === dayIdx ? { ...d, places: arrangedPlaces } : d))
     const recalced = recalcPlan({ ...planRef.current, days: newDays })
     commitPlan(recalced)
-  }, [commitPlan])
+    void refreshCost()
+  }, [commitPlan, refreshCost])
 
   const handleAddRecommendation = useCallback(async (dayIdx: number, rec: DayRecommendation) => {
     const cat = rec.type as 'dessert' | 'attraction' | 'restaurant'
     const needsDetails = !rec.rating || !rec.openingHours?.length
-    const details = needsDetails ? await fetchDetailsOnAdd(rec) : null
+    const details = needsDetails ? await fetchDetailsOnAdd(rec, tripIdRef.current) : null
+    if (needsDetails) void refreshCost()
     const enriched = details
       ? {
         ...rec,
@@ -781,7 +803,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       setBackfillKeys((s) => new Set(s).add(key))
       ;(async () => {
         for (let i = 0; i < missingCount; i += 1) {
-          const repl = await fetchReplacementRecommendation(planRef.current.days[dayIdx], cat, buildExcludeIds())
+          const repl = await fetchReplacementRecommendation(planRef.current.days[dayIdx], cat, buildExcludeIds(), tripIdRef.current)
           if (!repl) break
           const cur = recsRef.current
           if (!cur || !cur[dayIdx]) break
@@ -795,9 +817,12 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
         }
       })()
         .catch(() => { /* leave slot empty */ })
-        .finally(() => setBackfillKeys((s) => { const n = new Set(s); n.delete(key); return n }))
+        .finally(() => {
+          setBackfillKeys((s) => { const n = new Set(s); n.delete(key); return n })
+          void refreshCost()
+        })
     }
-  }, [commitPlan, commitRecs, buildExcludeIds])
+  }, [commitPlan, commitRecs, buildExcludeIds, refreshCost])
 
   // TASK-010: manual recommendation center — persists to the day, then refetches that day's 3 categories.
   const setDayRecommendationCenter = useCallback((dayIdx: number, center: RecommendationCenter | null) => {
@@ -806,14 +831,15 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     planRef.current = newPlan
     setPlan(newPlan)
 
-    getDayRecommendations([newDays[dayIdx]])
+    getDayRecommendations([newDays[dayIdx]], tripIdRef.current)
       .then((r) => {
         const cur = recsRef.current
         if (!cur || !cur[dayIdx]) return
         commitRecs(cur.map((b, i) => (i === dayIdx ? r[0] : b)))
       })
       .catch(() => { /* recoverable: keep previous cards on refetch failure */ })
-  }, [commitRecs])
+      .finally(() => { void refreshCost() })
+  }, [commitRecs, refreshCost])
 
   const handleSetRecommendationCenter = useCallback(
     (dayIdx: number, center: RecommendationCenter) => setDayRecommendationCenter(dayIdx, center),
@@ -831,7 +857,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     const key = `${dayIdx}:${category}`
     setRefreshingKeys((s) => new Set(s).add(key))
     const excludeIds = buildExcludeIds()
-    refreshDayCategoryRecommendations({ category, center, excludeIds })
+    refreshDayCategoryRecommendations({ category, center, excludeIds, tripId: tripIdRef.current })
       .then((replacements) => {
         if (replacements.length === 0) return   // recoverable: keep previous cards
         const cur = recsRef.current
@@ -841,8 +867,11 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
         ))
       })
       .catch(() => { /* recoverable: keep previous cards */ })
-      .finally(() => setRefreshingKeys((s) => { const n = new Set(s); n.delete(key); return n }))
-  }, [buildExcludeIds, commitRecs])
+      .finally(() => {
+        setRefreshingKeys((s) => { const n = new Set(s); n.delete(key); return n })
+        void refreshCost()
+      })
+  }, [buildExcludeIds, commitRecs, refreshCost])
 
   const handleChangeStartDate = useCallback((iso: string) => {
     commitPlan(refreshPlanWarningsOnly({ ...planRef.current, startDate: iso }))
@@ -941,6 +970,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     <main className="max-w-5xl mx-auto px-4 py-10">
       <div className="flex items-center justify-between mb-6">
         <a href="/" className="text-clay text-sm inline-block">&#x2190; 重新規劃</a>
+        {currentTripId && <TripCostBadge usd={costUsd} />}
         {currentTripId ? (
           <span className="text-sm text-muted">
             {saveState === 'saving' && '儲存中…'}

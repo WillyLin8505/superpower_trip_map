@@ -12,6 +12,7 @@ import { getActiveLineGroupBinding } from './bindings'
 import { getLineProfile } from './client'
 import { LINE_MESSAGES } from './messages'
 import { classifyLineText } from './urlClassifier'
+import { runWithTripId } from '@/lib/apiUsageContext'
 
 export async function processLineTextMessage(input: {
   lineGroupId: string
@@ -23,7 +24,15 @@ export async function processLineTextMessage(input: {
   if (!binding) {
     return { reply: null, status: 'ignored' }
   }
+  // Attribute the Google calls (searchPlace / place details / article extraction)
+  // to the trip this LINE group is bound to.
+  return runWithTripId(binding.tripId, () => processBoundLineMessage(input, binding))
+}
 
+async function processBoundLineMessage(
+  input: { lineGroupId: string; lineUserId?: string; messageId: string; text: string },
+  binding: { tripId: string; writeAsUserId: string },
+): Promise<{ reply: string | null; status: 'done' | 'ignored' | 'failed' }> {
   const classification = classifyLineText(input.text)
   if (classification.kind === 'ignore') {
     return { reply: null, status: 'ignored' }
