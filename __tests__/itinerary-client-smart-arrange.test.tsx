@@ -125,7 +125,7 @@ it('reorders the day on 智慧排程 (B,A,C to skip B peak) and calls the action
   fireEvent.click(screen.getByRole('button', { name: '智慧排程' }))
   await waitFor(() => expect(dayOrder()).toEqual(['B', 'A', 'C']))
   expect(fetchDayArrangeInputs).toHaveBeenCalledWith(
-    expect.any(Array), 'driving', true   // avoidCrowds default true
+    expect.any(Array), 'driving', true, undefined   // avoidCrowds default true; tripId undefined (unsaved)
   )
 })
 

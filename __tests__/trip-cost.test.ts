@@ -25,8 +25,10 @@ jest.mock('@/lib/supabase/admin', () => ({
             state.eqCalls.push([col, val])
             return builder
           },
-          then: (resolve: (value: { data: Row[] | null; error: unknown }) => unknown) =>
-            resolve({ data: state.error ? null : state.rows, error: state.error }),
+          range: (from: number, to: number) => ({
+            then: (resolve: (value: { data: Row[] | null; error: unknown }) => unknown) =>
+              resolve({ data: state.error ? null : state.rows.slice(from, to + 1), error: state.error }),
+          }),
         }
         return builder
       },
@@ -57,8 +59,13 @@ describe('getTripEstimatedCostUsd', () => {
     await expect(getTripEstimatedCostUsd('trip-1')).resolves.toBeCloseTo(0.017, 6)
   })
 
+  it('pages past the row cap so heavy trips are not undercounted', async () => {
+    // 1500 rows × 0.001 = 1.5; a single page (1000) would truncate to 1.0.
+    state.rows = Array.from({ length: 1500 }, () => ({ estimated_cost_usd: 0.001 }))
+    await expect(getTripEstimatedCostUsd('trip-big')).resolves.toBeCloseTo(1.5, 6)
+  })
+
   it('filters by trip_id and google_maps provider', async () => {
-    state.rows = []
     await getTripEstimatedCostUsd('trip-42')
     expect(state.eqCalls).toContainEqual(['trip_id', 'trip-42'])
     expect(state.eqCalls).toContainEqual(['provider', 'google_maps'])
@@ -69,7 +76,7 @@ describe('getTripEstimatedCostUsd', () => {
     expect(state.eqCalls).toHaveLength(0)
   })
 
-  it('returns 0 on query error (e.g. missing table)', async () => {
+  it('returns 0 on first-page query error (e.g. missing table)', async () => {
     state.error = { code: '42P01' }
     await expect(getTripEstimatedCostUsd('trip-1')).resolves.toBe(0)
   })
@@ -87,22 +94,38 @@ describe('trip usage context', () => {
     expect(currentTripId()).toBeNull()
   })
 
-  it('recordApiUsageEvent attributes the ambient trip when tripId is not passed', async () => {
+  it('a nested runWithTripId(undefined) inherits the outer trip (does not erase it)', () => {
+    runWithTripId('trip-outer', () => {
+      runWithTripId(undefined, () => {
+        expect(currentTripId()).toBe('trip-outer')
+      })
+    })
+  })
+
+  it('recordApiUsageEvent attributes the ambient trip when tripId is omitted', async () => {
     process.env.API_USAGE_EVENTS_MODE = 'on'
     await runWithTripId('trip-ctx', async () => {
       await recordApiUsageEvent({ provider: 'google_maps', endpoint: 'find_place_from_text', skuHint: 'find_place_from_text_id_only' })
     })
-    expect(state.inserted).toHaveLength(1)
     expect(state.inserted[0].trip_id).toBe('trip-ctx')
     delete process.env.API_USAGE_EVENTS_MODE
   })
 
-  it('an explicit tripId still wins over ambient context', async () => {
+  it('an explicit tripId wins over ambient context', async () => {
     process.env.API_USAGE_EVENTS_MODE = 'on'
     await runWithTripId('trip-ctx', async () => {
       await recordApiUsageEvent({ provider: 'google_maps', endpoint: 'x', skuHint: null, tripId: 'trip-explicit' })
     })
     expect(state.inserted[0].trip_id).toBe('trip-explicit')
+    delete process.env.API_USAGE_EVENTS_MODE
+  })
+
+  it('an explicit null means "do not attribute" and overrides ambient context', async () => {
+    process.env.API_USAGE_EVENTS_MODE = 'on'
+    await runWithTripId('trip-ctx', async () => {
+      await recordApiUsageEvent({ provider: 'google_maps', endpoint: 'x', skuHint: null, tripId: null })
+    })
+    expect(state.inserted[0].trip_id).toBeNull()
     delete process.env.API_USAGE_EVENTS_MODE
   })
 })

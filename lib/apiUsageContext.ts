@@ -11,7 +11,10 @@ const storage = new AsyncLocalStorage<UsageContext>()
 // Google call (searchPlace → getPlaceDetails → fetch, buildDistanceMatrix, …)
 // inherits the tripId without threading it through every function signature.
 export function runWithTripId<T>(tripId: string | null | undefined, fn: () => T): T {
-  return storage.run({ tripId: tripId ?? null }, fn)
+  // Inherit the ambient trip when none is supplied, so a nested
+  // runWithTripId(undefined) (e.g. applyLegDefaults → computeLegPlan) does not
+  // erase an outer trip context.
+  return storage.run({ tripId: tripId ?? currentTripId() }, fn)
 }
 
 export function currentTripId(): string | null {

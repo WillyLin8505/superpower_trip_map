@@ -104,10 +104,9 @@ export function buildApiUsageEventRow(input: ApiUsageEventInput, now = new Date(
 export async function recordApiUsageEvent(input: ApiUsageEventInput): Promise<void> {
   if (!isEnabled() || !hasSupabaseAdminEnv()) return
 
-  // Fall back to the ambient trip context when the caller didn't pass tripId
-  // explicitly, so per-trip attribution works without threading tripId through
-  // every helper (see lib/apiUsageContext.ts).
-  const tripId = input.tripId ?? currentTripId()
+  // Fall back to the ambient trip context only when the caller OMITTED tripId.
+  // An explicit `null` means "do not attribute" and must win over context.
+  const tripId = input.tripId !== undefined ? input.tripId : currentTripId()
 
   const { createAdminClient } = await import('@/lib/supabase/admin')
   const { error } = await createAdminClient()
@@ -122,22 +121,33 @@ const GOOGLE_PROVIDER = 'google_maps'
 // Sum of estimated Google API cost (USD) attributed to a trip. Estimate, not a
 // real bill — derived from api_usage_events.estimated_cost_usd. Returns 0 when
 // the table is missing or admin env is absent (graceful, never throws).
+const COST_PAGE_SIZE = 1000
+
 export async function getTripEstimatedCostUsd(tripId: string): Promise<number> {
   if (!tripId || !hasSupabaseAdminEnv()) return 0
 
   const { createAdminClient } = await import('@/lib/supabase/admin')
-  const { data, error } = await createAdminClient()
-    .from('api_usage_events')
-    .select('estimated_cost_usd')
-    .eq('trip_id', tripId)
-    .eq('provider', GOOGLE_PROVIDER)
+  const admin = createAdminClient()
 
-  if (error || !data) return 0
+  // Page through the events so a trip with more rows than the PostgREST
+  // max-rows cap still gets a complete sum (not a silently truncated one).
+  let total = 0
+  for (let from = 0; ; from += COST_PAGE_SIZE) {
+    const { data, error } = await admin
+      .from('api_usage_events')
+      .select('estimated_cost_usd')
+      .eq('trip_id', tripId)
+      .eq('provider', GOOGLE_PROVIDER)
+      .range(from, from + COST_PAGE_SIZE - 1)
 
-  const total = data.reduce(
-    (sum: number, row: { estimated_cost_usd: number | null }) => sum + (Number(row.estimated_cost_usd) || 0),
-    0,
-  )
+    if (error || !data) return from === 0 ? 0 : Number(total.toFixed(6))
+
+    total += data.reduce(
+      (sum: number, row: { estimated_cost_usd: number | null }) => sum + (Number(row.estimated_cost_usd) || 0),
+      0,
+    )
+    if (data.length < COST_PAGE_SIZE) break
+  }
   return Number(total.toFixed(6))
 }
 
