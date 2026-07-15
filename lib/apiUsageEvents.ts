@@ -1,5 +1,7 @@
 import { createHash } from 'crypto'
 
+import { currentTripId } from '@/lib/apiUsageContext'
+
 export interface ApiUsageEventInput {
   provider: string
   endpoint: string
@@ -102,12 +104,41 @@ export function buildApiUsageEventRow(input: ApiUsageEventInput, now = new Date(
 export async function recordApiUsageEvent(input: ApiUsageEventInput): Promise<void> {
   if (!isEnabled() || !hasSupabaseAdminEnv()) return
 
+  // Fall back to the ambient trip context when the caller didn't pass tripId
+  // explicitly, so per-trip attribution works without threading tripId through
+  // every helper (see lib/apiUsageContext.ts).
+  const tripId = input.tripId ?? currentTripId()
+
   const { createAdminClient } = await import('@/lib/supabase/admin')
   const { error } = await createAdminClient()
     .from('api_usage_events')
-    .insert(buildApiUsageEventRow(input))
+    .insert(buildApiUsageEventRow({ ...input, tripId }))
 
   if (isMissingUsageTable(error) || !error) return
+}
+
+const GOOGLE_PROVIDER = 'google_maps'
+
+// Sum of estimated Google API cost (USD) attributed to a trip. Estimate, not a
+// real bill — derived from api_usage_events.estimated_cost_usd. Returns 0 when
+// the table is missing or admin env is absent (graceful, never throws).
+export async function getTripEstimatedCostUsd(tripId: string): Promise<number> {
+  if (!tripId || !hasSupabaseAdminEnv()) return 0
+
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const { data, error } = await createAdminClient()
+    .from('api_usage_events')
+    .select('estimated_cost_usd')
+    .eq('trip_id', tripId)
+    .eq('provider', GOOGLE_PROVIDER)
+
+  if (error || !data) return 0
+
+  const total = data.reduce(
+    (sum: number, row: { estimated_cost_usd: number | null }) => sum + (Number(row.estimated_cost_usd) || 0),
+    0,
+  )
+  return Number(total.toFixed(6))
 }
 
 export async function trackedApiFetch(
