@@ -137,12 +137,13 @@ function inferPlaceIndexSource(placeId: string, source?: Place['source']): Place
     : 'google'
 }
 
-async function fetchDetailsOnAdd(rec: DayRecommendation): Promise<Place | null> {
+async function fetchDetailsOnAdd(rec: DayRecommendation, tripId?: string): Promise<Place | null> {
   if (inferPlaceIndexSource(rec.placeId, rec.source) !== 'google') return null
   if (typeof fetch !== 'function') return null
   const params = new URLSearchParams({ placeId: rec.placeId })
   const originalName = rec.localizedName?.original ?? rec.name
   if (originalName) params.set('originalName', originalName)
+  if (tripId) params.set('tripId', tripId)
 
   try {
     const response = await fetch(`/api/place-details?${params.toString()}`)
@@ -733,7 +734,8 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   const handleAddRecommendation = useCallback(async (dayIdx: number, rec: DayRecommendation) => {
     const cat = rec.type as 'dessert' | 'attraction' | 'restaurant'
     const needsDetails = !rec.rating || !rec.openingHours?.length
-    const details = needsDetails ? await fetchDetailsOnAdd(rec) : null
+    const details = needsDetails ? await fetchDetailsOnAdd(rec, tripIdRef.current) : null
+    if (needsDetails) void refreshCost()
     const enriched = details
       ? {
         ...rec,
@@ -815,9 +817,12 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
         }
       })()
         .catch(() => { /* leave slot empty */ })
-        .finally(() => setBackfillKeys((s) => { const n = new Set(s); n.delete(key); return n }))
+        .finally(() => {
+          setBackfillKeys((s) => { const n = new Set(s); n.delete(key); return n })
+          void refreshCost()
+        })
     }
-  }, [commitPlan, commitRecs, buildExcludeIds])
+  }, [commitPlan, commitRecs, buildExcludeIds, refreshCost])
 
   // TASK-010: manual recommendation center — persists to the day, then refetches that day's 3 categories.
   const setDayRecommendationCenter = useCallback((dayIdx: number, center: RecommendationCenter | null) => {
