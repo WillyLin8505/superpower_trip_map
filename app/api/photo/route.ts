@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { googleMapsPhotoCacheControl } from '@/lib/googleMapsCost'
 import { trackedApiFetch } from '@/lib/apiUsageEvents'
+import { tripIdFromReferer } from '@/lib/apiUsageContext'
 
 export async function GET(req: NextRequest) {
   const ref = req.nextUrl.searchParams.get('ref')
@@ -14,6 +15,7 @@ export async function GET(req: NextRequest) {
     provider: 'google_maps',
     endpoint: 'place_photo_media',
     skuHint: 'place_photo_media',
+    tripId: tripIdFromReferer(req.headers.get('referer')),
   })
   if (!upstream.ok) return new Response('failed to fetch photo', { status: 502 })
 

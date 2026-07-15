@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { googleMapsFetchOptions, googleMapsPhotoCacheControl } from '@/lib/googleMapsCost'
 import { trackedApiFetch } from '@/lib/apiUsageEvents'
+import { tripIdFromReferer } from '@/lib/apiUsageContext'
 
 const BASE = 'https://maps.googleapis.com/maps/api/place'
 
@@ -34,6 +35,7 @@ export async function GET(req: NextRequest) {
     endpoint: 'place_photos_metadata',
     skuHint: 'place_details_photos',
     metadata: { limit },
+    tripId: tripIdFromReferer(req.headers.get('referer')),
   })
   if (!upstream.ok) return NextResponse.json({ error: 'failed to fetch place photos' }, { status: 502 })
 

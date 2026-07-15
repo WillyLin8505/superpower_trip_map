@@ -20,3 +20,13 @@ export function runWithTripId<T>(tripId: string | null | undefined, fn: () => T)
 export function currentTripId(): string | null {
   return storage.getStore()?.tripId ?? null
 }
+
+// Best-effort trip attribution for stateless media routes (/api/photo,
+// /api/place-photos) that are triggered by <img>/fetch from an itinerary page.
+// The request's Referer carries `/itinerary/<tripId>`; absent referer → undefined
+// (recorded as trip_id=null, same as before).
+export function tripIdFromReferer(referer: string | null | undefined): string | undefined {
+  if (!referer) return undefined
+  const match = /\/itinerary\/([^/?#]+)/.exec(referer)
+  return match ? decodeURIComponent(match[1]) : undefined
+}
