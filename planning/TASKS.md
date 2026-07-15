@@ -29,8 +29,6 @@ Implementation task invariant: if `Task type` is `frontend` or `backend`, and `S
 
 ## Locked Files
 
-No active locks.
-
 
 ## Spec Trees
 
@@ -47,6 +45,7 @@ No active locks.
 - SPEC: LINE Group Candidate Ingest — TASK-021
 - SPEC: Archive & Tabbed Panel — TASK-022
 - SPEC: Edit-Time Cascade — TASK-023
+- SPEC: Per-Trip Cost Badge — TASK-024
 
 ## Conflicts
 
@@ -66,6 +65,7 @@ No active locks.
 - TASK-022 <> TASK-011: both modify itinerary/recommendation card internals (archive button vs photo layout).
 - TASK-022 <> TASK-012: light — both add a button to the same card components (`ItineraryCard`/`RecommendationCard`/`CandidatePanel`); no layout clash since TASK-012 is now just an external Google Maps link.
 - TASK-023 <> TASK-006/TASK-007/TASK-014/TASK-015: all touch `app/itinerary/ItineraryClient.tsx` time/day handlers and/or the scheduler; TASK-023 is run-alone (core scheduler change). Do not run concurrently with any itinerary-editor task.
+- TASK-024 <> TASK-022/TASK-023: TASK-024 shares `ItineraryDay.tsx`/`ItineraryClient.tsx` (badge) with TASK-022 and `legs.ts` (tripId threading) with TASK-023; both done, so no active clash, but run TASK-024 solo since it threads through many server actions.
 
 ## Un Spec
 
@@ -538,7 +538,7 @@ No active locks.
 ## TASK-023 - Edit-time cascade (soft anchor + neighbor yield)
 
 - Task type: frontend
-- Status: todo
+- Status: done
 - Priority: medium
 - Spec: `docs/superpowers/specs/2026-07-14-edit-time-cascade-design.md`
 - Dependencies: TASK-022 (done — unlocks `app/itinerary/ItineraryClient.tsx`)
@@ -553,4 +553,26 @@ No active locks.
 - Required review: GStack review + challenge (tricky scheduling boundaries) per CLAUDE.md
 - Suggested session count: 1
 - Safe to assign to any session: yes (spec/plan complete)
-- Notes: Spec/plan via `$multi-auto-spec`-style flow 2026-07-14 (office-hours/brainstorm collapsed — user gave product decisions directly via AUQ and confirmed root-cause understanding). Decisions DEC-601..DEC-606. Plan: `docs/superpowers/plans/2026-07-14-edit-time-cascade.md`. Root cause: `recalcDay` recomputes unlocked cards' start from day-start, so editing an unlocked card's start snaps back (verified against `client-scheduler.test.ts`). New model: editing start/end = transient anchor (no manual lock); previous card's end aligns to the edited start keeping travel time; clamp to duration 0 on inversion; symmetric both directions; explicit 3-locks still win. Run alone: touches the scheduler that ~10 lock/schedule test files depend on — only ADD tests, do not change existing test semantics.
+- Notes: Spec/plan via `$multi-auto-spec`-style flow 2026-07-14 (office-hours/brainstorm collapsed — user gave product decisions directly via AUQ and confirmed root-cause understanding). Decisions DEC-601..DEC-606. Plan: `docs/superpowers/plans/2026-07-14-edit-time-cascade.md`. Root cause: `recalcDay` recomputes unlocked cards' start from day-start, so editing an unlocked card's start snaps back (verified against `client-scheduler.test.ts`). New model: editing start/end = transient anchor (no manual lock); previous card's end aligns to the edited start keeping travel time; clamp to duration 0 on inversion; symmetric both directions; explicit 3-locks still win. Run alone: touches the scheduler that ~10 lock/schedule test files depend on — only ADD tests, do not change existing test semantics. DONE 2026-07-14: implemented in isolated worktree `/tmp/claude-1000/task-023-cascade`, branch `task-023-edit-time-cascade` off `origin/main` (`278957a`). Added `applyTimeEditCascade` to `lib/utils/timeEdit.ts` (new function, `applyTimeEdit` kept unchanged and reused internally). Deliberately did **not** modify `lib/utils/clientScheduler.ts` — the plan's own closing paragraph explicitly authorizes keeping the lock-driven path (`recalcDay`) and the edit-soft-anchor path separate; `ItineraryClient.tsx`'s `handleTimeChange` now calls `applyTimeEditCascade` directly and bypasses the debounced `recalcPlan`/`scheduleRecalc` pipeline entirely for this interaction (same bypass pattern already used by `toggleLockField`), so `clientScheduler.ts` never sees the edited value and Step 2 of the plan (scheduler anchor integration) became unnecessary under this design. Tests: `__tests__/time-edit-cascade.test.ts` (10 new, pure-function, all of spec §4/§7/§8) + `__tests__/itinerary-client-time-edit.test.tsx` (new, component-level, drives a real `TimeScrollPicker` through `ItineraryClient` and asserts the cascade reaches the DOM while `recalcPlan` is never called — plan Step 3's required coverage). Verified: targeted `time-edit-cascade client-scheduler end-lock-schedule itinerary-lock-invariant itinerary-client-time-edit` 28/28 tests across 5 suites (zero regressions to existing hard-lock semantics), full suite 129/129 suites / 646/646 tests, `tsc --noEmit` clean (same pre-existing baseline, now also excluding a pre-existing implicit-`any` in `candidates-actions.test.ts`'s `makeMembershipAccessBuilder` unrelated to this change — worth a small follow-up fix), `next build` succeeds. Pushed and opened **PR #16** (https://github.com/WillyLin8505/superpower_trip_map/pull/16). **Flagged per CLAUDE.md for a GStack/codex review pass before merge** given the "tricky scheduling logic" gate — not yet run. **MERGED to `main` 2026-07-14** (commit `62b08b1`, squash). **Post-merge collision found and fixed:** another independently-developed and independently-merged PR had added an identical module-level `timeToMin(time: string): number` helper to the same file at a different insertion point — no textual conflict, but the duplicate top-level declaration broke SWC's transform for every test importing `ItineraryClient` (17 suites failed to parse). Caught during the mandatory post-merge `main` reverification (not by CI). Fixed by removing the redundant duplicate (functionally identical to mine) in isolated worktree `/tmp/claude-1000/verify-main`, verified 134/134 suites / 660/660 tests, `tsc --noEmit` clean, `next build` succeeds, pushed and merged **PR #17** (https://github.com/WillyLin8505/superpower_trip_map/pull/17, commit `b73e3a5`). Reverified clean on `main` again after: 134/134 suites / 660/660 tests green.
+
+## TASK-024 - Per-trip estimated Google API cost badge
+
+- Task type: frontend
+- Status: todo
+- Priority: medium
+- Spec: `docs/superpowers/specs/2026-07-15-per-trip-cost-meter-design.md`
+- Dependencies: `0010_cost_control_foundation.sql` (`api_usage_events` table + `trackedApiFetch`, already on main — must be applied to live Supabase)
+- Estimated scope: medium
+- Files likely to change:
+  - `lib/apiUsageEvents.ts` (or new `app/actions/apiUsage.ts`): `getTripEstimatedCostUsd(tripId)`
+  - `app/actions/places.ts`, `app/actions/directions.ts` (add `tripId` param → `trackedApiFetch` usage)
+  - `app/actions/legs.ts`, `app/actions/arrange.ts`, `app/actions/plan.ts`, `app/actions/recommend.ts` (thread current `tripId` down)
+  - `app/api/photo/route.ts`, `app/api/place-photos/route.ts` (attribute tripId if available)
+  - new `components/TripCostBadge.tsx`; wire into `components/ItineraryDay.tsx` / `app/itinerary/ItineraryClient.tsx`
+  - `__tests__/trip-cost.test.ts`, `__tests__/api-usage-trip-attribution.test.ts`, `__tests__/trip-cost-badge.test.tsx`
+- Conflict risk: medium-high (threads through many server actions; shares `ItineraryDay.tsx`/`ItineraryClient.tsx` with TASK-022, `legs.ts` with TASK-023)
+- Can run in parallel: no
+- Required review: GStack review after implementation
+- Suggested session count: 1
+- Safe to assign to any session: yes (spec/plan complete)
+- Notes: Spec/plan via `$multi-auto-spec`-style flow 2026-07-15 (user gave product decisions via AUQ: Google Maps only, show estimated money, per-trip, next to itinerary). Decisions DEC-701..DEC-706. Plan: `docs/superpowers/plans/2026-07-15-per-trip-cost-meter.md`. ~70% of backend already exists from the cost-control work (commit `278957a` + migration `0010`): `api_usage_events` table with `trip_id` + `estimated_cost_usd` + `(trip_id, created_at)` index, `estimateApiUsageCostUsd`, and `trackedApiFetch` already wrapping every Google call. Gaps this task fills: (1) call sites don't pass `tripId` yet → events are `trip_id=null`; (2) no per-trip aggregation query; (3) no UI badge; (4) ensure `0010` applied to live Supabase. Estimate, not real bill — badge must be labeled 「估算」. Biggest risk = threading `tripId` through the Google call chains (some pre-binding searches legitimately have no trip → record null). Non-goals: Anthropic cost, whole-app/per-user dashboards, real billing reconciliation, charging users.
