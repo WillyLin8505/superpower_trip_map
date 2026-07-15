@@ -53,6 +53,9 @@ function baseProps() {
     onAddReservePlaces: jest.fn(),
     onAddArchivedToDay: jest.fn(),
     onDeleteArchived: jest.fn(),
+    onAddCandidateToDay: jest.fn(),
+    onArchiveCandidate: jest.fn(),
+    onDeleteCandidate: jest.fn(),
   }
 }
 
@@ -68,17 +71,29 @@ it('has separate recommendation, LINE discussion, and reserve tabs', () => {
   expect(screen.getByTestId('side-panel-tab-reserve')).toHaveTextContent('備用行程')
 })
 
-it('LINE tab is read-only and shows only LINE candidates', () => {
+it('LINE tab renders actionable recommendation-style LINE candidate cards', () => {
+  const lineCandidate = candidate('c1', 'LINE A', { kind: 'line_group', lineGroupId: 'g', messageId: 'm' })
+  const onAddCandidateToDay = jest.fn()
+  const onArchiveCandidate = jest.fn()
+  const onDeleteCandidate = jest.fn()
   render(
     <SidePanel
       {...baseProps()}
-      candidates={[candidate('c1', 'LINE A', { kind: 'line_group', lineGroupId: 'g', messageId: 'm' })]}
+      candidates={[lineCandidate]}
+      onAddCandidateToDay={onAddCandidateToDay}
+      onArchiveCandidate={onArchiveCandidate}
+      onDeleteCandidate={onDeleteCandidate}
     />,
   )
   fireEvent.click(screen.getByTestId('side-panel-tab-line'))
   expect(screen.getByTestId('line-candidate-card-c1')).toBeInTheDocument()
   expect(screen.queryByText('mock-reserve-search')).not.toBeInTheDocument()
-  expect(screen.queryByTestId('rec-add-p-c1')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByTestId('rec-add-p-c1'))
+  expect(onAddCandidateToDay).toHaveBeenCalledWith('c1', lineCandidate.place)
+  fireEvent.click(screen.getByRole('button', { name: '\u79fb\u5230\u5099\u7528' }))
+  expect(onArchiveCandidate).toHaveBeenCalledWith(lineCandidate)
+  fireEvent.click(screen.getByTestId('line-candidate-delete-c1'))
+  expect(onDeleteCandidate).toHaveBeenCalledWith('c1')
 })
 
 it('reserve tab has a search input and renders searched/archived items as recommendation cards', () => {

@@ -36,7 +36,7 @@ import { fetchDayArrangeInputs } from '@/app/actions/arrange'
 import { arrangeDayOrder } from '@/lib/utils/arrangeDay'
 import { AiRearrangeInput } from '@/components/AiRearrangeInput'
 import { createTripSafe, saveTripSafe } from '@/app/actions/trips'
-import { archivePlace, unarchivePlace } from '@/app/actions/candidates'
+import { archiveCandidate, archivePlace, removeCandidate, unarchivePlace } from '@/app/actions/candidates'
 import { checkLateExit, checkOutsideHours } from '@/lib/utils/hours'
 
 type SidePanelTab = 'recommend' | 'line' | 'reserve'
@@ -215,7 +215,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [candidates] = useState<Candidate[]>(initialCandidates)
+  const [candidates, setCandidates] = useState<Candidate[]>(initialCandidates)
   const [archived, setArchivedState] = useState<Candidate[]>(initialArchived)
   const archivedRef = useRef<Candidate[]>(initialArchived)
   const [sidePanelTabs, setSidePanelTabs] = useState<Record<number, SidePanelTab>>({})
@@ -684,6 +684,55 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     }
   }, [showActionError, updateArchived])
 
+  const handleAddCandidateToDay = useCallback(async (candidateId: string, place: Place, dayIndex: number) => {
+    try {
+      await removeCandidate(candidateId)
+      const newPlace: ScheduledPlace = {
+        ...place,
+        id: crypto.randomUUID(),
+        startTime: '09:00',
+        durationMin: DWELL[place.type],
+        travelMinToNext: null,
+        aiDescription: null,
+        outsideHours: false,
+        lateExit: false,
+        startLocked: false,
+        durationLocked: false,
+      }
+      const newDays = planRef.current.days.map((d, i) =>
+        i === dayIndex ? { ...d, places: [...d.places, newPlace] } : d
+      )
+      scheduleRecalc({ ...planRef.current, days: newDays }, true)
+      setCandidates((current) => current.filter((candidate) => candidate.id !== candidateId))
+      void savePlaceIndexOnAdd(newPlace)
+      setActionError(null)
+    } catch (error) {
+      showActionError('\u52a0\u5165\u884c\u7a0b\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66\u3002', error)
+    }
+  }, [scheduleRecalc, showActionError])
+
+  const handleArchiveCandidate = useCallback(async (candidate: Candidate) => {
+    try {
+      const { id } = await archiveCandidate(candidate.id)
+      setCandidates((current) => current.filter((item) => item.id !== candidate.id))
+      updateArchived((current) => upsertArchived(current, { ...candidate, id }))
+      commitRecs(recsRef.current)
+      setActionError(null)
+    } catch (error) {
+      showActionError('\u79fb\u5230\u5099\u7528\u884c\u7a0b\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66\u3002', error)
+    }
+  }, [commitRecs, showActionError, updateArchived])
+
+  const handleDeleteCandidate = useCallback(async (candidateId: string) => {
+    try {
+      await removeCandidate(candidateId)
+      setCandidates((current) => current.filter((candidate) => candidate.id !== candidateId))
+      setActionError(null)
+    } catch (error) {
+      showActionError('\u522a\u9664 LINE \u8a0e\u8ad6\u884c\u7a0b\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66\u3002', error)
+    }
+  }, [showActionError])
+
   const buildExcludeIds = useCallback((): string[] => {
     const ids = new Set<string>()
     planRef.current.days.forEach((d) => d.places.forEach((p) => ids.add(p.placeId)))
@@ -1103,6 +1152,9 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
                 onAddReservePlaces={handleAddReservePlaces}
                 onAddArchivedToDay={(candidateId, place) => handleAddArchivedToDay(candidateId, place, dayIdx)}
                 onDeleteArchived={handleDeleteArchived}
+                onAddCandidateToDay={(candidateId, place) => handleAddCandidateToDay(candidateId, place, dayIdx)}
+                onArchiveCandidate={handleArchiveCandidate}
+                onDeleteCandidate={handleDeleteCandidate}
                 onArchivePlace={(place) => handleArchivePlace(dayIdx, place)}
                 sidePanelTab={sidePanelTabs[dayIdx]}
                 onSidePanelTabChange={(tab) => handleSidePanelTabChange(dayIdx, tab)}

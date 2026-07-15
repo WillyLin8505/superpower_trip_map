@@ -48,6 +48,9 @@ interface Props {
   onAddReservePlaces?: (places: Place[]) => void
   onAddArchivedToDay?: (candidateId: string, place: Place) => void
   onDeleteArchived?: (candidateId: string) => void
+  onAddCandidateToDay?: (candidateId: string, place: Place) => void
+  onArchiveCandidate?: (candidate: Candidate) => void
+  onDeleteCandidate?: (candidateId: string) => void
   sidePanelTab?: SidePanelTab
   onSidePanelTabChange?: (tab: SidePanelTab) => void
   isLastDay?: boolean
@@ -60,7 +63,7 @@ interface Props {
   onArchivePlace?: (place: ScheduledPlace) => void
 }
 
-export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, onArchiveRecommendation, candidates, archived, onAddReservePlace, onAddReservePlaces, onAddArchivedToDay, onDeleteArchived, sidePanelTab, onSidePanelTabChange, backfilling, recsHasCenter, onSetRecommendationCenter, onClearRecommendationCenter, onRefreshRecommendationCategory, recsRefreshing, recsError, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId, onDeletePlace, onArchivePlace }: Props) {
+export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, onArchiveRecommendation, candidates, archived, onAddReservePlace, onAddReservePlaces, onAddArchivedToDay, onDeleteArchived, onAddCandidateToDay, onArchiveCandidate, onDeleteCandidate, sidePanelTab, onSidePanelTabChange, backfilling, recsHasCenter, onSetRecommendationCenter, onClearRecommendationCenter, onRefreshRecommendationCategory, recsRefreshing, recsError, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId, onDeletePlace, onArchivePlace }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
 
@@ -233,6 +236,9 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
               onAddReservePlaces={onAddReservePlaces ?? (() => {})}
               onAddArchivedToDay={onAddArchivedToDay ?? (() => {})}
               onDeleteArchived={onDeleteArchived ?? (() => {})}
+              onAddCandidateToDay={onAddCandidateToDay ?? (() => {})}
+              onArchiveCandidate={onArchiveCandidate ?? (() => {})}
+              onDeleteCandidate={onDeleteCandidate ?? (() => {})}
               activeTab={sidePanelTab}
               onTabChange={onSidePanelTabChange}
             />

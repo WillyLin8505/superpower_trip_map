@@ -1,16 +1,19 @@
 /** @jest-environment jsdom */
 import React from 'react'
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
-import type { DayRecommendation, PlanResult, ScheduledPlace, Candidate, Place, RecommendationsByDay } from '@/lib/types'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import type { Candidate, DayRecommendation, Place, PlanResult, RecommendationsByDay, ScheduledPlace } from '@/lib/types'
 
 const archivePlace = jest.fn()
+const archiveCandidate = jest.fn()
+const removeCandidate = jest.fn()
 const unarchivePlace = jest.fn()
 const createTripSafe = jest.fn()
 const getDayRecommendations = jest.fn()
 
 jest.mock('@/app/actions/candidates', () => ({
   addCandidate: jest.fn(),
-  removeCandidate: jest.fn(),
+  archiveCandidate: (...args: unknown[]) => archiveCandidate(...args),
+  removeCandidate: (...args: unknown[]) => removeCandidate(...args),
   listCandidates: jest.fn(),
   archivePlace: (...args: unknown[]) => archivePlace(...args),
   unarchivePlace: (...args: unknown[]) => unarchivePlace(...args),
@@ -34,6 +37,7 @@ jest.mock('@/app/actions/trips', () => ({
   deleteTrip: jest.fn(),
 }))
 jest.mock('@/app/actions/arrange', () => ({ fetchDayArrangeInputs: jest.fn() }))
+jest.mock('@/app/actions/legs', () => ({ legInfo: jest.fn(), computeLegPlan: jest.fn(async () => []) }))
 jest.mock('@/lib/utils/clientScheduler', () => ({
   ...jest.requireActual('@/lib/utils/clientScheduler'),
   recalcPlan: jest.fn((plan: unknown) => plan),
@@ -64,7 +68,7 @@ jest.mock('@/lib/utils/hours', () => ({
 }))
 jest.mock('@/components/CombinedInput', () => ({
   CombinedInput: ({ onAdd }: { onAdd: (place: Place) => void }) => (
-    <button onClick={() => onAdd(place('np', '新備用'))}>pool-add</button>
+    <button type="button" onClick={() => onAdd(place('np', 'Manual Reserve'))}>pool-add</button>
   ),
 }))
 
@@ -86,7 +90,7 @@ function place(id: string, name: string): Place {
   }
 }
 
-function sp(id: string, name = id): ScheduledPlace {
+function scheduledPlace(id: string, name = id): ScheduledPlace {
   return {
     ...place(id, name),
     startTime: '09:00',
@@ -100,18 +104,18 @@ function sp(id: string, name = id): ScheduledPlace {
   }
 }
 
-function rec(id: string, name = id): DayRecommendation {
+function recommendation(id: string, name = id): DayRecommendation {
   return {
     ...place(id, name),
     type: 'dessert',
-    reason: '推薦理由',
-    sourceLabel: 'Google 推薦',
+    reason: 'Recommended',
+    sourceLabel: 'Google',
   }
 }
 
 function plan(): PlanResult {
   return {
-    days: [{ day: 1, places: [sp('A'), sp('B')], aiSummary: null, dayStart: '09:00', dayEnd: '21:00' }],
+    days: [{ day: 1, places: [scheduledPlace('A'), scheduledPlace('B')], aiSummary: null, dayStart: '09:00', dayEnd: '21:00' }],
     transportMode: 'driving',
     startDate: '2026-07-04',
   }
@@ -119,7 +123,7 @@ function plan(): PlanResult {
 
 function recsWithOneRecommendation(): RecommendationsByDay {
   return [{
-    dessert: { shown: [rec('r1', '推薦A')], reserve: [] },
+    dessert: { shown: [recommendation('r1', 'Recommendation A')], reserve: [] },
     attraction: { shown: [], reserve: [] },
     restaurant: { shown: [], reserve: [] },
   }]
@@ -133,6 +137,10 @@ function candidate(id: string, name: string, source: Candidate['source'] = null)
     source,
     place: place(id, name),
   }
+}
+
+function lineCandidate(id = 'c1'): Candidate {
+  return candidate(id, 'LINE Place', { kind: 'line_group', lineGroupId: 'g', messageId: `m-${id}`, messageText: 'looks good' })
 }
 
 function openTab(testId: string, dayIdx = 0) {
@@ -149,25 +157,51 @@ function dayOrder(): string[] {
 
 beforeEach(() => {
   archivePlace.mockReset()
+  archiveCandidate.mockReset()
+  removeCandidate.mockReset()
   unarchivePlace.mockReset()
   createTripSafe.mockReset()
-  createTripSafe.mockResolvedValue({ ok: true, tripId: 't-created' })
   getDayRecommendations.mockReset()
+  archiveCandidate.mockResolvedValue({ id: 'c1' })
+  removeCandidate.mockResolvedValue(undefined)
+  createTripSafe.mockResolvedValue({ ok: true, tripId: 't-created' })
   getDayRecommendations.mockResolvedValue([])
 })
 
-it('renders LINE Bot candidates only in the read-only LINE tab', () => {
-  render(
-    <ItineraryClient
-      initial={plan()}
-      tripId="t1"
-      initialCandidates={[candidate('c1', '台北101', { kind: 'line_group', lineGroupId: 'g', messageId: 'm', messageText: '去這裡' })]}
-    />,
-  )
+it('adds a LINE Bot candidate into the day and removes it from LINE discussion', async () => {
+  // Regression: LINE discussion cards were read-only instead of matching recommendation/reserve card actions.
+  // Found by /qa on 2026-07-15.
+  // Report: .gstack/qa-reports/qa-report-line-candidates-2026-07-15.md
+  render(<ItineraryClient initial={plan()} tripId="t1" initialCandidates={[lineCandidate()]} />)
   const day = openTab('side-panel-tab-line')
-  expect(within(day).getByText('LINE 討論的行程')).toBeInTheDocument()
-  expect(within(day).getByText('台北101')).toBeInTheDocument()
-  expect(within(day).queryByTestId('rec-add-c1')).not.toBeInTheDocument()
+
+  fireEvent.click(within(day).getByTestId('rec-add-c1'))
+
+  await waitFor(() => expect(removeCandidate).toHaveBeenCalledWith('c1'))
+  await waitFor(() => expect(within(day).queryByTestId('line-candidate-card-c1')).not.toBeInTheDocument())
+  expect(within(day).getByText('LINE Place')).toBeInTheDocument()
+})
+
+it('moves a LINE Bot candidate to reserve and removes it from LINE discussion', async () => {
+  render(<ItineraryClient initial={plan()} tripId="t1" initialCandidates={[lineCandidate()]} />)
+  const day = openTab('side-panel-tab-line')
+
+  fireEvent.click(within(screen.getByTestId('line-candidate-card-c1')).getByRole('button', { name: '\u79fb\u5230\u5099\u7528' }))
+
+  await waitFor(() => expect(archiveCandidate).toHaveBeenCalledWith('c1'))
+  await waitFor(() => expect(within(day).queryByTestId('line-candidate-card-c1')).not.toBeInTheDocument())
+  fireEvent.click(within(day).getByTestId('side-panel-tab-reserve'))
+  expect(within(day).getByTestId('reserve-card-c1')).toBeInTheDocument()
+})
+
+it('deletes a LINE Bot candidate from LINE discussion', async () => {
+  render(<ItineraryClient initial={plan()} tripId="t1" initialCandidates={[lineCandidate()]} />)
+  const day = openTab('side-panel-tab-line')
+
+  fireEvent.click(within(day).getByTestId('line-candidate-delete-c1'))
+
+  await waitFor(() => expect(removeCandidate).toHaveBeenCalledWith('c1'))
+  await waitFor(() => expect(within(day).queryByTestId('line-candidate-card-c1')).not.toBeInTheDocument())
 })
 
 it('shows reserve controls on an unsaved searched itinerary and saves before archiving', async () => {
@@ -187,14 +221,14 @@ it('reserve search archives the searched place and renders it as a recommendatio
   render(<ItineraryClient initial={plan()} tripId="t1" initialCandidates={[]} />)
   const day = openTab('side-panel-tab-reserve')
   fireEvent.click(within(day).getByText('pool-add'))
-  await waitFor(() => expect(archivePlace).toHaveBeenCalledWith('t1', expect.objectContaining({ name: '新備用' })))
+  await waitFor(() => expect(archivePlace).toHaveBeenCalledWith('t1', expect.objectContaining({ name: 'Manual Reserve' })))
   expect(await within(day).findByTestId('reserve-card-np-archived')).toBeInTheDocument()
   expect(within(day).getByTestId('rec-np')).toBeInTheDocument()
 })
 
 it('reserve card can be added into the day and removed from reserve', async () => {
   unarchivePlace.mockResolvedValue(undefined)
-  render(<ItineraryClient initial={plan()} tripId="t1" initialArchived={[candidate('r1', '備用A')]} />)
+  render(<ItineraryClient initial={plan()} tripId="t1" initialArchived={[candidate('r1', 'Reserve A')]} />)
   openTab('side-panel-tab-reserve')
   fireEvent.click(await screen.findByTestId('rec-add-r1'))
   await waitFor(() => expect(unarchivePlace).toHaveBeenCalledWith('r1'))
@@ -206,7 +240,7 @@ it('moves an itinerary card to reserve immediately when clicking 移到備用', 
   archivePlace.mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve({ id: 'archived-A' }), 50)))
   render(<ItineraryClient initial={plan()} tripId="t1" />)
 
-  fireEvent.click(within(screen.getByTestId('card-A')).getByLabelText('移到備用'))
+  fireEvent.click(within(screen.getByTestId('card-A')).getByRole('button', { name: '\u79fb\u5230\u5099\u7528' }))
 
   expect(screen.queryByTestId('card-A')).not.toBeInTheDocument()
   openTab('side-panel-tab-reserve')
@@ -220,7 +254,7 @@ it('moves a recommendation card to reserve immediately when clicking 移到備�
   render(<ItineraryClient initial={plan()} tripId="t1" />)
 
   await screen.findByTestId('rec-r1')
-  fireEvent.click(within(screen.getByTestId('rec-r1')).getByLabelText('移到備用'))
+  fireEvent.click(within(screen.getByTestId('rec-r1')).getByRole('button', { name: '\u79fb\u5230\u5099\u7528' }))
 
   expect(screen.queryByTestId('rec-r1')).not.toBeInTheDocument()
   openTab('side-panel-tab-reserve')

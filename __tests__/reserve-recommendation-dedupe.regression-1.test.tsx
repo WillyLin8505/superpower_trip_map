@@ -9,7 +9,9 @@ const computeLegPlan = jest.fn()
 const fetchDayArrangeInputs = jest.fn()
 
 jest.mock('@/app/actions/candidates', () => ({
+  archiveCandidate: jest.fn(),
   archivePlace: (...args: unknown[]) => archivePlace(...args),
+  removeCandidate: jest.fn(),
   unarchivePlace: jest.fn(),
 }))
 

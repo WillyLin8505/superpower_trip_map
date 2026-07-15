@@ -35,6 +35,22 @@ async function canAccessTrip(tripId: string, userId: string): Promise<boolean> {
   return !membershipError && !!membership
 }
 
+async function requireCandidateAccess(
+  candidateId: string,
+  userId: string
+): Promise<{ id: string; trip_id: string; place: Place; added_by: string; source?: CandidateSource | null }> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('trip_candidates')
+    .select('id, trip_id, place, added_by, source')
+    .eq('id', candidateId)
+    .single()
+  if (error || !data) throw new Error('NOT_FOUND')
+  const row = data as { id: string; trip_id: string; place: Place; added_by: string; source?: CandidateSource | null }
+  if (!(await canAccessTrip(row.trip_id, userId))) throw new Error('NOT_AUTHORIZED')
+  return row
+}
+
 async function resolveCandidateNames(
   rows: { id: string; place: Place; added_by: string; created_at: string; source?: CandidateSource | null }[]
 ): Promise<Candidate[]> {
@@ -102,6 +118,24 @@ export async function removeCandidate(candidateId: string): Promise<void> {
     .eq('id', candidateId)
     .select('id')
   if (error || !data?.length) throw new Error('移除失敗，請稍後再試')
+}
+
+export async function archiveCandidate(candidateId: string): Promise<{ id: string }> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('NOT_AUTHENTICATED')
+  await requireCandidateAccess(candidateId, user.id)
+
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('trip_candidates')
+    .update({ list: 'archived' })
+    .eq('id', candidateId)
+    .select('id')
+    .single()
+  if (isMissingListColumn(error)) throw missingArchiveMigrationError()
+  if (error || !data) throw new Error('\u79fb\u5230\u5099\u7528\u884c\u7a0b\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66\u3002')
+  return { id: (data as { id: string }).id }
 }
 
 // TASK-022: archive = per-trip parking lot, reusing trip_candidates with list='archived'.

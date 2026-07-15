@@ -11,7 +11,9 @@ const fetchDayArrangeInputs = jest.fn()
 const realFetch = global.fetch
 
 jest.mock('@/app/actions/candidates', () => ({
+  archiveCandidate: jest.fn(),
   archivePlace: (...args: unknown[]) => archivePlace(...args),
+  removeCandidate: jest.fn(),
   unarchivePlace: jest.fn(),
 }))
 
@@ -144,6 +146,9 @@ function sidePanelProps() {
     onAddReservePlaces: jest.fn(),
     onAddArchivedToDay: jest.fn(),
     onDeleteArchived: jest.fn(),
+    onAddCandidateToDay: jest.fn(),
+    onArchiveCandidate: jest.fn(),
+    onDeleteCandidate: jest.fn(),
   }
 }
 

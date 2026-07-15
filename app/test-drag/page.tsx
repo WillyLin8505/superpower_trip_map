@@ -1,5 +1,5 @@
 import { ItineraryClient } from '../itinerary/ItineraryClient'
-import type { PlanResult } from '@/lib/types'
+import type { Candidate, PlanResult } from '@/lib/types'
 
 const FIXTURE: PlanResult = {
   transportMode: 'driving',
@@ -108,6 +108,34 @@ const FIXTURE: PlanResult = {
   ],
 }
 
+const LINE_CANDIDATES: Candidate[] = [
+  {
+    id: 'line-candidate-1',
+    addedBy: 'line-user',
+    addedByName: 'LINE User',
+    source: {
+      kind: 'line_group',
+      lineGroupId: 'line-group-1',
+      lineDisplayName: 'Mina',
+      messageId: 'line-message-1',
+      messageText: '想把這個地方排進行程',
+    },
+    place: {
+      id: 'line-place-1',
+      placeId: 'line-place-1',
+      name: 'LINE 討論景點',
+      type: 'attraction',
+      lat: 25.12,
+      lng: 121.76,
+      address: 'LINE 討論來源',
+      openingHours: null,
+      rating: null,
+      photoUrl: null,
+      description: 'LINE Bot 討論後加入的候選行程',
+    },
+  },
+]
+
 export default function TestDragPage() {
-  return <ItineraryClient initial={FIXTURE} />
+  return <ItineraryClient initial={FIXTURE} tripId="test-trip" initialCandidates={LINE_CANDIDATES} />
 }

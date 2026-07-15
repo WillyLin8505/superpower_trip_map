@@ -29,6 +29,9 @@ interface Props {
   onAddReservePlaces: (places: Place[]) => void
   onAddArchivedToDay: (candidateId: string, place: Place) => void
   onDeleteArchived: (candidateId: string) => void
+  onAddCandidateToDay: (candidateId: string, place: Place) => void
+  onArchiveCandidate: (candidate: Candidate) => void
+  onDeleteCandidate: (candidateId: string) => void
   activeTab?: SidePanelTab
   onTabChange?: (tab: SidePanelTab) => void
 }
@@ -91,7 +94,13 @@ export function SidePanel(props: Props) {
           />
         )}
         {tab === 'line' && (
-          <CandidatePanel candidates={props.candidates} dateIso={props.dateIso} />
+          <CandidatePanel
+            candidates={props.candidates}
+            dateIso={props.dateIso}
+            onAdd={props.onAddCandidateToDay}
+            onArchive={props.onArchiveCandidate}
+            onDelete={props.onDeleteCandidate}
+          />
         )}
         {tab === 'reserve' && (
           <section className="border border-border rounded-lg p-4 bg-surface flex flex-col gap-3" data-testid="reserve-panel">
