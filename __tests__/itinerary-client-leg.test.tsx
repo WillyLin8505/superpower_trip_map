@@ -117,7 +117,7 @@ it('changing a leg mode calls legInfo and updates the leg (min + km)', async () 
   fireEvent.change(screen.getAllByLabelText('交通工具')[0], { target: { value: 'transit' } })
   await waitFor(() => expect(screen.getByText(/大眾運輸 25 分 · 6\.3 公里/)).toBeInTheDocument())
   expect(legInfo).toHaveBeenCalledWith(
-    expect.objectContaining({ id: 'A' }), expect.objectContaining({ id: 'B' }), 'transit'
+    expect.objectContaining({ id: 'A' }), expect.objectContaining({ id: 'B' }), 'transit', undefined
   )
 })
 

@@ -10,6 +10,7 @@ import type { DayItinerary, DayRecommendation, RecommendationsByDay, CategoryBuc
 import { callClaude } from '@/lib/claude'
 import { shouldEnrichRecommendationsWithDetails } from '@/lib/googleMapsCost'
 import { openPoiSearch } from '@/lib/openPoi'
+import { runWithTripId } from '@/lib/apiUsageContext'
 
 const REC_LIMIT = 5
 const OPEN_POI_RADII_METERS = [4000, 12000]
@@ -79,6 +80,13 @@ async function fillFromOpenPoiThenGoogle(
 }
 
 export async function getDayRecommendations(
+  days: DayItinerary[],
+  tripId?: string
+): Promise<RecommendationsByDay> {
+  return runWithTripId(tripId, () => getDayRecommendationsImpl(days))
+}
+
+async function getDayRecommendationsImpl(
   days: DayItinerary[]
 ): Promise<RecommendationsByDay> {
   const existingIds = new Set(days.flatMap((d) => d.places.map((p) => p.placeId)))
@@ -170,6 +178,15 @@ export async function refreshDayCategoryRecommendations(args: {
   category: 'dessert' | 'attraction' | 'restaurant'
   center: { lat: number; lng: number }
   excludeIds: string[]
+  tripId?: string
+}): Promise<DayRecommendation[]> {
+  return runWithTripId(args.tripId, () => refreshDayCategoryRecommendationsImpl(args))
+}
+
+async function refreshDayCategoryRecommendationsImpl(args: {
+  category: 'dessert' | 'attraction' | 'restaurant'
+  center: { lat: number; lng: number }
+  excludeIds: string[]
 }): Promise<DayRecommendation[]> {
   const { category, center, excludeIds } = args
   const exclude = new Set(excludeIds)
@@ -183,6 +200,15 @@ export async function refreshDayCategoryRecommendations(args: {
 }
 
 export async function fetchReplacementRecommendation(
+  day: DayItinerary,
+  category: 'dessert' | 'attraction' | 'restaurant',
+  excludeIds: string[],
+  tripId?: string
+): Promise<DayRecommendation | null> {
+  return runWithTripId(tripId, () => fetchReplacementRecommendationImpl(day, category, excludeIds))
+}
+
+async function fetchReplacementRecommendationImpl(
   day: DayItinerary,
   category: 'dessert' | 'attraction' | 'restaurant',
   excludeIds: string[]
