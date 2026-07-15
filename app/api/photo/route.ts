@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     provider: 'google_maps',
     endpoint: 'place_photo_media',
     skuHint: 'place_photo_media',
-    tripId: tripIdFromReferer(req.headers.get('referer')),
+    tripId: tripIdFromReferer(req.headers.get('referer'), req.nextUrl.origin),
   })
   if (!upstream.ok) return new Response('failed to fetch photo', { status: 502 })
 

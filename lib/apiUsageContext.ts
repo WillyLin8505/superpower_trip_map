@@ -22,11 +22,24 @@ export function currentTripId(): string | null {
 }
 
 // Best-effort trip attribution for stateless media routes (/api/photo,
-// /api/place-photos) that are triggered by <img>/fetch from an itinerary page.
-// The request's Referer carries `/itinerary/<tripId>`; absent referer → undefined
-// (recorded as trip_id=null, same as before).
-export function tripIdFromReferer(referer: string | null | undefined): string | undefined {
+// /api/place-photos) triggered by <img>/fetch from an itinerary page.
+// The Referer carries `/itinerary/<tripId>`. This is client-controlled, so we
+// only use it for a cosmetic per-trip cost estimate — never for authorization:
+// URL-parse it, require the same origin as the request, and anchor the match to
+// the start of the path so a crafted string can't inject an arbitrary trip id.
+// Absent/foreign/malformed referer → undefined (recorded as trip_id=null).
+export function tripIdFromReferer(
+  referer: string | null | undefined,
+  expectedOrigin?: string,
+): string | undefined {
   if (!referer) return undefined
-  const match = /\/itinerary\/([^/?#]+)/.exec(referer)
+  let url: URL
+  try {
+    url = new URL(referer)
+  } catch {
+    return undefined
+  }
+  if (expectedOrigin && url.origin !== expectedOrigin) return undefined
+  const match = /^\/itinerary\/([^/?#]+)/.exec(url.pathname)
   return match ? decodeURIComponent(match[1]) : undefined
 }

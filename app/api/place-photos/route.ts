@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     endpoint: 'place_photos_metadata',
     skuHint: 'place_details_photos',
     metadata: { limit },
-    tripId: tripIdFromReferer(req.headers.get('referer')),
+    tripId: tripIdFromReferer(req.headers.get('referer'), req.nextUrl.origin),
   })
   if (!upstream.ok) return NextResponse.json({ error: 'failed to fetch place photos' }, { status: 502 })
 

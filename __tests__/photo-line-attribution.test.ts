@@ -8,11 +8,21 @@ describe('tripIdFromReferer', () => {
     expect(tripIdFromReferer('https://app.com/itinerary/abc-123?tab=x#y')).toBe('abc-123')
   })
 
-  it('returns undefined for missing or non-itinerary referers', () => {
+  it('returns undefined for missing, malformed or non-itinerary referers', () => {
     expect(tripIdFromReferer(null)).toBeUndefined()
     expect(tripIdFromReferer(undefined)).toBeUndefined()
+    expect(tripIdFromReferer('not a url')).toBeUndefined()
     expect(tripIdFromReferer('https://app.com/')).toBeUndefined()
     expect(tripIdFromReferer('https://app.com/trips')).toBeUndefined()
+  })
+
+  it('only matches /itinerary at the start of the path (no arbitrary injection)', () => {
+    expect(tripIdFromReferer('https://app.com/foo/itinerary/injected')).toBeUndefined()
+  })
+
+  it('rejects a cross-origin referer when an expected origin is given (anti-spoof)', () => {
+    expect(tripIdFromReferer('https://evil.com/itinerary/victim', 'https://app.com')).toBeUndefined()
+    expect(tripIdFromReferer('https://app.com/itinerary/mine', 'https://app.com')).toBe('mine')
   })
 })
 
