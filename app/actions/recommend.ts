@@ -78,6 +78,23 @@ async function fillFromOpenData(
   return target.length >= REC_LIMIT
 }
 
+async function scheduleBackfill(
+  lat: number,
+  lng: number,
+  category: 'dessert' | 'attraction' | 'restaurant'
+): Promise<void> {
+  try {
+    // Run the OSM backfill AFTER the response so it never adds latency to this
+    // request (Overpass can take seconds, and days are processed serially).
+    // Dynamic-import so 'next/server' isn't in this module's static graph (it
+    // fails to load under the jsdom test environment).
+    const { after } = await import('next/server')
+    after(() => ensurePoiBackfill(lat, lng, category))
+  } catch {
+    // after() is only valid within a request scope; ignore elsewhere (tests/scripts).
+  }
+}
+
 async function fillFromOpenPoiThenGoogle(
   target: DayRecommendation[],
   center: { lat: number; lng: number },
@@ -86,10 +103,10 @@ async function fillFromOpenPoiThenGoogle(
 ): Promise<void> {
   if (await fillFromOpenData(target, center, category, have)) return
 
-  // Open data was insufficient for this area — backfill it from free OSM/Overpass
-  // data (once per cell) and retry, before paying for Google Nearby Search.
-  await ensurePoiBackfill(center.lat, center.lng, category)
-  if (await fillFromOpenData(target, center, category, have)) return
+  // Open data was insufficient for this area. Populate it from free OSM/Overpass
+  // data in the background (deduped per cell) so FUTURE loads use free data, and
+  // serve this request from Google now — no added latency.
+  await scheduleBackfill(center.lat, center.lng, category)
 
   const googleCandidates = await nearbySearch(center.lat, center.lng, category)
   await pushRecommendationCandidates(target, googleCandidates, category, have, GOOGLE_SOURCE_LABEL, GOOGLE_REASON)

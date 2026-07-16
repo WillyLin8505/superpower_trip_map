@@ -15,9 +15,16 @@ async function upsertPoiPlaces(rows: OpenPoiRow[]): Promise<void> {
   const { createAdminClient } = await import('@/lib/supabase/admin')
   const now = new Date().toISOString()
   const payload = rows.map((row) => ({ ...row, license: 'ODbL', updated_at: now }))
-  await createAdminClient()
+  const { error } = await createAdminClient()
     .from('poi_places')
     .upsert(payload, { onConflict: 'source,source_place_id,category' })
+  // Supabase returns { error } instead of throwing. Throw on a real failure so
+  // ensurePoiBackfill does NOT cache a backfill that never persisted (missing
+  // table is treated as a benign no-op — the feature is simply off).
+  const code = (error as { code?: string } | null)?.code
+  if (error && code !== '42P01' && code !== 'PGRST205') {
+    throw new Error(`poi_upsert_${code ?? 'failed'}`)
+  }
 }
 
 // Populate poi_places for an area+category from free OSM/Overpass data, at most
