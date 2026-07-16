@@ -8,16 +8,26 @@ import { PhotoStrip } from './PhotoStrip'
 
 const ARCHIVE_LABEL = '移到備用'
 const ARCHIVE_ICON = '💾'
+const DELETE_LABEL = '刪除'
 const GENERIC_REASONS = new Set(['Google 高評分推薦'])
+
+interface ActionLink {
+  label: string
+  href: string
+  testId?: string
+}
 
 interface Props {
   rec: DayRecommendation
   dateIso: string
   onAdd?: () => void
   onArchive?: (rec: DayRecommendation) => void
+  onDelete?: () => void
+  actionLinks?: ActionLink[]
   actionTestIds?: {
     add?: string
     archive?: string
+    delete?: string
   }
   compact?: boolean
 }
@@ -29,7 +39,7 @@ function compactExplanation(rec: DayRecommendation): string | null {
   return null
 }
 
-export function RecommendationCard({ rec, dateIso, onAdd, onArchive, actionTestIds, compact = false }: Props) {
+export function RecommendationCard({ rec, dateIso, onAdd, onArchive, onDelete, actionLinks, actionTestIds, compact = false }: Props) {
   const meta = TYPE_META[rec.type]
   const todayHours = getHoursForDate(rec.openingHours, dateIso)
   const photos = rec.photoUrls?.length ? rec.photoUrls : rec.photoUrl ? [rec.photoUrl] : []
@@ -38,7 +48,19 @@ export function RecommendationCard({ rec, dateIso, onAdd, onArchive, actionTestI
   const shortExplanation = compactExplanation(rec)
 
   return (
-    <div className={`border border-border rounded-xl p-3 ${meta.cardBg}`} data-testid={`rec-${rec.placeId}`}>
+    <div className={`relative border border-border rounded-xl p-3 ${onDelete ? 'pr-9' : ''} ${meta.cardBg}`} data-testid={`rec-${rec.placeId}`}>
+      {onDelete && (
+        <button
+          type="button"
+          onClick={onDelete}
+          aria-label={DELETE_LABEL}
+          title={DELETE_LABEL}
+          data-testid={actionTestIds?.delete ?? `rec-delete-${rec.placeId}`}
+          className="absolute right-2 top-2 z-10 h-7 w-7 rounded-full text-gray-300 hover:bg-red-50 hover:text-red-500 transition-colors leading-none"
+        >
+          ×
+        </button>
+      )}
       <div className="flex items-start gap-2">
         {onAdd && (
           <button
@@ -77,10 +99,26 @@ export function RecommendationCard({ rec, dateIso, onAdd, onArchive, actionTestI
           {!compact && todayHours && <p className="text-xs text-gray-500 mt-0.5">營業 {todayHours}</p>}
           {!compact && rec.rating && <p className="text-xs text-gray-500 mt-0.5">評分：{rec.rating} ★</p>}
           <PhotoStrip photos={photos} placeId={rec.placeId} placeName={displayName.primary} className="mt-2" />
-          {compact && shortExplanation && <p className="text-xs text-gray-600 mt-1">{shortExplanation}</p>}
-          {!compact && rec.description && <p className="text-xs text-gray-600 mt-1 italic">{rec.description}</p>}
-          {!compact && <p className="text-xs text-gray-600 mt-1">{rec.reason}</p>}
-          {!compact && <p className="text-[11px] text-gray-400 mt-0.5">來源：{rec.sourceLabel}</p>}
+          {compact && shortExplanation && <p className="text-xs text-gray-600 mt-1 break-words [overflow-wrap:anywhere]">{shortExplanation}</p>}
+          {!compact && rec.description && <p className="text-xs text-gray-600 mt-1 italic break-words [overflow-wrap:anywhere]">{rec.description}</p>}
+          {!compact && <p className="text-xs text-gray-600 mt-1 break-words [overflow-wrap:anywhere]">{rec.reason}</p>}
+          {actionLinks && actionLinks.length > 0 && (
+            <div className="mt-1 flex max-w-full min-w-0 flex-wrap gap-2 text-[11px] text-gray-500">
+              {actionLinks.map((link) => (
+                <a
+                  key={`${link.label}:${link.href}`}
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid={link.testId}
+                  className="break-all [overflow-wrap:anywhere] underline decoration-dotted underline-offset-2 hover:text-clay-deep"
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
+          )}
+          {!compact && <p className="text-[11px] text-gray-400 mt-0.5 break-words [overflow-wrap:anywhere]">來源：{rec.sourceLabel}</p>}
         </div>
       </div>
     </div>

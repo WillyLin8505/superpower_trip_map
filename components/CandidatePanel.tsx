@@ -21,6 +21,31 @@ function candidateToRecommendation(candidate: Candidate): DayRecommendation {
   }
 }
 
+function safeHttpUrl(value: string | null | undefined): string | null {
+  if (!value) return null
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null
+  } catch {
+    return null
+  }
+}
+
+function firstHttpUrl(value: string | null | undefined): string | null {
+  const match = value?.match(/https?:\/\/\S+/)
+  return safeHttpUrl(match?.[0])
+}
+
+function lineActionLinks(candidate: Candidate) {
+  if (candidate.source?.kind !== 'line_group') return []
+  const itineraryUrl = safeHttpUrl(candidate.source.sourceUrl) ?? firstHttpUrl(candidate.source.messageText)
+  const discussionUrl = firstHttpUrl(candidate.source.messageText) ?? safeHttpUrl(candidate.source.sourceUrl)
+  return [
+    itineraryUrl ? { label: '行程', href: itineraryUrl, testId: `line-candidate-itinerary-link-${candidate.id}` } : null,
+    discussionUrl ? { label: '討論', href: discussionUrl, testId: `line-candidate-discussion-link-${candidate.id}` } : null,
+  ].filter((link): link is { label: string; href: string; testId: string } => link !== null)
+}
+
 export function CandidatePanel({ candidates, dateIso, onAdd, onArchive, onDelete }: CandidatePanelProps) {
   return (
     <section className="border border-border rounded-lg p-4 bg-surface flex flex-col gap-3" data-testid="line-candidate-panel">
@@ -36,21 +61,14 @@ export function CandidatePanel({ candidates, dateIso, onAdd, onArchive, onDelete
                 dateIso={dateIso}
                 onAdd={() => onAdd(candidate.id, candidate.place)}
                 onArchive={() => onArchive(candidate)}
+                onDelete={() => onDelete(candidate.id)}
+                actionLinks={lineActionLinks(candidate)}
                 actionTestIds={{
                   add: `line-candidate-add-${candidate.id}`,
                   archive: `line-candidate-archive-${candidate.id}`,
+                  delete: `line-candidate-delete-${candidate.id}`,
                 }}
               />
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => onDelete(candidate.id)}
-                  data-testid={`line-candidate-delete-${candidate.id}`}
-                  className="rounded-full border border-error/30 px-3 py-1 text-sm text-error hover:bg-red-50"
-                >
-                  刪除
-                </button>
-              </div>
             </li>
           ))}
         </ul>

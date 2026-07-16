@@ -2,7 +2,7 @@
 import React from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { SidePanel } from '@/components/SidePanel'
-import type { CategoryBuckets, Candidate, Place } from '@/lib/types'
+import type { CategoryBuckets, Candidate, DayRecommendation, Place } from '@/lib/types'
 
 jest.mock('@/components/CombinedInput', () => ({
   CombinedInput: ({ onAdd }: { onAdd: (place: Place) => void }) => (
@@ -39,6 +39,14 @@ function candidate(id: string, name: string, source: Candidate['source'] = null)
     addedBy: 'u1',
     addedByName: 'User',
     source,
+  }
+}
+
+function recommendation(id: string, name: string): DayRecommendation {
+  return {
+    ...place(id, name),
+    reason: 'nearby',
+    sourceLabel: 'Google',
   }
 }
 
@@ -122,5 +130,28 @@ it('reserve item add/delete calls the correct handlers', () => {
   fireEvent.click(screen.getByTestId('rec-add-p-a1'))
   expect(onAddArchivedToDay).toHaveBeenCalledWith('a1', archived.place)
   fireEvent.click(screen.getByTestId('archive-delete-a1'))
+  expect(screen.getByTestId('archive-delete-a1')).toHaveTextContent('×')
+  expect(screen.getByTestId('archive-delete-a1')).toHaveClass('absolute', 'right-2', 'top-2')
   expect(onDeleteArchived).toHaveBeenCalledWith('a1')
+})
+
+it('recommendation delete is a top-right x and calls the delete handler', () => {
+  const onDeleteRecommendation = jest.fn()
+  const recommendations: CategoryBuckets = {
+    ...emptyRecs,
+    dessert: { shown: [recommendation('r1', 'Dessert A')], reserve: [] },
+  }
+  render(
+    <SidePanel
+      {...baseProps()}
+      recommendations={recommendations}
+      onDeleteRecommendation={onDeleteRecommendation}
+    />,
+  )
+
+  const deleteButton = screen.getByTestId('rec-delete-r1')
+  expect(deleteButton).toHaveTextContent('×')
+  expect(deleteButton).toHaveClass('absolute', 'right-2', 'top-2')
+  fireEvent.click(deleteButton)
+  expect(onDeleteRecommendation).toHaveBeenCalledWith(expect.objectContaining({ placeId: 'r1' }))
 })

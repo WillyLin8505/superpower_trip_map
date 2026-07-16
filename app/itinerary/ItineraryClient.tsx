@@ -46,6 +46,7 @@ import {
 } from '@/lib/itineraryClientState'
 
 type SidePanelTab = 'recommend' | 'line' | 'reserve'
+type RecommendationCategory = 'dessert' | 'attraction' | 'restaurant'
 
 // pointerWithin is essential for multi-container: it checks where the pointer
 // physically is, not center-to-center distance (closestCenter favors the source container)
@@ -728,8 +729,55 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     void refreshCost()
   }, [commitPlan, refreshCost])
 
+  const removeRecommendationFromShown = useCallback(
+    (dayIdx: number, rec: DayRecommendation, extraExcludeIds: string[] = []) => {
+      const cat = rec.type as RecommendationCategory
+      const prev = recsRef.current
+      if (!prev || !prev[dayIdx]) return
+      const bucket = prev[dayIdx][cat]
+      const shownAfter = bucket.shown.filter((r) => r.placeId !== rec.placeId)
+      const reserve = [...bucket.reserve]
+      while (shownAfter.length < 5 && reserve.length > 0) {
+        const nextReserve = reserve.shift()
+        if (nextReserve) shownAfter.push(nextReserve)
+      }
+      const missingCount = Math.max(0, 5 - shownAfter.length)
+      const updated: RecommendationsByDay = prev.map((b, i) =>
+        i === dayIdx ? { ...b, [cat]: { shown: shownAfter, reserve } } : b
+      )
+      commitRecs(updated)
+
+      if (missingCount > 0) {
+        const key = `${dayIdx}:${cat}`
+        setBackfillKeys((s) => new Set(s).add(key))
+        ;(async () => {
+          for (let i = 0; i < missingCount; i += 1) {
+            const excludeIds = Array.from(new Set([...buildExcludeIds(), ...extraExcludeIds]))
+            const repl = await fetchReplacementRecommendation(planRef.current.days[dayIdx], cat, excludeIds, tripIdRef.current)
+            if (!repl) break
+            const cur = recsRef.current
+            if (!cur || !cur[dayIdx]) break
+            const currentExcludeIds = new Set([...buildExcludeIds(), ...extraExcludeIds])
+            if (currentExcludeIds.has(repl.placeId)) break
+            const b = cur[dayIdx][cat]
+            if (b.shown.length >= 5) break
+            const next2: RecommendationsByDay = cur.map((x, idx) =>
+              idx === dayIdx ? { ...x, [cat]: { shown: [...b.shown, repl], reserve: b.reserve } } : x
+            )
+            commitRecs(next2)
+          }
+        })()
+          .catch(() => { /* leave slot empty */ })
+          .finally(() => {
+            setBackfillKeys((s) => { const n = new Set(s); n.delete(key); return n })
+            void refreshCost()
+          })
+      }
+    },
+    [buildExcludeIds, commitRecs, refreshCost],
+  )
+
   const handleAddRecommendation = useCallback(async (dayIdx: number, rec: DayRecommendation) => {
-    const cat = rec.type as 'dessert' | 'attraction' | 'restaurant'
     const needsDetails = !rec.rating || !rec.openingHours?.length
     const details = needsDetails ? await fetchDetailsOnAdd(rec, tripIdRef.current) : null
     if (needsDetails) void refreshCost()
@@ -778,48 +826,12 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     commitPlan({ ...planRef.current, days: newDays })
     void savePlaceIndexOnAdd(newPlace)
 
-    // 2. remove the card; promote reserve items until the visible list is back to 5 when possible
-    const prev = recsRef.current
-    if (!prev || !prev[dayIdx]) return
-    const bucket = prev[dayIdx][cat]
-    const shownAfter = bucket.shown.filter((r) => r.placeId !== rec.placeId)
-    const reserve = [...bucket.reserve]
-    while (shownAfter.length < 5 && reserve.length > 0) {
-      const nextReserve = reserve.shift()
-      if (nextReserve) shownAfter.push(nextReserve)
-    }
-    const missingCount = Math.max(0, 5 - shownAfter.length)
-    const updated: RecommendationsByDay = prev.map((b, i) =>
-      i === dayIdx ? { ...b, [cat]: { shown: shownAfter, reserve } } : b
-    )
-    commitRecs(updated)
+    removeRecommendationFromShown(dayIdx, rec, [rec.placeId])
+  }, [commitPlan, refreshCost, removeRecommendationFromShown])
 
-    // 3. reserve empty → fetch enough Google replacements to return to 5 visible cards
-    if (missingCount > 0) {
-      const key = `${dayIdx}:${cat}`
-      setBackfillKeys((s) => new Set(s).add(key))
-      ;(async () => {
-        for (let i = 0; i < missingCount; i += 1) {
-          const repl = await fetchReplacementRecommendation(planRef.current.days[dayIdx], cat, buildExcludeIds(), tripIdRef.current)
-          if (!repl) break
-          const cur = recsRef.current
-          if (!cur || !cur[dayIdx]) break
-          if (buildExcludeIds().includes(repl.placeId)) break
-          const b = cur[dayIdx][cat]
-          if (b.shown.length >= 5) break
-          const next2: RecommendationsByDay = cur.map((x, idx) =>
-            idx === dayIdx ? { ...x, [cat]: { shown: [...b.shown, repl], reserve: b.reserve } } : x
-          )
-          commitRecs(next2)
-        }
-      })()
-        .catch(() => { /* leave slot empty */ })
-        .finally(() => {
-          setBackfillKeys((s) => { const n = new Set(s); n.delete(key); return n })
-          void refreshCost()
-        })
-    }
-  }, [commitPlan, commitRecs, buildExcludeIds, refreshCost])
+  const handleDeleteRecommendation = useCallback((dayIdx: number, rec: DayRecommendation) => {
+    removeRecommendationFromShown(dayIdx, rec, [rec.placeId])
+  }, [removeRecommendationFromShown])
 
   // TASK-010: manual recommendation center — persists to the day, then refetches that day's 3 categories.
   const setDayRecommendationCenter = useCallback((dayIdx: number, center: RecommendationCenter | null) => {
@@ -1095,6 +1107,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
                 recommendations={recsByDay?.[dayIdx]}
                 onAddRecommendation={(rec) => handleAddRecommendation(dayIdx, rec)}
                 onArchiveRecommendation={(rec) => handleArchiveRecommendation(dayIdx, rec)}
+                onDeleteRecommendation={(rec) => handleDeleteRecommendation(dayIdx, rec)}
                 candidates={candidates}
                 archived={archived}
                 onAddReservePlace={handleAddReservePlace}

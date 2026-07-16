@@ -77,6 +77,25 @@ it('allows reused recommendation cards to keep the same action icons with contex
   expect(screen.getByTestId('line-candidate-archive-c1')).toHaveClass('w-8', 'h-8', 'rounded-full', 'bg-clay')
 })
 
+it('renders a top-right delete x when a recommendation card can be deleted', () => {
+  const onDelete = jest.fn()
+  render(
+    <RecommendationCard
+      rec={rec}
+      dateIso="2026-07-01"
+      onAdd={() => {}}
+      onDelete={onDelete}
+      actionTestIds={{ delete: 'rec-delete-p1' }}
+    />
+  )
+
+  const deleteButton = screen.getByTestId('rec-delete-p1')
+  expect(deleteButton).toHaveTextContent('×')
+  expect(deleteButton).toHaveClass('absolute', 'right-2', 'top-2')
+  fireEvent.click(deleteButton)
+  expect(onDelete).toHaveBeenCalledTimes(1)
+})
+
 it('renders long place names as clickable links that can wrap inside the card', () => {
   const longName = 'ThisIsAnExtremelyLongPlaceNameWithoutSpacesThatShouldNeverOverflowTheRecommendationCardFrame'
   render(<RecommendationCard rec={{ ...rec, name: longName }} dateIso="2026-07-01" onAdd={() => {}} />)

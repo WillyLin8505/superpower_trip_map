@@ -23,6 +23,7 @@ interface Props {
   recsRefreshing?: Partial<Record<Category, boolean>>
   recsError?: string | null
   onArchiveRecommendation?: (rec: DayRecommendation) => void
+  onDeleteRecommendation?: (rec: DayRecommendation) => void
   candidates: Candidate[]
   archived: Candidate[]
   onAddReservePlace: (place: Place) => void
@@ -91,6 +92,7 @@ export function SidePanel(props: Props) {
             refreshing={props.recsRefreshing}
             error={props.recsError}
             onArchive={props.onArchiveRecommendation}
+            onDelete={props.onDeleteRecommendation}
           />
         )}
         {tab === 'line' && (
@@ -116,17 +118,9 @@ export function SidePanel(props: Props) {
                       rec={archivedToRecommendation(archived)}
                       dateIso={props.dateIso}
                       onAdd={() => props.onAddArchivedToDay(archived.id, archived.place)}
+                      onDelete={() => props.onDeleteArchived(archived.id)}
+                      actionTestIds={{ delete: `archive-delete-${archived.id}` }}
                     />
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => props.onDeleteArchived(archived.id)}
-                        data-testid={`archive-delete-${archived.id}`}
-                        className="text-sm text-error hover:underline"
-                      >
-                        永久刪除
-                      </button>
-                    </div>
                   </li>
                 ))}
               </ul>

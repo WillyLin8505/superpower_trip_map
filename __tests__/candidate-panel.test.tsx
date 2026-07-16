@@ -14,7 +14,8 @@ function cand(id: string, name: string): Candidate {
       lineGroupId: 'group-1',
       lineDisplayName: 'Mina',
       messageId: 'msg-1',
-      messageText: '想去這裡吃晚餐',
+      messageText: 'https://line.example.com/discussion/thread-with-a-very-long-url-that-should-wrap-inside-the-card',
+      sourceUrl: 'https://maps.example.com/place/very-long-line-itinerary-url-that-should-wrap-inside-the-card',
     },
     place: { id, placeId: id, name, type: 'attraction', lat: 0, lng: 0, address: '', openingHours: null, rating: null, photoUrl: null, description: null },
   }
@@ -55,8 +56,22 @@ it('renders LINE candidates using recommendation-card style', () => {
   expect(screen.getByTestId('line-candidate-card-c1')).toBeInTheDocument()
   expect(screen.getByTestId('rec-c1')).toBeInTheDocument()
   expect(screen.getByText('台北101')).toBeInTheDocument()
-  expect(screen.getByText('LINE 討論：想去這裡吃晚餐')).toBeInTheDocument()
+  expect(screen.getByText(/LINE 討論：https:\/\/line\.example\.com/)).toBeInTheDocument()
   expect(screen.getByText(/LINE \/ Mina/)).toBeInTheDocument()
+})
+
+it('renders LINE itinerary and discussion URLs as clickable wrapped links', () => {
+  renderPanel([cand('c1', '台北101')])
+
+  const itineraryLink = screen.getByRole('link', { name: '行程' })
+  expect(itineraryLink).toHaveAttribute('href', 'https://maps.example.com/place/very-long-line-itinerary-url-that-should-wrap-inside-the-card')
+  expect(itineraryLink).toHaveClass('break-all')
+
+  const discussionLink = screen.getByRole('link', { name: '討論' })
+  expect(discussionLink).toHaveAttribute('href', 'https://line.example.com/discussion/thread-with-a-very-long-url-that-should-wrap-inside-the-card')
+  expect(discussionLink).toHaveClass('break-all')
+
+  expect(screen.getByText(/LINE 討論：https:\/\/line\.example\.com/)).toHaveClass('[overflow-wrap:anywhere]')
 })
 
 it('uses the same add and reserve icons as recommendation cards', () => {
@@ -71,6 +86,14 @@ it('uses the same add and reserve icons as recommendation cards', () => {
   expect(archiveButton).toHaveTextContent('💾')
   expect(archiveButton).toHaveClass('w-8', 'h-8', 'rounded-full', 'bg-clay')
   expect(archiveButton).not.toHaveTextContent('加入備用')
+})
+
+it('renders LINE delete as a top-right x inside the card', () => {
+  renderPanel([cand('c1', '台北101')])
+
+  const deleteButton = screen.getByTestId('line-candidate-delete-c1')
+  expect(deleteButton).toHaveTextContent('×')
+  expect(deleteButton).toHaveClass('absolute', 'right-2', 'top-2')
 })
 
 it('can add, move to reserve, and delete a LINE candidate', () => {
