@@ -78,10 +78,24 @@ async function fetchPlaceDetails(placeId: string, language?: 'zh-TW' | 'en') {
     metadata: { language: language ?? 'default' },
   })
   const data = await res.json()
+  // Throw on transient failures so the cached result never persists one.
+  if (data.status && RETRYABLE_GOOGLE_STATUSES.has(data.status)) {
+    throw new Error(`place_details_${data.status}`)
+  }
   return data.status === 'OK' ? data.result : null
 }
 
 export async function getPlaceDetails(placeId: string, originalNameHint?: string | null): Promise<Place | null> {
+  // 52% of Place Details calls were exact repeats. Cache the resolved Place by
+  // (placeId, name hint); a transient Google status throws inside fetchPlaceDetails
+  // so failures are not cached, while a genuine miss (null) is a deterministic
+  // result worth caching.
+  return cachedGoogle(['details', placeId, originalNameHint ?? ''], () =>
+    getPlaceDetailsUncached(placeId, originalNameHint),
+  )
+}
+
+async function getPlaceDetailsUncached(placeId: string, originalNameHint?: string | null): Promise<Place | null> {
   const [zhResult, nativeResult] = await Promise.all([
     fetchPlaceDetails(placeId, 'zh-TW'),
     originalNameHint ? Promise.resolve(null) : fetchPlaceDetails(placeId),
