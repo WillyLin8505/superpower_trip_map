@@ -50,7 +50,7 @@ function isMissingInviteCodeColumn(error: unknown): boolean {
 }
 
 async function requireUserId(): Promise<string> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('NOT_AUTHENTICATED')
   return user.id
@@ -186,7 +186,7 @@ export async function rotateInvite(tripId: string): Promise<{ token: string; cod
 }
 
 export async function listMembers(tripId: string): Promise<TripMember[]> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
@@ -235,7 +235,7 @@ export async function listMembers(tripId: string): Promise<TripMember[]> {
 
 export async function removeMember(tripId: string, userId: string): Promise<void> {
   await requireUserId()
-  const supabase = createClient()
+  const supabase = await createClient()
   const { error } = await supabase
     .from('trip_members')
     .delete()
@@ -247,7 +247,7 @@ export async function removeMember(tripId: string, userId: string): Promise<void
 
 export async function leaveTrip(tripId: string): Promise<void> {
   const currentUserId = await requireUserId()
-  const supabase = createClient()
+  const supabase = await createClient()
   const { error } = await supabase
     .from('trip_members')
     .delete()

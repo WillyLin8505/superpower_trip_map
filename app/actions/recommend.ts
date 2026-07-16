@@ -150,8 +150,16 @@ async function getDayRecommendationsImpl(
 
     if (centroid) {
       try {
-        for (const category of REC_CATEGORIES) {
-          if (dayResult[category].shown.length >= REC_LIMIT) continue
+        const missingCategories = REC_CATEGORIES.filter((category) => dayResult[category].shown.length < REC_LIMIT)
+        const originalShownIdsByCategory = new Map<
+          'dessert' | 'attraction' | 'restaurant',
+          Set<string>
+        >()
+        const filledCategories = await Promise.all(missingCategories.map(async (category) => {
+          originalShownIdsByCategory.set(
+            category,
+            new Set(dayResult[category].shown.map((item) => item.placeId))
+          )
           const have = new Set<string>([
             ...Array.from(existingIds),
             ...Array.from(recommendedIds),
@@ -160,9 +168,28 @@ async function getDayRecommendationsImpl(
               ...dayResult[c].reserve.map((x) => x.placeId),
             ]),
           ])
-          await fillFromOpenPoiThenGoogle(dayResult[category].shown, centroid, category, have)
-          dayResult[category].shown.forEach((item) => recommendedIds.add(item.placeId))
+          const shown = [...dayResult[category].shown]
+          await fillFromOpenPoiThenGoogle(shown, centroid, category, have)
+          return { category, shown }
+        }))
+
+        const acceptedIds = new Set<string>([...Array.from(existingIds), ...Array.from(recommendedIds)])
+        for (const { category, shown } of filledCategories) {
+          const originalShownIds = originalShownIdsByCategory.get(category) ?? new Set<string>()
+          const deduped = shown.filter((item) => {
+            if (originalShownIds.has(item.placeId)) {
+              acceptedIds.add(item.placeId)
+              return true
+            }
+            if (acceptedIds.has(item.placeId)) return false
+            acceptedIds.add(item.placeId)
+            return true
+          })
+          dayResult[category] = { ...dayResult[category], shown: deduped }
         }
+        REC_CATEGORIES.forEach((category) =>
+          dayResult[category].shown.forEach((item) => recommendedIds.add(item.placeId))
+        )
       } catch {
         // best-effort fill: leave this day's buckets as-is and continue
       }

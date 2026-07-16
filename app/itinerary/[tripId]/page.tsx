@@ -7,20 +7,21 @@ import { createClient } from '@/lib/supabase/server'
 import { ItineraryClient } from '@/app/itinerary/ItineraryClient'
 import { MembersPanel } from '@/components/MembersPanel'
 
-export default async function TripPage({ params }: { params: { tripId: string } }) {
-  const trip = await getTrip(params.tripId)
+export default async function TripPage({ params }: { params: Promise<{ tripId: string }> }) {
+  const { tripId } = await params
+  const trip = await getTrip(tripId)
   if (!trip) notFound()
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   const isOwner = user?.id === trip.ownerId
-  const members = await listMembers(params.tripId)
-  const candidates = await listCandidates(params.tripId)
-  const archived = await listArchived(params.tripId)
-  const initialCostUsd = await getTripEstimatedCostUsd(params.tripId)
+  const members = await listMembers(tripId)
+  const candidates = await listCandidates(tripId)
+  const archived = await listArchived(tripId)
+  const initialCostUsd = await getTripEstimatedCostUsd(tripId)
   return (
     <>
-      <MembersPanel tripId={params.tripId} members={members} isOwner={isOwner} />
-      <ItineraryClient initial={trip.plan} tripId={params.tripId} initialCandidates={candidates} initialArchived={archived} initialCostUsd={initialCostUsd} />
+      <MembersPanel tripId={tripId} members={members} isOwner={isOwner} />
+      <ItineraryClient initial={trip.plan} tripId={tripId} initialCandidates={candidates} initialArchived={archived} initialCostUsd={initialCostUsd} />
     </>
   )
 }

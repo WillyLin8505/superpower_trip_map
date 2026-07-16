@@ -4,7 +4,7 @@ import { listTrips } from '@/app/actions/trips'
 import { TripsView } from '@/components/TripsView'
 
 export default async function TripsPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login?next=/trips')
   const trips = await listTrips()

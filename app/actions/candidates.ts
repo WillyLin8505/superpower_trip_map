@@ -71,7 +71,7 @@ async function resolveCandidateNames(
 }
 
 export async function addCandidate(tripId: string, place: Place): Promise<{ id: string }> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('NOT_AUTHENTICATED')
   const { data, error } = await supabase
@@ -84,7 +84,7 @@ export async function addCandidate(tripId: string, place: Place): Promise<{ id: 
 }
 
 export async function listCandidates(tripId: string): Promise<Candidate[]> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
   const { data, error } = await supabase
@@ -109,7 +109,7 @@ export async function listCandidates(tripId: string): Promise<Candidate[]> {
 }
 
 export async function removeCandidate(candidateId: string): Promise<void> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('NOT_AUTHENTICATED')
   const { data, error } = await supabase
@@ -121,7 +121,7 @@ export async function removeCandidate(candidateId: string): Promise<void> {
 }
 
 export async function archiveCandidate(candidateId: string): Promise<{ id: string }> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('NOT_AUTHENTICATED')
   await requireCandidateAccess(candidateId, user.id)
@@ -144,7 +144,7 @@ export async function archiveCandidate(candidateId: string): Promise<{ id: strin
 // that existing row to list='archived' instead of silently no-op'ing (a plain "duplicate
 // -> do nothing" would mean archiving an existing candidate never actually archives it).
 export async function archivePlace(tripId: string, place: Place): Promise<{ id: string }> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('NOT_AUTHENTICATED')
   if (!(await canAccessTrip(tripId, user.id))) throw new Error('NOT_AUTHORIZED')
@@ -176,7 +176,7 @@ export async function archivePlace(tripId: string, place: Place): Promise<{ id: 
 }
 
 export async function listArchived(tripId: string): Promise<Candidate[]> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
   if (!(await canAccessTrip(tripId, user.id))) return []

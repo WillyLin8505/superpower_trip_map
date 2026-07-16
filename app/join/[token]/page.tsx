@@ -4,23 +4,24 @@ import { joinTrip } from '@/app/actions/members'
 import { createClient } from '@/lib/supabase/server'
 
 type JoinPageProps = {
-  params: {
+  params: Promise<{
     token: string
-  }
+  }>
 }
 
 export default async function JoinPage({ params }: JoinPageProps) {
-  const supabase = createClient()
+  const { token } = await params
+  const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect(`/login?next=${encodeURIComponent(`/join/${params.token}`)}`)
+    redirect(`/login?next=${encodeURIComponent(`/join/${token}`)}`)
   }
 
   try {
-    const { tripId } = await joinTrip(params.token)
+    const { tripId } = await joinTrip(token)
     redirect(`/itinerary/${tripId}`)
   } catch (error) {
     if (error instanceof Error && error.message === 'INVALID_INVITE') {

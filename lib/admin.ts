@@ -9,7 +9,7 @@ export function isAdminEmail(email: string | null | undefined): boolean {
 }
 
 export async function requireAdmin() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!isAdminEmail(user?.email)) {
     throw new Error('NOT_ADMIN')

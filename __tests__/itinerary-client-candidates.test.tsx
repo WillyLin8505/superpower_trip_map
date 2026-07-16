@@ -175,7 +175,7 @@ it('adds a LINE Bot candidate into the day and removes it from LINE discussion',
   render(<ItineraryClient initial={plan()} tripId="t1" initialCandidates={[lineCandidate()]} />)
   const day = openTab('side-panel-tab-line')
 
-  fireEvent.click(within(day).getByTestId('rec-add-c1'))
+  fireEvent.click(within(day).getByTestId('line-candidate-add-c1'))
 
   await waitFor(() => expect(removeCandidate).toHaveBeenCalledWith('c1'))
   await waitFor(() => expect(within(day).queryByTestId('line-candidate-card-c1')).not.toBeInTheDocument())
@@ -186,7 +186,7 @@ it('moves a LINE Bot candidate to reserve and removes it from LINE discussion', 
   render(<ItineraryClient initial={plan()} tripId="t1" initialCandidates={[lineCandidate()]} />)
   const day = openTab('side-panel-tab-line')
 
-  fireEvent.click(within(screen.getByTestId('line-candidate-card-c1')).getByRole('button', { name: '\u79fb\u5230\u5099\u7528' }))
+  fireEvent.click(within(day).getByTestId('line-candidate-archive-c1'))
 
   await waitFor(() => expect(archiveCandidate).toHaveBeenCalledWith('c1'))
   await waitFor(() => expect(within(day).queryByTestId('line-candidate-card-c1')).not.toBeInTheDocument())

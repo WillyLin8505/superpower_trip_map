@@ -74,10 +74,10 @@ it('can add, move to reserve, and delete a LINE candidate', () => {
     />,
   )
 
-  fireEvent.click(screen.getByTestId('rec-add-c1'))
+  fireEvent.click(screen.getByTestId('line-candidate-add-c1'))
   expect(onAdd).toHaveBeenCalledWith('c1', candidate.place)
 
-  fireEvent.click(screen.getByRole('button', { name: '\u79fb\u5230\u5099\u7528' }))
+  fireEvent.click(screen.getByTestId('line-candidate-archive-c1'))
   expect(onArchive).toHaveBeenCalledWith(candidate)
 
   fireEvent.click(screen.getByTestId('line-candidate-delete-c1'))

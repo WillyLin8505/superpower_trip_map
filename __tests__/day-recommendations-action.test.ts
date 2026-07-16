@@ -101,6 +101,33 @@ it('can fill Google recommendations from Nearby Search without per-card Place De
   expect(gd).not.toHaveBeenCalled()
 })
 
+it('starts same-day category recommendation lookups in parallel to reduce initial wait time', async () => {
+  r.mockResolvedValue('[]')
+  ns.mockResolvedValue([])
+  const pending: Array<{ type: Place['type']; resolve: (places: Place[]) => void }> = []
+  ops.mockImplementation((_lat: number, _lng: number, type: Place['type']) =>
+    new Promise<Place[]>((resolve) => {
+      pending.push({ type, resolve })
+    })
+  )
+
+  const resultPromise = getDayRecommendations([oneDay('existing')])
+  await Promise.resolve()
+
+  expect(pending.map((request) => request.type)).toEqual(
+    expect.arrayContaining(['dessert', 'attraction', 'restaurant'])
+  )
+
+  pending.forEach(({ type, resolve }) => {
+    resolve(Array.from({ length: 5 }, (_, i) => place(`open-${type}-${i}`, type)))
+  })
+
+  const result = await resultPromise
+  expect(result[0].dessert.shown).toHaveLength(5)
+  expect(result[0].attraction.shown).toHaveLength(5)
+  expect(result[0].restaurant.shown).toHaveLength(5)
+})
+
 it('uses website extractions first, then fills the remainder', async () => {
   r.mockResolvedValue(JSON.stringify([{ id: 's1', url: 'http://x', label: '部落格', lastFetchedAt: null, lastFetchStatus: null }]))
   st.mockResolvedValue('某甜點店 很好吃')

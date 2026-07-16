@@ -4,9 +4,31 @@ import { PhotoStrip } from '@/components/PhotoStrip'
 
 describe('PhotoStrip', () => {
   const realFetch = global.fetch
+  const realIntersectionObserver = window.IntersectionObserver
+
+  class MockIntersectionObserver {
+    static instances: MockIntersectionObserver[] = []
+    readonly callback: IntersectionObserverCallback
+
+    constructor(callback: IntersectionObserverCallback) {
+      this.callback = callback
+      MockIntersectionObserver.instances.push(this)
+    }
+
+    observe = jest.fn()
+    unobserve = jest.fn()
+    disconnect = jest.fn()
+
+    intersect(isIntersecting = true) {
+      this.callback([{ isIntersecting } as IntersectionObserverEntry], this as unknown as IntersectionObserver)
+    }
+  }
 
   afterEach(() => {
     global.fetch = realFetch
+    window.IntersectionObserver = realIntersectionObserver
+    window.sessionStorage.clear()
+    MockIntersectionObserver.instances = []
     jest.restoreAllMocks()
   })
 
@@ -81,6 +103,41 @@ describe('PhotoStrip', () => {
     expect(await screen.findByTestId('photo-thumb-0')).toBeInTheDocument()
     expect(screen.getByTestId('photo-thumb-0').querySelector('img')).toHaveAttribute('src', '/api/photo?ref=cover')
     expect(global.fetch).toHaveBeenCalledWith('/api/place-photos?placeId=place-1&limit=1')
+  })
+
+  it('waits until the photo slot is near the viewport before fetching a missing cover', async () => {
+    window.IntersectionObserver = MockIntersectionObserver as unknown as typeof IntersectionObserver
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ photoUrls: ['/api/photo?ref=cover'] }),
+    }) as unknown as typeof fetch
+
+    render(<PhotoStrip placeId="place-1" placeName="Avoccino" photos={[]} />)
+
+    expect(screen.getByTestId('photo-placeholder')).toBeInTheDocument()
+    expect(global.fetch).not.toHaveBeenCalled()
+
+    MockIntersectionObserver.instances[0].intersect()
+
+    expect(await screen.findByTestId('photo-thumb-0')).toBeInTheDocument()
+    expect(global.fetch).toHaveBeenCalledWith('/api/place-photos?placeId=place-1&limit=1')
+  })
+
+  it('deduplicates simultaneous missing-cover requests for the same place', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ photoUrls: ['/api/photo?ref=cover'] }),
+    }) as unknown as typeof fetch
+
+    render(
+      <>
+        <PhotoStrip placeId="place-1" placeName="First" photos={[]} />
+        <PhotoStrip placeId="place-1" placeName="Second" photos={[]} />
+      </>
+    )
+
+    expect(await screen.findAllByTestId('photo-thumb-0')).toHaveLength(2)
+    expect(global.fetch).toHaveBeenCalledTimes(1)
   })
 
   it('closes the lightbox with Escape', () => {

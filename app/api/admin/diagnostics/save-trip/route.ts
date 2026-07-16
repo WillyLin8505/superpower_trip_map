@@ -66,7 +66,7 @@ export async function POST() {
       detail: { userId: adminUser.id, email: adminUser.email ?? null },
     })
 
-    const supabase = createClient()
+    const supabase = await createClient()
     const service = createAdminClient()
 
     const userResult = await captureStep(steps, 'server-cookie-auth', async () => {

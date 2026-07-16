@@ -1,4 +1,5 @@
 import { ItineraryClient } from '../itinerary/ItineraryClient'
+import { notFound } from 'next/navigation'
 import type { Candidate, PlanResult } from '@/lib/types'
 
 const FIXTURE: PlanResult = {
@@ -137,5 +138,7 @@ const LINE_CANDIDATES: Candidate[] = [
 ]
 
 export default function TestDragPage() {
+  if (process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production') notFound()
+
   return <ItineraryClient initial={FIXTURE} tripId="test-trip" initialCandidates={LINE_CANDIDATES} />
 }

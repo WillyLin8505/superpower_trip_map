@@ -9,7 +9,7 @@ export default async function AdminPage() {
   try {
     await requireAdmin()
   } catch {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     const email = user?.email ?? null
     const adminEmailsConfigured = Boolean(process.env.ADMIN_EMAILS?.trim())

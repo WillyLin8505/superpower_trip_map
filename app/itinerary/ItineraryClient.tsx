@@ -16,7 +16,6 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import type { PlanResult, ScheduledPlace, Place, PlaceType, TransportMode, RecommendationsByDay, DayRecommendation, RecommendationCenter, Candidate } from '@/lib/types'
-import type { PlaceIndexSource } from '@/lib/userPlaceIndex'
 import { recalcPlan } from '@/lib/utils/clientScheduler'
 import { addDays, daysBetween, dayDate } from '@/lib/utils/date'
 import { legInfo, computeLegPlan } from '@/app/actions/legs'
@@ -38,6 +37,13 @@ import { AiRearrangeInput } from '@/components/AiRearrangeInput'
 import { createTripSafe, saveTripSafe } from '@/app/actions/trips'
 import { archiveCandidate, archivePlace, removeCandidate, unarchivePlace } from '@/app/actions/candidates'
 import { checkLateExit, checkOutsideHours } from '@/lib/utils/hours'
+import {
+  archivePlaceKey,
+  filterRecommendationsByUnavailable,
+  inferPlaceIndexSource,
+  unavailableRecommendationKeys,
+  upsertArchived,
+} from '@/lib/itineraryClientState'
 
 type SidePanelTab = 'recommend' | 'line' | 'reserve'
 
@@ -56,56 +62,6 @@ function renumberDays<T extends { day: number }>(days: T[]): T[] {
 function timeToMin(t: string): number {
   const [h, m] = t.split(':').map(Number)
   return h * 60 + m
-}
-
-function archivePlaceKey(place: Place): string {
-  return place.placeId ? `place:${place.placeId}` : `local:${place.id}`
-}
-
-function upsertArchived(current: Candidate[], next: Candidate, previousId?: string): Candidate[] {
-  const nextKey = archivePlaceKey(next.place)
-  return [
-    ...current.filter((candidate) =>
-      candidate.id !== previousId &&
-      candidate.id !== next.id &&
-      archivePlaceKey(candidate.place) !== nextKey
-    ),
-    next,
-  ]
-}
-
-function unavailableRecommendationKeys(
-  days: PlanResult['days'],
-  lineCandidates: Candidate[],
-  archivedCandidates: Candidate[]
-): Set<string> {
-  const keys = new Set<string>()
-  days.forEach((day) => day.places.forEach((place) => keys.add(archivePlaceKey(place))))
-  lineCandidates.forEach((candidate) => keys.add(archivePlaceKey(candidate.place)))
-  archivedCandidates.forEach((candidate) => keys.add(archivePlaceKey(candidate.place)))
-  return keys
-}
-
-function filterRecommendationsByUnavailable(
-  recommendations: RecommendationsByDay | null,
-  unavailableKeys: Set<string>
-): RecommendationsByDay | null {
-  if (!recommendations || unavailableKeys.size === 0) return recommendations
-
-  return recommendations.map((dayRecommendations) => ({
-    dessert: {
-      shown: dayRecommendations.dessert.shown.filter((recommendation) => !unavailableKeys.has(archivePlaceKey(recommendation))),
-      reserve: dayRecommendations.dessert.reserve.filter((recommendation) => !unavailableKeys.has(archivePlaceKey(recommendation))),
-    },
-    attraction: {
-      shown: dayRecommendations.attraction.shown.filter((recommendation) => !unavailableKeys.has(archivePlaceKey(recommendation))),
-      reserve: dayRecommendations.attraction.reserve.filter((recommendation) => !unavailableKeys.has(archivePlaceKey(recommendation))),
-    },
-    restaurant: {
-      shown: dayRecommendations.restaurant.shown.filter((recommendation) => !unavailableKeys.has(archivePlaceKey(recommendation))),
-      reserve: dayRecommendations.restaurant.reserve.filter((recommendation) => !unavailableKeys.has(archivePlaceKey(recommendation))),
-    },
-  }))
 }
 
 function refreshPlanWarningsOnly(plan: PlanResult): PlanResult {
@@ -127,14 +83,6 @@ function refreshPlanWarningsOnly(plan: PlanResult): PlanResult {
       }
     }),
   }
-}
-
-function inferPlaceIndexSource(placeId: string, source?: Place['source']): PlaceIndexSource {
-  if (source) return source
-  const prefix = placeId.split(':', 1)[0]
-  return prefix === 'overture' || prefix === 'osm' || prefix === 'wikidata' || prefix === 'user'
-    ? prefix
-    : 'google'
 }
 
 async function fetchDetailsOnAdd(rec: DayRecommendation, tripId?: string): Promise<Place | null> {
@@ -1018,6 +966,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   return (
     <main className="max-w-5xl mx-auto px-4 py-10">
       <div className="flex items-center justify-between mb-6">
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a href="/" className="text-clay text-sm inline-block">&#x2190; 重新規劃</a>
         {currentTripId && <TripCostBadge usd={costUsd} />}
         {currentTripId ? (

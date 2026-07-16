@@ -24,7 +24,7 @@ function toSource(row: SourceRow): Source {
 }
 
 export async function getSources(): Promise<Source[]> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('sources')
     .select('id, url, label, last_fetched_at, last_fetch_status')

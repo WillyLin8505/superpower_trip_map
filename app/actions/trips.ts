@@ -73,7 +73,7 @@ async function requireTripAccess(tripId: string, userId: string): Promise<SaveTr
 }
 
 export async function createTrip(plan: PlanResult, title: string): Promise<{ tripId: string }> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('NOT_AUTHENTICATED')
   const { data, error } = await supabase
@@ -95,7 +95,7 @@ export async function createTrip(plan: PlanResult, title: string): Promise<{ tri
 
 export async function createTripSafe(plan: PlanResult, title: string): Promise<CreateTripResult> {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { ok: false, error: 'NOT_AUTHENTICATED' }
 
@@ -124,7 +124,7 @@ export async function createTripSafe(plan: PlanResult, title: string): Promise<C
 }
 
 export async function getTrip(tripId: string): Promise<{ plan: PlanResult; title: string; ownerId: string } | null> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
@@ -143,7 +143,7 @@ export async function getTrip(tripId: string): Promise<{ plan: PlanResult; title
 }
 
 export async function saveTrip(tripId: string, plan: PlanResult): Promise<void> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('trips')
     .update({ plan, updated_at: new Date().toISOString() })
@@ -164,7 +164,7 @@ export async function saveTrip(tripId: string, plan: PlanResult): Promise<void> 
 
 export async function saveTripSafe(tripId: string, plan: PlanResult): Promise<SaveTripResult> {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { ok: false, error: 'NOT_AUTHENTICATED' }
 
@@ -205,7 +205,7 @@ export async function saveTripSafe(tripId: string, plan: PlanResult): Promise<Sa
 }
 
 export async function listTrips(): Promise<TripSummary[]> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('trips')
     .select('id, title, updated_at')
@@ -217,13 +217,13 @@ export async function listTrips(): Promise<TripSummary[]> {
 }
 
 export async function renameTrip(tripId: string, title: string): Promise<void> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data, error } = await supabase.from('trips').update({ title }).eq('id', tripId).select('id')
   if (error || !data?.length) throw new Error('改名失敗，請稍後再試')
 }
 
 export async function deleteTrip(tripId: string): Promise<void> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data, error } = await supabase.from('trips').delete().eq('id', tripId).select('id')
   if (error || !data?.length) throw new Error('刪除失敗，請稍後再試')
 }
