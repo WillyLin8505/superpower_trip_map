@@ -1170,6 +1170,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
                 index={activePlaceIndex}
                 dateIso={plan.startDate}
                 draggable={false}
+                compact
               />
             </div>
           ) : null}

@@ -35,9 +35,10 @@ interface Props {
   onDeletePlace?: (placeId: string) => void
   onArchive?: (place: ScheduledPlace) => void
   dayEnd?: string
+  compact?: boolean
 }
 
-export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType, onChangeLegMode, legBusy, onDeletePlace, onArchive, dayEnd }: Props) {
+export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType, onChangeLegMode, legBusy, onDeletePlace, onArchive, dayEnd, compact = false }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: place.id, disabled: !draggable })
 
@@ -61,6 +62,34 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
   const mapsUrl = googleMapsSearchUrl(place, displayName.primary)
   const endTime = addMinutes(place.startTime, place.durationMin)
   const photos = place.photoUrls?.length ? place.photoUrls : place.photoUrl ? [place.photoUrl] : []
+  const isCompact = compact || isDragging
+
+  if (isCompact) {
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className={`border border-l-4 rounded-xl p-3 ${meta.cardBg} ${meta.accent} ${place.outsideHours ? 'border-warn' : 'border-border'}`}
+        data-testid={`card-${place.id}`}
+      >
+        <div className="flex items-center gap-3">
+          <span className="w-7 h-7 rounded-full bg-clay text-white text-sm font-bold flex items-center justify-center shrink-0">
+            {index + 1}
+          </span>
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <h3 className="font-semibold text-ink min-w-0 truncate">
+              <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted underline-offset-2 hover:text-clay-deep">
+                {displayName.primary}
+              </a>
+            </h3>
+            <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${meta.badge}`}>
+              {meta.label}
+            </span>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div

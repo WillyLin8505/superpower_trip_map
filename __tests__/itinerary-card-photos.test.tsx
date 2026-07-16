@@ -2,6 +2,8 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { ScheduledPlace } from '@/lib/types'
 
+let sortableIsDragging = false
+
 jest.mock('@dnd-kit/sortable', () => ({
   useSortable: () => ({
     attributes: {},
@@ -9,7 +11,7 @@ jest.mock('@dnd-kit/sortable', () => ({
     setNodeRef: jest.fn(),
     transform: null,
     transition: null,
-    isDragging: false,
+    isDragging: sortableIsDragging,
   }),
 }))
 
@@ -48,6 +50,10 @@ const basePlace: ScheduledPlace = {
   startLocked: false,
   durationLocked: false,
 }
+
+beforeEach(() => {
+  sortableIsDragging = false
+})
 
 it('shows a cover photo and previews additional photos from the lightbox', async () => {
   render(
@@ -93,4 +99,48 @@ it('falls back to legacy single photoUrl when photoUrls is absent', () => {
   )
 
   expect(screen.getByTestId('photo-thumb-0')).toBeInTheDocument()
+})
+
+it('collapses to title and type badge while the card is being dragged', () => {
+  sortableIsDragging = true
+
+  render(
+    <ItineraryCard
+      place={{
+        ...basePlace,
+        photoUrl: '/api/photo?ref=one',
+        description: '咖啡甜點店',
+      }}
+      index={0}
+      dateIso="2026-07-12"
+      draggable
+    />
+  )
+
+  expect(screen.getByRole('heading', { name: 'Avoccino' })).toBeInTheDocument()
+  expect(screen.getByText('甜點')).toBeInTheDocument()
+  expect(screen.queryByTestId('photo-thumb-0')).not.toBeInTheDocument()
+  expect(screen.queryByText('09:00')).not.toBeInTheDocument()
+  expect(screen.queryByText(/評分/)).not.toBeInTheDocument()
+  expect(screen.queryByText('咖啡甜點店')).not.toBeInTheDocument()
+})
+
+it('supports an explicit compact preview for the drag overlay', () => {
+  render(
+    <ItineraryCard
+      {...({ compact: true } as { compact: boolean })}
+      place={{
+        ...basePlace,
+        photoUrl: '/api/photo?ref=one',
+        description: '咖啡甜點店',
+      }}
+      index={0}
+      dateIso="2026-07-12"
+    />
+  )
+
+  expect(screen.getByRole('heading', { name: 'Avoccino' })).toBeInTheDocument()
+  expect(screen.getByText('甜點')).toBeInTheDocument()
+  expect(screen.queryByTestId('photo-thumb-0')).not.toBeInTheDocument()
+  expect(screen.queryByText('09:00')).not.toBeInTheDocument()
 })
