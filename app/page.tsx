@@ -95,7 +95,7 @@ export default function InputPage() {
       <button
         onClick={handleSubmit}
         disabled={places.length < 2}
-        className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold text-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+        className="w-full bg-clay text-white py-3 rounded-xl font-semibold text-lg hover:bg-clay-deep disabled:opacity-40 disabled:cursor-not-allowed"
       >
         開始規劃 →
       </button>

@@ -232,7 +232,16 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
         return result.tripId
       }
       if (result.error === 'NOT_AUTHENTICATED') {
-        router.push(`/login?next=${encodeURIComponent('/itinerary')}`)
+        // Don't silently eject the user mid-flow (e.g. tapping 移到備用 on an
+        // unsaved trip used to hard-redirect to /login with no explanation).
+        const goLogin = typeof window === 'undefined' || window.confirm(
+          '這個動作需要先登入並儲存行程。要前往登入嗎？（目前的行程會保留，登入後可繼續）'
+        )
+        if (goLogin) {
+          router.push(`/login?next=${encodeURIComponent('/itinerary')}`)
+        } else {
+          setSaveState('idle')
+        }
       } else {
         setSaveError(result.error)
         setSaveState('error')

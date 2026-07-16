@@ -21,7 +21,7 @@ export async function buildDistanceMatrix(
   const indices = places.map((p) => p.placeId)
 
   const haversineMatrix = () =>
-    places.map((a) => places.map((b) => haversineSeconds(a, b)))
+    places.map((a) => places.map((b) => haversineSeconds(a, b, mode)))
   const haversineDistanceMatrix = () =>
     places.map((a) => places.map((b) => haversineMeters(a, b)))
   const fallback = () => ({ indices, matrix: haversineMatrix(), distances: haversineDistanceMatrix() })
@@ -69,7 +69,7 @@ export async function buildDistanceMatrix(
     interface DMatrixRow { elements: DMatrixElement[] }
     const matrix = data.rows.map((row: DMatrixRow, i: number) =>
       row.elements.map((el: DMatrixElement, j: number) =>
-        el.status === 'OK' ? el.duration.value : haversineSeconds(places[i], places[j])
+        el.status === 'OK' ? el.duration.value : haversineSeconds(places[i], places[j], mode)
       )
     )
     const distances = data.rows.map((row: DMatrixRow, i: number) =>

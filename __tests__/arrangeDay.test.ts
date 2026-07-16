@@ -77,3 +77,26 @@ it('no-op when both options are off (order unchanged, travel still refreshed)', 
   const out = arrangeDayOrder(day, dateIso, inputsCrowd, { avoidTraffic: false, avoidCrowds: false })
   expect(names(out)).toEqual(['A', 'B', 'C'])
 })
+
+it('does not schedule a place outside its opening hours when another order avoids it', () => {
+  // 夜市 opens 16:00–22:00; two all-day places with long stays so the LAST slot
+  // lands after 16:00 (making "Night last" the only penalty-free order).
+  // dateIso 2026-07-04 = 星期六 (weekday index 5).
+  const hours = ['','','','','','星期六: 16:00 – 22:00','']
+  const night = sp('Night', { openingHours: hours })
+  const morningA = sp('MA', { durationMin: 220 }), morningB = sp('MB', { durationMin: 220 })
+  const d: DayItinerary = { day: 1, places: [night, morningA, morningB], aiSummary: null, dayStart: '09:00', dayEnd: '21:00' }
+  // symmetric matrix favoring the original order slightly (travel alone would keep Night first)
+  const inputs: DayArrangeInputs = {
+    indices: ['Night', 'MA', 'MB'],
+    matrix: [
+      [0, 600, 1200],
+      [600, 0, 600],
+      [1200, 600, 0],
+    ],
+    crowdByPlaceId: {},
+  }
+  const result = arrangeDayOrder(d, dateIso, inputs, { avoidTraffic: true, avoidCrowds: false })
+  // the opening-hours penalty must push the night market out of the 09:00 slot
+  expect(result[0].placeId).not.toBe('Night')
+})

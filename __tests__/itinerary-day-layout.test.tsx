@@ -55,3 +55,16 @@ it('day column and side panel share the same row container with equal-height str
   expect(row).toContainElement(screen.getByTestId('side-panel'))
   expect(row.className).toContain('items-stretch')
 })
+
+it('stacks on small screens: row is flex-col below lg, side panel full-width below lg', () => {
+  // QA regression: at 375px the fixed w-96 panel squeezed the itinerary to ~120px
+  render(
+    <ItineraryDay day={day} dayIdx={0} mode="driving" startDate="2026-07-01" onAddRecommendation={() => {}} />
+  )
+  const row = screen.getByTestId('day-content-row')
+  expect(row.className).toContain('flex-col')
+  expect(row.className).toContain('lg:flex-row')
+  const panelWrap = screen.getByTestId('side-panel').parentElement as HTMLElement
+  expect(panelWrap.className).toContain('w-full')
+  expect(panelWrap.className).toContain('lg:w-96')
+})

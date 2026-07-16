@@ -127,11 +127,24 @@ it('anon mode: 儲存行程 click creates trip without remounting the itinerary'
   replaceState.mockRestore()
 })
 
-it('anon mode: NOT_AUTHENTICATED routes to /login?next=/itinerary', async () => {
+it('anon mode: NOT_AUTHENTICATED asks first, then routes to /login?next=/itinerary on confirm', async () => {
   createTripSafe.mockResolvedValue({ ok: false, error: 'NOT_AUTHENTICATED' })
+  const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true)
   render(<ItineraryClient initial={plan()} />)
   fireEvent.click(screen.getByRole('button', { name: '儲存行程' }))
   await waitFor(() => expect(push).toHaveBeenCalledWith('/login?next=%2Fitinerary'))
+  expect(confirmSpy).toHaveBeenCalled()
+  confirmSpy.mockRestore()
+})
+
+it('anon mode: NOT_AUTHENTICATED stays on the page when the user declines login', async () => {
+  createTripSafe.mockResolvedValue({ ok: false, error: 'NOT_AUTHENTICATED' })
+  const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false)
+  render(<ItineraryClient initial={plan()} />)
+  fireEvent.click(screen.getByRole('button', { name: '儲存行程' }))
+  await waitFor(() => expect(confirmSpy).toHaveBeenCalled())
+  expect(push).not.toHaveBeenCalled()
+  confirmSpy.mockRestore()
 })
 
 it('anon mode: other error sets saveState to error (no redirect)', async () => {

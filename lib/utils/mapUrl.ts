@@ -28,8 +28,10 @@ export function buildDayEmbedUrl(
     middle.length > 0
       ? `&waypoints=${encodeURIComponent(middle.map((p) => `${p.lat},${p.lng}`).join('|'))}`
       : ''
+  // www.google.com is the canonical Maps Embed API host; maps.google.com only
+  // works via redirect and intermittently rendered blank iframes in production.
   return (
-    `https://maps.google.com/maps/embed/v1/directions` +
+    `https://www.google.com/maps/embed/v1/directions` +
     `?key=${key}` +
     `&origin=${origin}` +
     `&destination=${destination}` +

@@ -174,7 +174,8 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
           />
         </div>
       )}
-      <div className="flex gap-6 items-stretch" data-testid="day-content-row">
+      {/* Stack below lg: the fixed side panel squeezed the itinerary to ~120px on phones */}
+      <div className="flex flex-col lg:flex-row gap-6 items-stretch" data-testid="day-content-row">
         <div
           ref={setNodeRef}
           className={`flex-1 space-y-3 rounded-lg transition-colors min-h-[60px] ${isOver ? 'ring-2 ring-clay bg-clay-tint' : ''}`}
@@ -217,7 +218,7 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
           })()}
         </div>
         {onAddRecommendation && (
-          <div className="w-96 shrink-0">
+          <div className="w-full lg:w-96 shrink-0">
             <SidePanel
               dateIso={dayDate(startDate, day.day)}
               recommendations={recommendations}
