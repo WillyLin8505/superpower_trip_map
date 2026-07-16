@@ -114,10 +114,18 @@ describe('getPlaceDetails caching', () => {
     expect(mockTracked.mock.calls.length).toBe(afterFirst)
   })
 
-  it('throws on a transient status and does not cache it (retry succeeds)', async () => {
+  it('returns null on a transient status without caching it (retry succeeds)', async () => {
     mockTracked.mockResolvedValueOnce({ json: async () => ({ status: 'OVER_QUERY_LIMIT' }) })
-    await expect(getPlaceDetails('pid-2', 'x')).rejects.toThrow(/OVER_QUERY_LIMIT/)
-    const place = await getPlaceDetails('pid-2', 'x')
+    const failed = await getPlaceDetails('pid-2', 'x')
+    expect(failed).toBeNull() // preserves the null-on-failure contract, does not throw
+    const place = await getPlaceDetails('pid-2', 'x') // not served from a poisoned cache
     expect(place?.name).toBe('鼎泰豐')
+  })
+
+  it('mints a fresh app-level id per call even on a cache hit', async () => {
+    const a = await getPlaceDetails('pid-3', 'y')
+    const b = await getPlaceDetails('pid-3', 'y')
+    expect(a?.id).not.toBe(b?.id)
+    expect(a?.placeId).toBe(b?.placeId)
   })
 })

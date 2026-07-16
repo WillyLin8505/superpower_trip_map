@@ -87,12 +87,20 @@ async function fetchPlaceDetails(placeId: string, language?: 'zh-TW' | 'en') {
 
 export async function getPlaceDetails(placeId: string, originalNameHint?: string | null): Promise<Place | null> {
   // 52% of Place Details calls were exact repeats. Cache the resolved Place by
-  // (placeId, name hint); a transient Google status throws inside fetchPlaceDetails
-  // so failures are not cached, while a genuine miss (null) is a deterministic
-  // result worth caching.
-  return cachedGoogle(['details', placeId, originalNameHint ?? ''], () =>
-    getPlaceDetailsUncached(placeId, originalNameHint),
-  )
+  // (placeId, name hint). A transient Google status throws inside the fetcher so
+  // the failure is never cached — but we then catch it here and return null,
+  // preserving getPlaceDetails' long-standing "null on failure" contract (callers
+  // like plan.ts / searchPlace are not prepared for a rejection).
+  try {
+    const place = await cachedGoogle(['details', placeId, originalNameHint ?? ''], () =>
+      getPlaceDetailsUncached(placeId, originalNameHint),
+    )
+    // The cached Place carries one frozen randomUUID; mint a fresh app-level id
+    // per call so list/DnD identity is never shared across cache hits.
+    return place ? { ...place, id: randomUUID() } : null
+  } catch {
+    return null
+  }
 }
 
 async function getPlaceDetailsUncached(placeId: string, originalNameHint?: string | null): Promise<Place | null> {
