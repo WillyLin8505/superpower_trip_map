@@ -46,6 +46,7 @@ Implementation task invariant: if `Task type` is `frontend` or `backend`, and `S
 - SPEC: Archive & Tabbed Panel — TASK-022
 - SPEC: Edit-Time Cascade — TASK-023
 - SPEC: Per-Trip Cost Badge — TASK-024
+- SPEC: Google API Cost Reduction — TASK-025, TASK-026, TASK-027
 
 ## Conflicts
 
@@ -576,3 +577,42 @@ Implementation task invariant: if `Task type` is `frontend` or `backend`, and `S
 - Suggested session count: 1
 - Safe to assign to any session: yes (spec/plan complete)
 - Notes: Spec/plan via `$multi-auto-spec`-style flow 2026-07-15 (user gave product decisions via AUQ: Google Maps only, show estimated money, per-trip, next to itinerary). Decisions DEC-701..DEC-706. Plan: `docs/superpowers/plans/2026-07-15-per-trip-cost-meter.md`. ~70% of backend already exists from the cost-control work (commit `278957a` + migration `0010`): `api_usage_events` table with `trip_id` + `estimated_cost_usd` + `(trip_id, created_at)` index, `estimateApiUsageCostUsd`, and `trackedApiFetch` already wrapping every Google call. Gaps this task fills: (1) call sites don't pass `tripId` yet → events are `trip_id=null`; (2) no per-trip aggregation query; (3) no UI badge; (4) ensure `0010` applied to live Supabase. Estimate, not real bill — badge must be labeled 「估算」. Biggest risk = threading `tripId` through the Google call chains (some pre-binding searches legitimately have no trip → record null). Non-goals: Anthropic cost, whole-app/per-user dashboards, real billing reconciliation, charging users. **DONE 2026-07-16** (PR #18, squash `8e4c2b7`). Implemented in worktree off `origin/main`: `lib/apiUsageContext.ts` (AsyncLocalStorage trip context + `tripIdFromReferer`), `getTripEstimatedCostUsd` (paginated), tripId threaded via context into recommendations/legs/arrange/place-details, photo routes + LINE ingest attributed (photos via same-origin path-anchored Referer), `components/TripCostBadge.tsx` seeded from server-rendered `initialCostUsd` and refreshed after each spend action. Codex review: 3 rounds, all findings fixed, final PASS (explicit-null precedence, paginated undercount, arrange/place-details/photo/LINE attribution, stale-closure tripId, nested-context erasure, Referer spoof hardening). Verified 146 suites / 698 tests green, `tsc` clean on changed source, `next build` succeeds. **Ops: migration `0010_cost_control_foundation.sql` must be applied to live Supabase or nothing is recorded (badge shows US$0.00).**
+
+## TASK-025 - Cache Nearby Search + place-photo metadata
+
+- Task type: backend
+- Status: done
+- Priority: high
+- Spec: none (data-driven cost optimization; no design spec)
+- Dependencies: TASK-024 (api_usage_events data revealed the waste)
+- Estimated scope: small
+- Files changed: `lib/googleCache.ts` (new), `app/actions/places.ts` (nearbySearch), `app/api/place-photos/route.ts`, `jest.config.ts`, `__stubs__/next-cache.js`, `__tests__/google-cache.test.ts`
+- Conflict risk: low
+- Required review: GStack review
+- Notes: **DONE 2026-07-16** (PR #20, squash `eacb2a4`). Live `api_usage_events` showed force-cache is ignored inside Server Actions → Nearby Search 89% exact repeats (~US$6.46 ≈ 65% of spend), place_photos_metadata 91% repeats. `cachedGoogle` wraps results in the Next Data Cache keyed by inputs; hit = no Google call/cost/event, miss runs in-context (TASK-024 attribution preserved). Transient statuses (`RETRYABLE_GOOGLE_STATUSES`) throw so failures aren't cached. Codex PASS (2 rounds). 150 suites / 719 tests green; build ok.
+
+## TASK-026 - Cache getPlaceDetails
+
+- Task type: backend
+- Status: done
+- Priority: high
+- Spec: none (cost optimization)
+- Dependencies: TASK-025 (`cachedGoogle` helper)
+- Estimated scope: small
+- Files changed: `app/actions/places.ts` (getPlaceDetails + fetchPlaceDetails), `__tests__/google-cache.test.ts`
+- Conflict risk: low
+- Required review: GStack review
+- Notes: **DONE 2026-07-16** (PR #21, squash `e0cbe10`). 52% of place_details_pro ($17/1000) calls were exact repeats. Wrapped in `cachedGoogle` keyed by (placeId, name hint); fetchPlaceDetails throws on transient status (not cached); getPlaceDetails catches → returns null (preserves the null-on-failure contract callers rely on) and mints a fresh id per call. Codex PASS (2 rounds). 722 tests green.
+
+## TASK-027 - On-demand OSM Overpass backfill (free recommendations)
+
+- Task type: backend
+- Status: done
+- Priority: high
+- Spec: none (approach chosen via AUQ 2026-07-16: on-demand OSM Overpass backfill)
+- Dependencies: TASK-025 (`cachedGoogle`), `poi_places` table (migration `0010`)
+- Estimated scope: medium
+- Files changed: `lib/overpass.ts` (new), `lib/poiBackfill.ts` (new), `app/actions/recommend.ts`, `__tests__/overpass.test.ts`, `__tests__/poi-backfill.test.ts`
+- Conflict risk: low
+- Required review: GStack review
+- Notes: **DONE 2026-07-17** (PR #22, squash `e32e7fa`). `poi_places` was empty → recommendations always hit paid Google Nearby Search ($32/1000, biggest cost). Now when open data is insufficient, backfill the area from the free OSM Overpass API (no key) in the **background** via `next/server` `after()` (dynamic-imported), deduped per rounded cell per 30d via the Data Cache; best-effort (Overpass/DB failures throw inside the cached fetcher so a failed backfill isn't cached, and are swallowed so recommendations always fall back to Google). Self-populates the areas users search — no migration, no upfront bulk load. Codex PASS (3 rounds: failure-not-cached, non-blocking latency, jsdom static-import). 152 suites / 736 tests green; build ok. Optional env `OVERPASS_API_URL`. Rollout: first visit to an area still uses Google + schedules backfill; later visits (anyone) served free.
