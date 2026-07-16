@@ -34,24 +34,14 @@ export function CandidatePanel({ candidates, dateIso, onAdd, onArchive, onDelete
               <RecommendationCard
                 rec={candidateToRecommendation(candidate)}
                 dateIso={dateIso}
+                onAdd={() => onAdd(candidate.id, candidate.place)}
+                onArchive={() => onArchive(candidate)}
+                actionTestIds={{
+                  add: `line-candidate-add-${candidate.id}`,
+                  archive: `line-candidate-archive-${candidate.id}`,
+                }}
               />
-              <div className="flex flex-wrap justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => onAdd(candidate.id, candidate.place)}
-                  data-testid={`line-candidate-add-${candidate.id}`}
-                  className="rounded-full bg-clay px-3 py-1 text-sm text-white hover:bg-clay-deep"
-                >
-                  加入行程
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onArchive(candidate)}
-                  data-testid={`line-candidate-archive-${candidate.id}`}
-                  className="rounded-full border border-clay px-3 py-1 text-sm text-clay-deep hover:bg-clay-tint"
-                >
-                  加入備用
-                </button>
+              <div className="flex justify-end">
                 <button
                   type="button"
                   onClick={() => onDelete(candidate.id)}

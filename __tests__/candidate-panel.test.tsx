@@ -59,6 +59,20 @@ it('renders LINE candidates using recommendation-card style', () => {
   expect(screen.getByText(/LINE \/ Mina/)).toBeInTheDocument()
 })
 
+it('uses the same add and reserve icons as recommendation cards', () => {
+  renderPanel([cand('c1', '台北101')])
+
+  const addButton = screen.getByTestId('line-candidate-add-c1')
+  expect(addButton).toHaveTextContent('←')
+  expect(addButton).toHaveClass('w-7', 'h-7', 'rounded-full', 'bg-clay')
+  expect(addButton).not.toHaveTextContent('加入行程')
+
+  const archiveButton = screen.getByTestId('line-candidate-archive-c1')
+  expect(archiveButton).toHaveTextContent('💾')
+  expect(archiveButton).toHaveClass('w-8', 'h-8', 'rounded-full', 'bg-clay')
+  expect(archiveButton).not.toHaveTextContent('加入備用')
+})
+
 it('can add, move to reserve, and delete a LINE candidate', () => {
   const candidate = cand('c1', '台北101')
   const onAdd = jest.fn()

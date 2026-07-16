@@ -57,3 +57,34 @@ it('calls onAdd when the arrow button is clicked', () => {
   fireEvent.click(screen.getByTestId('rec-add-p1'))
   expect(onAdd).toHaveBeenCalledTimes(1)
 })
+
+it('allows reused recommendation cards to keep the same action icons with contextual test ids', () => {
+  const onAdd = jest.fn()
+  const onArchive = jest.fn()
+  render(
+    <RecommendationCard
+      rec={rec}
+      dateIso="2026-07-01"
+      onAdd={onAdd}
+      onArchive={onArchive}
+      actionTestIds={{ add: 'line-candidate-add-c1', archive: 'line-candidate-archive-c1' }}
+    />
+  )
+
+  expect(screen.getByTestId('line-candidate-add-c1')).toHaveTextContent('←')
+  expect(screen.getByTestId('line-candidate-add-c1')).toHaveClass('w-7', 'h-7', 'rounded-full', 'bg-clay')
+  expect(screen.getByTestId('line-candidate-archive-c1')).toHaveTextContent('💾')
+  expect(screen.getByTestId('line-candidate-archive-c1')).toHaveClass('w-8', 'h-8', 'rounded-full', 'bg-clay')
+})
+
+it('renders long place names as clickable links that can wrap inside the card', () => {
+  const longName = 'ThisIsAnExtremelyLongPlaceNameWithoutSpacesThatShouldNeverOverflowTheRecommendationCardFrame'
+  render(<RecommendationCard rec={{ ...rec, name: longName }} dateIso="2026-07-01" onAdd={() => {}} />)
+
+  const link = screen.getByRole('link', { name: longName })
+  expect(link).toHaveAttribute('href', expect.stringContaining('https://www.google.com/maps/search/'))
+  expect(link).toHaveAttribute('target', '_blank')
+  expect(link.className).toContain('[overflow-wrap:anywhere]')
+  expect(link).toHaveClass('break-words')
+  expect(link.closest('h4')).toHaveClass('min-w-0')
+})

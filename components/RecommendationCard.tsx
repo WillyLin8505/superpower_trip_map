@@ -15,6 +15,10 @@ interface Props {
   dateIso: string
   onAdd?: () => void
   onArchive?: (rec: DayRecommendation) => void
+  actionTestIds?: {
+    add?: string
+    archive?: string
+  }
   compact?: boolean
 }
 
@@ -25,7 +29,7 @@ function compactExplanation(rec: DayRecommendation): string | null {
   return null
 }
 
-export function RecommendationCard({ rec, dateIso, onAdd, onArchive, compact = false }: Props) {
+export function RecommendationCard({ rec, dateIso, onAdd, onArchive, actionTestIds, compact = false }: Props) {
   const meta = TYPE_META[rec.type]
   const todayHours = getHoursForDate(rec.openingHours, dateIso)
   const photos = rec.photoUrls?.length ? rec.photoUrls : rec.photoUrl ? [rec.photoUrl] : []
@@ -41,7 +45,7 @@ export function RecommendationCard({ rec, dateIso, onAdd, onArchive, compact = f
             type="button"
             onClick={onAdd}
             aria-label={`加入 ${displayName.primary}`}
-            data-testid={`rec-add-${rec.placeId}`}
+            data-testid={actionTestIds?.add ?? `rec-add-${rec.placeId}`}
             className="shrink-0 mt-0.5 w-7 h-7 rounded-full bg-clay text-white text-sm flex items-center justify-center hover:bg-clay-deep"
           >
             &#x2190;
@@ -53,6 +57,7 @@ export function RecommendationCard({ rec, dateIso, onAdd, onArchive, compact = f
             onClick={() => onArchive(rec)}
             aria-label={ARCHIVE_LABEL}
             title={ARCHIVE_LABEL}
+            data-testid={actionTestIds?.archive}
             className="shrink-0 mt-0.5 w-8 h-8 rounded-full bg-clay text-white text-base flex items-center justify-center hover:bg-clay-deep transition-colors shadow-sm"
           >
             <span aria-hidden="true" className="leading-none">{ARCHIVE_ICON}</span>
@@ -61,8 +66,8 @@ export function RecommendationCard({ rec, dateIso, onAdd, onArchive, compact = f
         )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h4 className="font-semibold text-gray-900 text-sm">
-              <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted underline-offset-2 hover:text-clay-deep">
+            <h4 className="font-semibold text-gray-900 text-sm min-w-0 max-w-full">
+              <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted underline-offset-2 hover:text-clay-deep break-words [overflow-wrap:anywhere]">
                 {displayName.primary}
               </a>
             </h4>
