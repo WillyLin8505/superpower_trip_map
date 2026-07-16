@@ -10,6 +10,8 @@ const config: Config = {
     // Stub the Anthropic SDK so ItineraryClient tests that don't mock AiRearrangeInput
     // can still load without TextEncoder / ESM errors in Node/jsdom test environments.
     '^@anthropic-ai/sdk$': '<rootDir>/__stubs__/anthropic-sdk.js',
+    // unstable_cache needs the Next runtime; stub it to a pass-through in tests.
+    '^next/cache$': '<rootDir>/__stubs__/next-cache.js',
     '^@/(.*)$': '<rootDir>/$1',
   },
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],

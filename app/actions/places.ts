@@ -3,6 +3,7 @@ import type { Place } from '@/lib/types'
 import { randomUUID } from 'crypto'
 import { googleMapsFetchOptions, roundedCoordinate } from '@/lib/googleMapsCost'
 import { trackedApiFetch } from '@/lib/apiUsageEvents'
+import { cachedGoogle } from '@/lib/googleCache'
 import { readCachedPlaceId, writeCachedPlaceId } from '@/lib/placeIdCache'
 import { placeShortDescription } from '@/lib/utils/placeShortDescription'
 
@@ -207,6 +208,7 @@ export async function nearbySearch(
 ): Promise<Place[]> {
   const searchLat = roundedCoordinate(lat)
   const searchLng = roundedCoordinate(lng)
+  return cachedGoogle(['nearby', String(searchLat), String(searchLng), placeType], async () => {
   const out: Place[] = []
   const seen = new Set<string>()
 
@@ -265,4 +267,5 @@ export async function nearbySearch(
   }
 
   return out
+  })
 }
