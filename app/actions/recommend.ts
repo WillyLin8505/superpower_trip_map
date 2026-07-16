@@ -10,6 +10,7 @@ import type { DayItinerary, DayRecommendation, RecommendationsByDay, CategoryBuc
 import { callClaude } from '@/lib/claude'
 import { shouldEnrichRecommendationsWithDetails } from '@/lib/googleMapsCost'
 import { openPoiSearch } from '@/lib/openPoi'
+import { ensurePoiBackfill } from '@/lib/poiBackfill'
 import { runWithTripId } from '@/lib/apiUsageContext'
 
 const REC_LIMIT = 5
@@ -63,17 +64,49 @@ async function pushRecommendationCandidates(
   }
 }
 
+async function fillFromOpenData(
+  target: DayRecommendation[],
+  center: { lat: number; lng: number },
+  category: 'dessert' | 'attraction' | 'restaurant',
+  have: Set<string>
+): Promise<boolean> {
+  for (const radius of OPEN_POI_RADII_METERS) {
+    const openCandidates = await safeOpenPoiSearch(center.lat, center.lng, category, REC_LIMIT, radius)
+    await pushRecommendationCandidates(target, openCandidates, category, have, OPEN_POI_SOURCE_LABEL, OPEN_POI_REASON)
+    if (target.length >= REC_LIMIT) return true
+  }
+  return target.length >= REC_LIMIT
+}
+
+async function scheduleBackfill(
+  lat: number,
+  lng: number,
+  category: 'dessert' | 'attraction' | 'restaurant'
+): Promise<void> {
+  try {
+    // Run the OSM backfill AFTER the response so it never adds latency to this
+    // request (Overpass can take seconds, and days are processed serially).
+    // Dynamic-import so 'next/server' isn't in this module's static graph (it
+    // fails to load under the jsdom test environment).
+    const { after } = await import('next/server')
+    after(() => ensurePoiBackfill(lat, lng, category))
+  } catch {
+    // after() is only valid within a request scope; ignore elsewhere (tests/scripts).
+  }
+}
+
 async function fillFromOpenPoiThenGoogle(
   target: DayRecommendation[],
   center: { lat: number; lng: number },
   category: 'dessert' | 'attraction' | 'restaurant',
   have: Set<string>
 ): Promise<void> {
-  for (const radius of OPEN_POI_RADII_METERS) {
-    const openCandidates = await safeOpenPoiSearch(center.lat, center.lng, category, REC_LIMIT, radius)
-    await pushRecommendationCandidates(target, openCandidates, category, have, OPEN_POI_SOURCE_LABEL, OPEN_POI_REASON)
-    if (target.length >= REC_LIMIT) return
-  }
+  if (await fillFromOpenData(target, center, category, have)) return
+
+  // Open data was insufficient for this area. Populate it from free OSM/Overpass
+  // data in the background (deduped per cell) so FUTURE loads use free data, and
+  // serve this request from Google now — no added latency.
+  await scheduleBackfill(center.lat, center.lng, category)
 
   const googleCandidates = await nearbySearch(center.lat, center.lng, category)
   await pushRecommendationCandidates(target, googleCandidates, category, have, GOOGLE_SOURCE_LABEL, GOOGLE_REASON)
