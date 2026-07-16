@@ -3,7 +3,7 @@ import type { Place } from '@/lib/types'
 import { randomUUID } from 'crypto'
 import { googleMapsFetchOptions, roundedCoordinate } from '@/lib/googleMapsCost'
 import { trackedApiFetch } from '@/lib/apiUsageEvents'
-import { cachedGoogle } from '@/lib/googleCache'
+import { cachedGoogle, RETRYABLE_GOOGLE_STATUSES } from '@/lib/googleCache'
 import { readCachedPlaceId, writeCachedPlaceId } from '@/lib/placeIdCache'
 import { placeShortDescription } from '@/lib/utils/placeShortDescription'
 
@@ -230,6 +230,12 @@ export async function nearbySearch(
       metadata: { placeType, radius: 4000, query: q },
     })
     const data = await res.json()
+    // Never cache a transient failure — throw so cachedGoogle skips it and the
+    // next call retries Google (a non-OK deterministic status like ZERO_RESULTS
+    // falls through to `continue` and is safely cached as an empty area).
+    if (data.status && RETRYABLE_GOOGLE_STATUSES.has(data.status)) {
+      throw new Error(`nearby_search_${data.status}`)
+    }
     if (data.status !== 'OK' || !Array.isArray(data.results)) continue
 
     const results = (data.results as NearbyPlaceResult[])

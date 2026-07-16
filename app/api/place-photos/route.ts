@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { googleMapsFetchOptions, googleMapsPhotoCacheControl } from '@/lib/googleMapsCost'
 import { trackedApiFetch } from '@/lib/apiUsageEvents'
 import { tripIdFromReferer } from '@/lib/apiUsageContext'
-import { cachedGoogle } from '@/lib/googleCache'
+import { cachedGoogle, RETRYABLE_GOOGLE_STATUSES } from '@/lib/googleCache'
 
 const BASE = 'https://maps.googleapis.com/maps/api/place'
 
@@ -44,10 +44,15 @@ export async function GET(req: NextRequest) {
         metadata: { limit },
         tripId,
       })
-      // Throw (don't cache) on a transient upstream failure; a non-OK status
-      // (e.g. no photos for this place) is a real result worth caching as [].
+      // Throw (don't cache) on transient failures — HTTP error or a Google
+      // quota/auth status — so the next call retries. A deterministic non-OK
+      // status (e.g. NOT_FOUND / ZERO_RESULTS) is a real "no photos" answer
+      // worth caching as [].
       if (!upstream.ok) throw new Error('place_photos_upstream_failed')
       const data = await upstream.json()
+      if (data.status && RETRYABLE_GOOGLE_STATUSES.has(data.status)) {
+        throw new Error(`place_photos_${data.status}`)
+      }
       if (data.status !== 'OK') return []
       return mapPhotoUrls(data.result?.photos, limit)
     })

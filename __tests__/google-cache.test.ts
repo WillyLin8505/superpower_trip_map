@@ -76,4 +76,22 @@ describe('nearbySearch caching', () => {
     await nearbySearch(25.0330, 121.5654, 'dessert')
     expect(mockTracked.mock.calls.length).toBeGreaterThan(afterRestaurant)
   })
+
+  it('throws on a transient Google status and does NOT poison the cache', async () => {
+    mockTracked.mockResolvedValueOnce({ json: async () => ({ status: 'OVER_QUERY_LIMIT' }) })
+    await expect(nearbySearch(25.0330, 121.5654, 'restaurant')).rejects.toThrow(/OVER_QUERY_LIMIT/)
+    // next call is not served from a poisoned cache — it retries Google and succeeds
+    const out = await nearbySearch(25.0330, 121.5654, 'restaurant')
+    expect(out.length).toBeGreaterThan(0)
+  })
+
+  it('caches a deterministic empty area (ZERO_RESULTS) without re-calling Google', async () => {
+    mockTracked.mockResolvedValue({ json: async () => ({ status: 'ZERO_RESULTS' }) })
+    const first = await nearbySearch(30, 40, 'dessert')
+    expect(first).toEqual([])
+    const calls = mockTracked.mock.calls.length
+    const second = await nearbySearch(30, 40, 'dessert')
+    expect(second).toEqual([])
+    expect(mockTracked.mock.calls.length).toBe(calls)
+  })
 })

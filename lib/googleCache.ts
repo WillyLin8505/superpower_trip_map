@@ -19,3 +19,13 @@ export function cachedGoogle<T>(
 ): Promise<T> {
   return unstable_cache(fetcher, ['google', ...keyParts], { revalidate: revalidateSec })()
 }
+
+// Google API `status` values that are transient/quota/auth failures rather than a
+// real answer. Cachers must THROW on these (so cachedGoogle does not persist a
+// failure) — only deterministic outcomes (OK, ZERO_RESULTS, NOT_FOUND, …) may be
+// cached. See callers in app/actions/places.ts and app/api/place-photos.
+export const RETRYABLE_GOOGLE_STATUSES = new Set([
+  'OVER_QUERY_LIMIT',
+  'REQUEST_DENIED',
+  'UNKNOWN_ERROR',
+])
