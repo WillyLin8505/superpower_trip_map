@@ -78,10 +78,32 @@ async function fetchPlaceDetails(placeId: string, language?: 'zh-TW' | 'en') {
     metadata: { language: language ?? 'default' },
   })
   const data = await res.json()
+  // Throw on transient failures so the cached result never persists one.
+  if (data.status && RETRYABLE_GOOGLE_STATUSES.has(data.status)) {
+    throw new Error(`place_details_${data.status}`)
+  }
   return data.status === 'OK' ? data.result : null
 }
 
 export async function getPlaceDetails(placeId: string, originalNameHint?: string | null): Promise<Place | null> {
+  // 52% of Place Details calls were exact repeats. Cache the resolved Place by
+  // (placeId, name hint). A transient Google status throws inside the fetcher so
+  // the failure is never cached — but we then catch it here and return null,
+  // preserving getPlaceDetails' long-standing "null on failure" contract (callers
+  // like plan.ts / searchPlace are not prepared for a rejection).
+  try {
+    const place = await cachedGoogle(['details', placeId, originalNameHint ?? ''], () =>
+      getPlaceDetailsUncached(placeId, originalNameHint),
+    )
+    // The cached Place carries one frozen randomUUID; mint a fresh app-level id
+    // per call so list/DnD identity is never shared across cache hits.
+    return place ? { ...place, id: randomUUID() } : null
+  } catch {
+    return null
+  }
+}
+
+async function getPlaceDetailsUncached(placeId: string, originalNameHint?: string | null): Promise<Place | null> {
   const [zhResult, nativeResult] = await Promise.all([
     fetchPlaceDetails(placeId, 'zh-TW'),
     originalNameHint ? Promise.resolve(null) : fetchPlaceDetails(placeId),

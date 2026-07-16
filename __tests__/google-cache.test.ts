@@ -19,7 +19,7 @@ jest.mock('@/lib/apiUsageEvents', () => ({
 }))
 
 import { cachedGoogle } from '@/lib/googleCache'
-import { nearbySearch } from '@/app/actions/places'
+import { nearbySearch, getPlaceDetails } from '@/app/actions/places'
 
 beforeEach(() => {
   cacheStore.clear()
@@ -93,5 +93,39 @@ describe('nearbySearch caching', () => {
     const second = await nearbySearch(30, 40, 'dessert')
     expect(second).toEqual([])
     expect(mockTracked.mock.calls.length).toBe(calls)
+  })
+})
+
+describe('getPlaceDetails caching', () => {
+  beforeEach(() => {
+    mockTracked.mockResolvedValue({
+      json: async () => ({
+        status: 'OK',
+        result: { name: '鼎泰豐', formatted_address: '台北市信義區', geometry: { location: { lat: 25, lng: 121 } }, photos: [], rating: 4.5 },
+      }),
+    })
+  })
+
+  it('caches by (placeId, name hint): a repeat call makes no new Google request', async () => {
+    await getPlaceDetails('pid-1', '鼎泰豐')
+    const afterFirst = mockTracked.mock.calls.length
+    expect(afterFirst).toBeGreaterThan(0)
+    await getPlaceDetails('pid-1', '鼎泰豐')
+    expect(mockTracked.mock.calls.length).toBe(afterFirst)
+  })
+
+  it('returns null on a transient status without caching it (retry succeeds)', async () => {
+    mockTracked.mockResolvedValueOnce({ json: async () => ({ status: 'OVER_QUERY_LIMIT' }) })
+    const failed = await getPlaceDetails('pid-2', 'x')
+    expect(failed).toBeNull() // preserves the null-on-failure contract, does not throw
+    const place = await getPlaceDetails('pid-2', 'x') // not served from a poisoned cache
+    expect(place?.name).toBe('鼎泰豐')
+  })
+
+  it('mints a fresh app-level id per call even on a cache hit', async () => {
+    const a = await getPlaceDetails('pid-3', 'y')
+    const b = await getPlaceDetails('pid-3', 'y')
+    expect(a?.id).not.toBe(b?.id)
+    expect(a?.placeId).toBe(b?.placeId)
   })
 })
