@@ -18,6 +18,14 @@ jest.mock('@/app/actions/trips', () => ({
 const push = jest.fn()
 jest.mock('next/navigation', () => ({ useRouter: () => ({ push }) }))
 
+// Mount effect fires getDayRecommendations; without this mock the real action
+// runs past teardown (ReferenceError → flaky jest exit 1).
+jest.mock('@/app/actions/recommend', () => ({
+  getDayRecommendations: jest.fn().mockResolvedValue([]),
+  fetchReplacementRecommendation: jest.fn().mockResolvedValue(null),
+  refreshDayCategoryRecommendations: jest.fn().mockResolvedValue([]),
+}))
+
 // --- arrange mock (not under test here) ---
 jest.mock('@/app/actions/arrange', () => ({
   fetchDayArrangeInputs: jest.fn(),
