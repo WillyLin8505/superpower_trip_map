@@ -26,6 +26,7 @@ const gd = getPlaceDetails as jest.Mock
 const ns = nearbySearch as jest.Mock
 const ops = openPoiSearch as jest.Mock
 const origRecommendationDetailsMode = process.env.GOOGLE_MAPS_RECOMMENDATION_DETAILS_MODE
+const origPaidFallbackMode = process.env.GOOGLE_MAPS_RECOMMENDATION_PAID_FALLBACK_MODE
 
 function place(id: string, type: Place['type']): Place {
   return {
@@ -58,6 +59,8 @@ beforeEach(() => {
   ops.mockResolvedValue([])
   if (origRecommendationDetailsMode === undefined) delete process.env.GOOGLE_MAPS_RECOMMENDATION_DETAILS_MODE
   else process.env.GOOGLE_MAPS_RECOMMENDATION_DETAILS_MODE = origRecommendationDetailsMode
+  if (origPaidFallbackMode === undefined) delete process.env.GOOGLE_MAPS_RECOMMENDATION_PAID_FALLBACK_MODE
+  else process.env.GOOGLE_MAPS_RECOMMENDATION_PAID_FALLBACK_MODE = origPaidFallbackMode
 })
 
 it('fills recommendations from open POI before calling Google Nearby Search', async () => {
@@ -107,6 +110,24 @@ it('can fill Google recommendations from Nearby Search without per-card Place De
 
   expect(result[0].dessert.shown).toHaveLength(5)
   expect(gd).not.toHaveBeenCalled()
+})
+
+it('does not use paid Google Nearby fallback when recommendation paid fallback is disabled', async () => {
+  // Regression: ISSUE-001 — reloading a saved itinerary auto-filled missing
+  // recommendations through paid Google Nearby Search, adding about US$0.20 for
+  // a 2-day trip (2 days × 3 categories × $0.032).
+  // Found by /qa on 2026-07-18.
+  process.env.GOOGLE_MAPS_RECOMMENDATION_PAID_FALLBACK_MODE = 'off'
+  r.mockResolvedValue('[]')
+  ops.mockResolvedValue([])
+  ns.mockResolvedValue(Array.from({ length: 5 }, (_, i) => place(`paid-${i}`, 'dessert')))
+
+  const result = await getDayRecommendations([oneDay('existing')])
+
+  expect(ns).not.toHaveBeenCalled()
+  expect(result[0].dessert.shown).toEqual([])
+  expect(result[0].attraction.shown).toEqual([])
+  expect(result[0].restaurant.shown).toEqual([])
 })
 
 it('starts same-day category recommendation lookups in parallel to reduce initial wait time', async () => {

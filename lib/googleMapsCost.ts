@@ -29,6 +29,11 @@ export function shouldEnrichRecommendationsWithDetails(): boolean {
   return mode === 'live'
 }
 
+export function shouldUsePaidRecommendationFallback(): boolean {
+  const mode = process.env.GOOGLE_MAPS_RECOMMENDATION_PAID_FALLBACK_MODE ?? (process.env.NODE_ENV === 'test' ? 'on' : 'off')
+  return mode === 'on'
+}
+
 export function roundedCoordinate(value: number): number {
   return Math.round(value * 1000) / 1000
 }

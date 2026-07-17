@@ -8,7 +8,7 @@ import { validateType } from '@/lib/placeType'
 import { REC_CATEGORIES, resolveDayCenter, centroidOf, dedupeAndExclude, assignToDays, bucketByCategory, splitShownReserve } from '@/lib/utils/dayRecommend'
 import type { DayItinerary, DayRecommendation, RecommendationsByDay, CategoryBuckets, Place } from '@/lib/types'
 import { callClaude } from '@/lib/claude'
-import { shouldEnrichRecommendationsWithDetails } from '@/lib/googleMapsCost'
+import { shouldEnrichRecommendationsWithDetails, shouldUsePaidRecommendationFallback } from '@/lib/googleMapsCost'
 import { openPoiSearch } from '@/lib/openPoi'
 import { ensurePoiBackfill } from '@/lib/poiBackfill'
 import { runWithTripId } from '@/lib/apiUsageContext'
@@ -129,8 +129,9 @@ async function fillFromOpenPoiThenGoogle(
   category: 'dessert' | 'attraction' | 'restaurant',
   have: Set<string>
 ): Promise<void> {
+  const allowPaidGoogleFallback = shouldUsePaidRecommendationFallback()
   if (await fillFromOpenData(target, center, category, have)) {
-    if (target.every(hasRecommendationPhoto)) return
+    if (target.every(hasRecommendationPhoto) || !allowPaidGoogleFallback) return
     const googleCandidates = await nearbySearch(center.lat, center.lng, category)
     await replacePhotoLessWithGoogleCandidates(target, googleCandidates, category, have)
     return
@@ -140,6 +141,8 @@ async function fillFromOpenPoiThenGoogle(
   // data in the background (deduped per cell) so FUTURE loads use free data, and
   // serve this request from Google now — no added latency.
   await scheduleBackfill(center.lat, center.lng, category)
+
+  if (!allowPaidGoogleFallback) return
 
   const googleCandidates = await nearbySearch(center.lat, center.lng, category)
   await pushRecommendationCandidates(target, googleCandidates, category, have, GOOGLE_SOURCE_LABEL, GOOGLE_REASON)
@@ -314,6 +317,10 @@ async function fetchReplacementRecommendationImpl(
     const openCandidate = openCandidates.find((candidate) => !exclude.has(candidate.placeId))
     if (openCandidate && hasRecommendationPhoto(openCandidate)) {
       return { ...openCandidate, type: category, reason: OPEN_POI_REASON, sourceLabel: OPEN_POI_SOURCE_LABEL }
+    }
+
+    if (!shouldUsePaidRecommendationFallback()) {
+      return openCandidate ? { ...openCandidate, type: category, reason: OPEN_POI_REASON, sourceLabel: OPEN_POI_SOURCE_LABEL } : null
     }
 
     const candidates = await nearbySearch(centroid.lat, centroid.lng, category)
