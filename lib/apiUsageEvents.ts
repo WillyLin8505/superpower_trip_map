@@ -42,6 +42,7 @@ const ESTIMATED_USD_PER_1000_UNITS: Record<string, number> = {
   place_details_photos: 7,
   place_photo_media: 7,
   distance_matrix_essentials: 5,
+  cloud_translation_basic_chars: 0.02,
 }
 
 function isEnabled(): boolean {
@@ -116,7 +117,7 @@ export async function recordApiUsageEvent(input: ApiUsageEventInput): Promise<vo
   if (isMissingUsageTable(error) || !error) return
 }
 
-const GOOGLE_PROVIDER = 'google_maps'
+const GOOGLE_PROVIDERS = ['google_maps', 'google_translate']
 
 // Sum of estimated Google API cost (USD) attributed to a trip. Estimate, not a
 // real bill — derived from api_usage_events.estimated_cost_usd. Returns 0 when
@@ -137,7 +138,7 @@ export async function getTripEstimatedCostUsd(tripId: string): Promise<number> {
       .from('api_usage_events')
       .select('estimated_cost_usd')
       .eq('trip_id', tripId)
-      .eq('provider', GOOGLE_PROVIDER)
+      .in('provider', GOOGLE_PROVIDERS)
       .range(from, from + COST_PAGE_SIZE - 1)
 
     if (error || !data) return from === 0 ? 0 : Number(total.toFixed(6))

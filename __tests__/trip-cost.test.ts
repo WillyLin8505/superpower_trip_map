@@ -9,8 +9,9 @@ const state: {
   rows: Row[]
   error: unknown
   eqCalls: Array<[string, unknown]>
+  inCalls: Array<[string, unknown[]]>
   inserted: Array<Record<string, unknown>>
-} = { rows: [], error: null, eqCalls: [], inserted: [] }
+} = { rows: [], error: null, eqCalls: [], inCalls: [], inserted: [] }
 
 jest.mock('@/lib/supabase/admin', () => ({
   createAdminClient: () => ({
@@ -23,6 +24,10 @@ jest.mock('@/lib/supabase/admin', () => ({
         const builder = {
           eq: (col: string, val: unknown) => {
             state.eqCalls.push([col, val])
+            return builder
+          },
+          in: (col: string, val: unknown[]) => {
+            state.inCalls.push([col, val])
             return builder
           },
           range: (from: number, to: number) => ({
@@ -45,6 +50,7 @@ beforeEach(() => {
   state.rows = []
   state.error = null
   state.eqCalls = []
+  state.inCalls = []
   state.inserted = []
 })
 
@@ -65,10 +71,10 @@ describe('getTripEstimatedCostUsd', () => {
     await expect(getTripEstimatedCostUsd('trip-big')).resolves.toBeCloseTo(1.5, 6)
   })
 
-  it('filters by trip_id and google_maps provider', async () => {
+  it('filters by trip_id and Google API providers', async () => {
     await getTripEstimatedCostUsd('trip-42')
     expect(state.eqCalls).toContainEqual(['trip_id', 'trip-42'])
-    expect(state.eqCalls).toContainEqual(['provider', 'google_maps'])
+    expect(state.inCalls).toContainEqual(['provider', ['google_maps', 'google_translate']])
   })
 
   it('returns 0 for empty tripId (no query)', async () => {

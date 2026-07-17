@@ -6,6 +6,7 @@ import { trackedApiFetch } from '@/lib/apiUsageEvents'
 import { cachedGoogle, RETRYABLE_GOOGLE_STATUSES } from '@/lib/googleCache'
 import { readCachedPlaceId, writeCachedPlaceId } from '@/lib/placeIdCache'
 import { placeShortDescription } from '@/lib/utils/placeShortDescription'
+import { translateTextToZhTw } from '@/lib/googleTranslate'
 
 const KEY = process.env.GOOGLE_MAPS_API_KEY!
 const BASE = 'https://maps.googleapis.com/maps/api/place'
@@ -112,15 +113,16 @@ async function getPlaceDetailsUncached(placeId: string, originalNameHint?: strin
 
   const originalName = cleanText(originalNameHint) ?? cleanText(nativeResult?.name) ?? cleanText(zhResult.name)
   const originalAddress = cleanText(nativeResult?.formatted_address) ?? cleanText(zhResult.formatted_address)
-  const zhName = hasHanText(zhResult.name) ? cleanText(zhResult.name) : null
+  const googleZhName = hasHanText(zhResult.name) ? cleanText(zhResult.name) : null
   const zhAddress = hasHanText(zhResult.formatted_address) ? cleanText(zhResult.formatted_address) : null
-  const needsEnglish = !zhName || !zhAddress
+  const needsEnglish = !googleZhName || !zhAddress
   const enResult = needsEnglish ? await fetchPlaceDetails(placeId, 'en') : null
   const cleanEnName = cleanText(enResult?.name)
   const cleanEnAddress = cleanText(enResult?.formatted_address)
-  const enName = !zhName ? resolveEnglishName(cleanEnName, zhResult.name, originalName) : null
+  const translatedZhName = googleZhName ?? await translateTextToZhTw(originalName ?? cleanEnName ?? cleanText(zhResult.name))
+  const enName = !googleZhName ? resolveEnglishName(cleanEnName, zhResult.name, originalName) : null
   const enAddress = cleanEnAddress && cleanEnAddress !== zhResult.formatted_address ? cleanEnAddress : null
-  const displayName = zhName ?? enName ?? originalName ?? zhResult.name
+  const displayName = translatedZhName ?? enName ?? originalName ?? zhResult.name
   const displayAddress = zhAddress ?? enAddress ?? zhResult.formatted_address ?? ''
   const photoUrls = mapPhotoUrls(zhResult.photos)
 
@@ -129,7 +131,7 @@ async function getPlaceDetailsUncached(placeId: string, originalNameHint?: strin
     placeId,
     name: displayName,
     localizedName: {
-      zhTw: zhName,
+      zhTw: translatedZhName,
       ...(enName ? { en: enName } : {}),
       original: originalName,
     },
@@ -267,16 +269,17 @@ export async function nearbySearch(
       if (seen.has(r.place_id)) continue
       seen.add(r.place_id)
       const photoUrls = mapPhotoUrls(r.photos)
-      const zhName = hasHanText(r.name) ? cleanText(r.name) : null
+      const googleZhName = hasHanText(r.name) ? cleanText(r.name) : null
       const originalName = cleanText(r.name)
-      const enName = zhName ? null : latinizedName(originalName)
-      const displayName = zhName ?? enName ?? originalName ?? r.name
+      const translatedZhName = googleZhName ?? await translateTextToZhTw(originalName)
+      const enName = translatedZhName ? null : latinizedName(originalName)
+      const displayName = translatedZhName ?? enName ?? originalName ?? r.name
       out.push({
         id: randomUUID(),
         placeId: r.place_id,
         name: displayName,
         localizedName: {
-          zhTw: zhName,
+          zhTw: translatedZhName,
           ...(enName ? { en: enName } : {}),
           original: originalName,
         },

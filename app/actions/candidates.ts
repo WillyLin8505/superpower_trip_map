@@ -2,6 +2,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Candidate, CandidateSource, Place } from '@/lib/types'
+import { ensureCandidateChineseNames } from '@/lib/utils/bilingualNames'
+import { runWithTripId } from '@/lib/apiUsageContext'
 
 function isDuplicateKeyError(error: unknown): boolean {
   return (error as { code?: string } | null)?.code === '23505'
@@ -67,7 +69,7 @@ async function resolveCandidateNames(
     }
     out.push({ id: r.id, place: r.place, addedBy: r.added_by, addedByName: name, source: r.source ?? null })
   }
-  return out
+  return ensureCandidateChineseNames(out)
 }
 
 export async function addCandidate(tripId: string, place: Place): Promise<{ id: string }> {
@@ -100,12 +102,16 @@ export async function listCandidates(tripId: string): Promise<Candidate[]> {
       .eq('trip_id', tripId)
       .order('created_at', { ascending: true })
     if (fallbackError || !fallback) return []
-    return resolveCandidateNames((fallback as { id: string; place: Place; added_by: string; source?: CandidateSource | null; created_at: string }[])
-      .filter((row) => row.source?.kind === 'line_group'))
+    return runWithTripId(tripId, () =>
+      resolveCandidateNames((fallback as { id: string; place: Place; added_by: string; source?: CandidateSource | null; created_at: string }[])
+        .filter((row) => row.source?.kind === 'line_group')),
+    )
   }
   if (error || !data) return []
-  return resolveCandidateNames((data as { id: string; place: Place; added_by: string; source?: CandidateSource | null; created_at: string }[])
-    .filter((row) => row.source?.kind === 'line_group'))
+  return runWithTripId(tripId, () =>
+    resolveCandidateNames((data as { id: string; place: Place; added_by: string; source?: CandidateSource | null; created_at: string }[])
+      .filter((row) => row.source?.kind === 'line_group')),
+  )
 }
 
 export async function removeCandidate(candidateId: string): Promise<void> {
@@ -190,7 +196,9 @@ export async function listArchived(tripId: string): Promise<Candidate[]> {
     .order('created_at', { ascending: true })
   if (isMissingListColumn(error)) return []
   if (error || !data) return []
-  return resolveCandidateNames(data as { id: string; place: Place; added_by: string; source?: CandidateSource | null; created_at: string }[])
+  return runWithTripId(tripId, () =>
+    resolveCandidateNames(data as { id: string; place: Place; added_by: string; source?: CandidateSource | null; created_at: string }[]),
+  )
 }
 
 export async function unarchivePlace(candidateId: string): Promise<void> {

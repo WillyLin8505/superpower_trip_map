@@ -48,10 +48,18 @@ jest.mock('@/lib/supabase/server', () => ({ createClient: () => current.client }
 jest.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => currentAdmin.client }))
 
 const plan = { days: [], transportMode: 'driving', startDate: '2026-07-04' } as PlanResult
+const realFetch = global.fetch
+const realTranslateKey = process.env.GOOGLE_TRANSLATE_API_KEY
 
 beforeEach(() => {
   current = makeSupabase()
   currentAdmin = makeSupabase()
+})
+
+afterEach(() => {
+  global.fetch = realFetch
+  if (realTranslateKey === undefined) delete process.env.GOOGLE_TRANSLATE_API_KEY
+  else process.env.GOOGLE_TRANSLATE_API_KEY = realTranslateKey
 })
 
 function mockAdminTripRead(row: unknown) {
@@ -110,6 +118,61 @@ it('getTrip maps plan + title + ownerId on success through the admin client', as
   const { getTrip } = require('@/app/actions/trips')
   expect(await getTrip('t1')).toEqual({ plan, title: 'Trip', ownerId: 'u1' })
   expect(currentAdmin.client.from).toHaveBeenCalledWith('trips')
+})
+
+it('getTrip translates saved place names that are missing Traditional Chinese', async () => {
+  process.env.GOOGLE_TRANSLATE_API_KEY = 'test-translate-key'
+  global.fetch = jest.fn(async () => ({
+    json: async () => ({
+      data: { translations: [{ translatedText: '我在麵店' }] },
+    }),
+  })) as unknown as typeof fetch
+
+  const savedPlan: PlanResult = {
+    days: [{
+      day: 1,
+      aiSummary: null,
+      dayStart: '09:00',
+      dayEnd: '21:00',
+      places: [{
+        id: 'p1',
+        placeId: 'google-p1',
+        name: 'Me In Noodles',
+        localizedName: { zhTw: null, en: 'Me In Noodles', original: 'Me In Noodles' },
+        type: 'restaurant',
+        lat: 21.03,
+        lng: 105.84,
+        address: 'Hanoi',
+        openingHours: null,
+        rating: 4.8,
+        photoUrl: null,
+        description: null,
+        startTime: '09:00',
+        durationMin: 60,
+        travelMinToNext: null,
+        aiDescription: null,
+        outsideHours: false,
+        lateExit: false,
+        startLocked: false,
+        durationLocked: false,
+      }],
+    }],
+    transportMode: 'driving',
+    startDate: '2026-07-04',
+  }
+  mockAdminTripRead({ plan: savedPlan, title: 'Trip', owner_id: 'u1' })
+
+  const { getTrip } = require('@/app/actions/trips')
+  const result = await getTrip('t1')
+
+  expect(result?.plan.days[0].places[0]).toEqual(expect.objectContaining({
+    name: '我在麵店',
+    localizedName: {
+      zhTw: '我在麵店',
+      en: 'Me In Noodles',
+      original: 'Me In Noodles',
+    },
+  }))
 })
 
 it('listTrips maps rows to TripSummary', async () => {

@@ -2,6 +2,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { PlanResult, TripSummary } from '@/lib/types'
+import { ensurePlanChineseNames } from '@/lib/utils/bilingualNames'
+import { runWithTripId } from '@/lib/apiUsageContext'
 
 export type CreateTripResult =
   | { ok: true; tripId: string }
@@ -139,7 +141,7 @@ export async function getTrip(tripId: string): Promise<{ plan: PlanResult; title
     .single()
   if (error || !data) return null
   const row = data as { plan: PlanResult; title: string; owner_id: string }
-  return { plan: row.plan, title: row.title, ownerId: row.owner_id }
+  return { plan: await runWithTripId(tripId, () => ensurePlanChineseNames(row.plan)), title: row.title, ownerId: row.owner_id }
 }
 
 export async function saveTrip(tripId: string, plan: PlanResult): Promise<void> {
