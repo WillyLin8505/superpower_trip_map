@@ -10,6 +10,18 @@ import {
   writeItineraryDraft,
 } from '@/lib/itineraryDraftCache'
 
+function hasHanText(value: string | null | undefined): boolean {
+  return /[\u3400-\u9fff]/.test(value ?? '')
+}
+
+function planHasMissingChineseNames(plan: PlanResult): boolean {
+  return plan.days.some((day) =>
+    day.places.some((place) =>
+      !hasHanText(place.localizedName?.zhTw) && !hasHanText(place.name)
+    )
+  )
+}
+
 export default function ItineraryInner() {
   const router = useRouter()
   const { replace } = router
@@ -43,7 +55,7 @@ export default function ItineraryInner() {
     const forceRefresh = params.get('refresh') === '1'
     const cachedPlan = forceRefresh ? null : readItineraryDraft(localStorage, cacheKey)
 
-    if (cachedPlan) {
+    if (cachedPlan && !planHasMissingChineseNames(cachedPlan)) {
       setLoadedFromCache(true)
       setPlan(cachedPlan)
       return

@@ -66,7 +66,12 @@ export async function translateTextToZhTw(text: string | null | undefined): Prom
 
       return cleanText(decodeTranslationText(data.data?.translations?.[0]?.translatedText ?? ''))
     })
-  } catch {
+  } catch (error) {
+    console.error('[google-translate] failed to translate place name', {
+      target: TARGET_LANGUAGE,
+      sourceLength: source.length,
+      error: error instanceof Error ? error.message : 'unknown',
+    })
     return null
   }
 }
