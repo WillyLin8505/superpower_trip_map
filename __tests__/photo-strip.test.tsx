@@ -101,7 +101,9 @@ describe('PhotoStrip', () => {
     )
 
     expect(await screen.findByTestId('photo-thumb-0')).toBeInTheDocument()
-    expect(screen.getByTestId('photo-thumb-0').querySelector('img')).toHaveAttribute('src', '/api/photo?ref=cover')
+    const coverImg = screen.getByTestId('photo-thumb-0').querySelector('img')
+    expect(coverImg).toHaveAttribute('src', '/api/photo?ref=cover')
+    expect(coverImg).toHaveAttribute('loading', 'lazy')
     expect(global.fetch).toHaveBeenCalledWith('/api/place-photos?placeId=place-1&limit=1')
   })
 

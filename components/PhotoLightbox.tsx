@@ -1,5 +1,6 @@
 'use client'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Image from 'next/image'
 
 interface Props {
   photos: string[]
@@ -91,7 +92,19 @@ export function PhotoLightbox({ photos, placeName, initialIndex, onClose, canLoa
         >
           ×
         </button>
-        <img src={photo} alt={alt} className="max-h-[85vh] max-w-full rounded-xl object-contain shadow-2xl" />
+        {/* unoptimized: dynamic Google place photos of unknown dimensions;
+            w-auto/h-auto lets the browser size by intrinsic ratio, and
+            priority keeps the just-clicked photo eager (next/image defaults
+            to lazy). width/height are only an aspect placeholder. */}
+        <Image
+          src={photo}
+          alt={alt}
+          width={800}
+          height={600}
+          unoptimized
+          priority
+          className="h-auto w-auto max-h-[85vh] max-w-full rounded-xl object-contain shadow-2xl"
+        />
         {hasNavigation && (
           <>
             <button

@@ -1,5 +1,6 @@
 'use client'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Image from 'next/image'
 import { PhotoLightbox } from './PhotoLightbox'
 
 interface Props {
@@ -167,14 +168,16 @@ export function PhotoStrip({ photos, placeId, placeName, className = '' }: Props
             event.stopPropagation()
             setSelectedIndex(0)
           }}
-          className="col-span-2 row-span-2 min-h-24"
+          className="relative col-span-2 row-span-2 min-h-24"
         >
-          <img
+          {/* unoptimized: photos already come width-capped from /api/photo;
+              Vercel's metered optimizer would add quota cost, not savings */}
+          <Image
             src={coverPhoto}
             alt=""
             aria-hidden="true"
-            loading="lazy"
-            decoding="async"
+            fill
+            unoptimized
             className="h-full w-full object-cover"
           />
         </button>
