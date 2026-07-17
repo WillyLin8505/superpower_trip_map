@@ -59,8 +59,6 @@ test.describe('cross-day drag', () => {
   test.fixme('within-day drag reorders cards in same day', async ({ page }) => {
     // p1 is first, p2 is second in Day 1
     const day0 = page.locator('[data-testid="day-0"]')
-    const p1Text = await page.locator('[data-testid="card-p1"]').textContent()
-    const p2Text = await page.locator('[data-testid="card-p2"]').textContent()
 
     await dragTo(
       page,

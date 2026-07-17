@@ -2,13 +2,14 @@ import { computeLegPlan, legInfo } from '@/app/actions/legs'
 import type { Place, TransportMode } from '@/lib/types'
 
 // 每個模式回不同的固定秒數/公尺，方便驗證取最快 + 帶對的距離
-const SECS: Record<TransportMode, number> = { driving: 600, walking: 2400, transit: 1500 }
-const METERS: Record<TransportMode, number> = { driving: 5000, walking: 800, transit: 6000 }
+// (mock 前綴讓 jest.mock 工廠可以引用，避免與工廠內聯值重複)
+const MOCK_SECS: Record<TransportMode, number> = { driving: 600, walking: 2400, transit: 1500 }
+const MOCK_METERS: Record<TransportMode, number> = { driving: 5000, walking: 800, transit: 6000 }
 jest.mock('@/app/actions/directions', () => ({
   buildDistanceMatrix: jest.fn(async (places: { placeId: string }[], mode: 'driving' | 'walking' | 'transit') => ({
     indices: places.map((p) => p.placeId),
-    matrix: places.map(() => places.map(() => ({ driving: 600, walking: 2400, transit: 1500 }[mode]))),
-    distances: places.map(() => places.map(() => ({ driving: 5000, walking: 800, transit: 6000 }[mode]))),
+    matrix: places.map(() => places.map(() => MOCK_SECS[mode])),
+    distances: places.map(() => places.map(() => MOCK_METERS[mode])),
   })),
 }))
 

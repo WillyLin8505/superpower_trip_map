@@ -107,7 +107,6 @@ function makeMembershipAccessBuilder() {
 }
 
 function makeCandidatesBuilder() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- self-referential test mock, same pattern as trips-actions.test.ts
   const chain: any = {
     eq: jest.fn((column: string, value: string) => {
       state.lastListPredicates.push({ column, value })
@@ -150,7 +149,6 @@ function makeCandidatesBuilder() {
     update: jest.fn((payload: InsertPayload) => {
       state.lastUpdate = payload
       const predicates: Predicate[] = []
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- self-referential test mock
       const updateChain: any = {
         eq: jest.fn((column: string, value: string) => {
           predicates.push({ column, value })

@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import type { ScheduledPlace } from '@/lib/types'
 
 jest.mock('@dnd-kit/sortable', () => ({

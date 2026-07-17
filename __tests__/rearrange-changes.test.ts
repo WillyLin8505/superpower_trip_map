@@ -74,9 +74,9 @@ it('applyChanges: duration set (locked kept), window set', () => {
 it('applyChanges: subset — rejecting one change leaves it unapplied, others still apply', () => {
   const A = sp('A'), B = sp('B'), C = sp('C')
   const current = plan([dayOf(1, [A, B]), dayOf(2, [C])])
-  const moveB: Change = { id: 'move-B', day: 1, kind: 'move', placeId: 'B', placeName: 'B', toDay: 2 }
+  const _moveB: Change = { id: 'move-B', day: 1, kind: 'move', placeId: 'B', placeName: 'B', toDay: 2 }
   const winC: Change = { id: 'win-2-dayEnd', day: 2, kind: 'window', field: 'dayEnd', from: '21:00', to: '22:00' }
-  // accept only winC (moveB rejected)
+  // accept only winC (_moveB rejected, deliberately not passed in)
   const out = applyChanges(current, [winC])
   expect(out.days[0].places.map((p) => p.placeId)).toEqual(['A', 'B']) // B NOT moved
   expect(out.days[1].dayEnd).toBe('22:00')
