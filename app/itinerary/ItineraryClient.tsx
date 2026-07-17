@@ -165,6 +165,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   const [saveError, setSaveError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [candidates, setCandidates] = useState<Candidate[]>(initialCandidates)
+  const candidatesRef = useRef<Candidate[]>(initialCandidates)
   const [archived, setArchivedState] = useState<Candidate[]>(initialArchived)
   const archivedRef = useRef<Candidate[]>(initialArchived)
   const [sidePanelTabs, setSidePanelTabs] = useState<Record<number, SidePanelTab>>({})
@@ -192,14 +193,20 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     setArchivedState(next)
   }, [])
 
+  const updateCandidates = useCallback((updater: (current: Candidate[]) => Candidate[]) => {
+    const next = updater(candidatesRef.current)
+    candidatesRef.current = next
+    setCandidates(next)
+  }, [])
+
   const commitRecs = useCallback((next: RecommendationsByDay | null) => {
     const filtered = filterRecommendationsByUnavailable(
       next,
-      unavailableRecommendationKeys(planRef.current.days, candidates, archivedRef.current)
+      unavailableRecommendationKeys(planRef.current.days, candidatesRef.current, archivedRef.current)
     )
     recsRef.current = filtered
     setRecsByDay(filtered)
-  }, [candidates])
+  }, [])
 
   const isAlreadyArchived = useCallback((place: Place): boolean => {
     const key = archivePlaceKey(place)
@@ -633,11 +640,13 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   }, [scheduleRecalc, showActionError, updateArchived])
 
   const handleDeleteArchived = useCallback(async (candidateId: string) => {
+    const previousArchived = archivedRef.current
+    updateArchived((a) => a.filter((c) => c.id !== candidateId))
     try {
       await unarchivePlace(candidateId)
-      updateArchived((a) => a.filter((c) => c.id !== candidateId))
       setActionError(null)
     } catch (error) {
+      updateArchived(() => previousArchived)
       showActionError('刪除備用行程失敗，請稍後再試', error)
     }
   }, [showActionError, updateArchived])
@@ -661,40 +670,42 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
         i === dayIndex ? { ...d, places: [...d.places, newPlace] } : d
       )
       scheduleRecalc({ ...planRef.current, days: newDays }, true)
-      setCandidates((current) => current.filter((candidate) => candidate.id !== candidateId))
+      updateCandidates((current) => current.filter((candidate) => candidate.id !== candidateId))
       void savePlaceIndexOnAdd(newPlace)
       setActionError(null)
     } catch (error) {
       showActionError('\u52a0\u5165\u884c\u7a0b\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66\u3002', error)
     }
-  }, [scheduleRecalc, showActionError])
+  }, [scheduleRecalc, showActionError, updateCandidates])
 
   const handleArchiveCandidate = useCallback(async (candidate: Candidate) => {
     try {
       const { id } = await archiveCandidate(candidate.id)
-      setCandidates((current) => current.filter((item) => item.id !== candidate.id))
+      updateCandidates((current) => current.filter((item) => item.id !== candidate.id))
       updateArchived((current) => upsertArchived(current, { ...candidate, id }))
       commitRecs(recsRef.current)
       setActionError(null)
     } catch (error) {
       showActionError('\u79fb\u5230\u5099\u7528\u884c\u7a0b\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66\u3002', error)
     }
-  }, [commitRecs, showActionError, updateArchived])
+  }, [commitRecs, showActionError, updateArchived, updateCandidates])
 
   const handleDeleteCandidate = useCallback(async (candidateId: string) => {
+    const previousCandidates = candidatesRef.current
+    updateCandidates((current) => current.filter((candidate) => candidate.id !== candidateId))
     try {
       await removeCandidate(candidateId)
-      setCandidates((current) => current.filter((candidate) => candidate.id !== candidateId))
       setActionError(null)
     } catch (error) {
+      updateCandidates(() => previousCandidates)
       showActionError('\u522a\u9664 LINE \u8a0e\u8ad6\u884c\u7a0b\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66\u3002', error)
     }
-  }, [showActionError])
+  }, [showActionError, updateCandidates])
 
   const buildExcludeIds = useCallback((): string[] => {
     const ids = new Set<string>()
     planRef.current.days.forEach((d) => d.places.forEach((p) => ids.add(p.placeId)))
-    candidates.forEach((candidate) => {
+    candidatesRef.current.forEach((candidate) => {
       if (candidate.place.placeId) ids.add(candidate.place.placeId)
     })
     archivedRef.current.forEach((candidate) => {
@@ -710,7 +721,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       )
     }
     return Array.from(ids)
-  }, [candidates])
+  }, [])
 
   // 智慧排程單日核心：只有使用者按「智慧排程」時才會重排順序與時間。
   const arrangeDay = useCallback(async (dayIdx: number) => {

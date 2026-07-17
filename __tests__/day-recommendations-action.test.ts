@@ -34,6 +34,14 @@ function place(id: string, type: Place['type']): Place {
   }
 }
 
+function placeWithPhoto(id: string, type: Place['type']): Place {
+  return {
+    ...place(id, type),
+    photoUrl: `https://img.example/${id}.jpg`,
+    photoUrls: [`https://img.example/${id}.jpg`],
+  }
+}
+
 function oneDay(existingPlaceId: string): DayItinerary {
   return {
     day: 1, aiSummary: null, dayStart: '09:00', dayEnd: '21:00',
@@ -55,7 +63,7 @@ beforeEach(() => {
 it('fills recommendations from open POI before calling Google Nearby Search', async () => {
   r.mockResolvedValue('[]')
   ops.mockImplementation(async (_lat: number, _lng: number, type: string) =>
-    Array.from({ length: 5 }, (_, i) => place(`open-${type}-${i}`, type as Place['type']))
+    Array.from({ length: 5 }, (_, i) => placeWithPhoto(`open-${type}-${i}`, type as Place['type']))
   )
   ns.mockResolvedValue([])
 

@@ -64,6 +64,33 @@ async function pushRecommendationCandidates(
   }
 }
 
+function hasRecommendationPhoto(place: Pick<Place, 'photoUrl' | 'photoUrls'>): boolean {
+  return Boolean(place.photoUrl) || (place.photoUrls?.length ?? 0) > 0
+}
+
+async function replacePhotoLessWithGoogleCandidates(
+  target: DayRecommendation[],
+  candidates: Place[],
+  category: 'dessert' | 'attraction' | 'restaurant',
+  have: Set<string>
+): Promise<void> {
+  let replacementIndex = target.findIndex((item) => !hasRecommendationPhoto(item))
+  for (const candidate of candidates) {
+    if (replacementIndex === -1) break
+    if (have.has(candidate.placeId)) continue
+    if (!hasRecommendationPhoto(candidate)) continue
+
+    const filled = await maybeEnrichRecommendationDetails(candidate, category)
+    if (!hasRecommendationPhoto(filled)) continue
+
+    const replaced = target[replacementIndex]
+    target[replacementIndex] = { ...filled, reason: GOOGLE_REASON, sourceLabel: GOOGLE_SOURCE_LABEL }
+    have.delete(replaced.placeId)
+    have.add(filled.placeId)
+    replacementIndex = target.findIndex((item, index) => index > replacementIndex && !hasRecommendationPhoto(item))
+  }
+}
+
 async function fillFromOpenData(
   target: DayRecommendation[],
   center: { lat: number; lng: number },
@@ -101,7 +128,12 @@ async function fillFromOpenPoiThenGoogle(
   category: 'dessert' | 'attraction' | 'restaurant',
   have: Set<string>
 ): Promise<void> {
-  if (await fillFromOpenData(target, center, category, have)) return
+  if (await fillFromOpenData(target, center, category, have)) {
+    if (target.every(hasRecommendationPhoto)) return
+    const googleCandidates = await nearbySearch(center.lat, center.lng, category)
+    await replacePhotoLessWithGoogleCandidates(target, googleCandidates, category, have)
+    return
+  }
 
   // Open data was insufficient for this area. Populate it from free OSM/Overpass
   // data in the background (deduped per cell) so FUTURE loads use free data, and
@@ -278,17 +310,22 @@ async function fetchReplacementRecommendationImpl(
   const exclude = new Set(excludeIds)
   try {
     const openCandidates = await safeOpenPoiSearch(centroid.lat, centroid.lng, category)
-    for (const candidate of openCandidates) {
-      if (exclude.has(candidate.placeId)) continue
-      return { ...candidate, type: category, reason: OPEN_POI_REASON, sourceLabel: OPEN_POI_SOURCE_LABEL }
+    const openCandidate = openCandidates.find((candidate) => !exclude.has(candidate.placeId))
+    if (openCandidate && hasRecommendationPhoto(openCandidate)) {
+      return { ...openCandidate, type: category, reason: OPEN_POI_REASON, sourceLabel: OPEN_POI_SOURCE_LABEL }
     }
 
     const candidates = await nearbySearch(centroid.lat, centroid.lng, category)
+    let fallbackGoogle: DayRecommendation | null = null
     for (const candidate of candidates) {
       if (exclude.has(candidate.placeId)) continue
       const place = await maybeEnrichRecommendationDetails(candidate, category)
-      return { ...place, reason: GOOGLE_REASON, sourceLabel: GOOGLE_SOURCE_LABEL }
+      const recommendation = { ...place, reason: GOOGLE_REASON, sourceLabel: GOOGLE_SOURCE_LABEL }
+      if (hasRecommendationPhoto(place)) return recommendation
+      fallbackGoogle ??= recommendation
     }
+    if (openCandidate) return { ...openCandidate, type: category, reason: OPEN_POI_REASON, sourceLabel: OPEN_POI_SOURCE_LABEL }
+    return fallbackGoogle
   } catch {
     return null
   }

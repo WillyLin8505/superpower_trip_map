@@ -204,6 +204,17 @@ it('deletes a LINE Bot candidate from LINE discussion', async () => {
   await waitFor(() => expect(within(day).queryByTestId('line-candidate-card-c1')).not.toBeInTheDocument())
 })
 
+it('hides a LINE Bot candidate immediately while delete is pending', async () => {
+  removeCandidate.mockImplementation(() => new Promise(() => {}))
+  render(<ItineraryClient initial={plan()} tripId="t1" initialCandidates={[lineCandidate()]} />)
+  const day = openTab('side-panel-tab-line')
+
+  fireEvent.click(within(day).getByTestId('line-candidate-delete-c1'))
+
+  expect(removeCandidate).toHaveBeenCalledWith('c1')
+  expect(within(day).queryByTestId('line-candidate-card-c1')).not.toBeInTheDocument()
+})
+
 it('shows reserve controls on an unsaved searched itinerary and saves before archiving', async () => {
   archivePlace.mockResolvedValue({ id: 'archived-A' })
   render(<ItineraryClient initial={plan()} />)
@@ -234,6 +245,17 @@ it('reserve card can be added into the day and removed from reserve', async () =
   await waitFor(() => expect(unarchivePlace).toHaveBeenCalledWith('r1'))
   expect(dayOrder()).toContain('r1')
   await waitFor(() => expect(screen.queryByTestId('reserve-card-r1')).not.toBeInTheDocument())
+})
+
+it('hides a reserve card immediately while delete is pending', async () => {
+  unarchivePlace.mockImplementation(() => new Promise(() => {}))
+  render(<ItineraryClient initial={plan()} tripId="t1" initialArchived={[candidate('r1', 'Reserve A')]} />)
+  const day = openTab('side-panel-tab-reserve')
+
+  fireEvent.click(await screen.findByTestId('archive-delete-r1'))
+
+  expect(unarchivePlace).toHaveBeenCalledWith('r1')
+  expect(within(day).queryByTestId('reserve-card-r1')).not.toBeInTheDocument()
 })
 
 it('moves an itinerary card to reserve immediately when clicking 移到備用', async () => {
