@@ -27,7 +27,7 @@ test('builds valid URL for 2 places with no waypoints', () => {
     [makePlace(25.04, 121.56), makePlace(25.05, 121.57)],
     'driving'
   )
-  expect(url).toContain('maps.google.com/maps/embed/v1/directions')
+  expect(url).toContain('www.google.com/maps/embed/v1/directions')
   expect(url).toContain('key=TEST_KEY')
   expect(url).toContain('origin=')
   expect(url).toContain('destination=')

@@ -136,7 +136,7 @@ export function ItineraryPasteInput({ onPlacesFound }: Props) {
         <button
           onClick={handleConfirmCountry}
           disabled={!selectedCountryName}
-          className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="w-full bg-clay text-white py-2 rounded-lg font-medium hover:bg-clay-deep disabled:opacity-40 disabled:cursor-not-allowed"
         >
           繼續分析
         </button>
@@ -161,7 +161,7 @@ export function ItineraryPasteInput({ onPlacesFound }: Props) {
       <button
         onClick={handleAnalyze}
         disabled={!text.trim()}
-        className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+        className="w-full bg-clay text-white py-2 rounded-lg font-medium hover:bg-clay-deep disabled:opacity-40 disabled:cursor-not-allowed"
       >
         分析行程
       </button>

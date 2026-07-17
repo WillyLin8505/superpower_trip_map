@@ -44,6 +44,21 @@ function crowdPenalty(timed: ScheduledPlace[], inputs: DayArrangeInputs, weekday
   return s
 }
 
+// Heavy penalty per place scheduled outside its known opening hours (or ending
+// after close). recalcDay already derives these flags for a candidate order —
+// without this term the arranger happily put a night market (opens 16:00) at
+// 09:00, since it only optimized travel + crowds.
+const HOURS_PENALTY_SECS = 7200
+
+function hoursPenalty(timed: ScheduledPlace[]): number {
+  let s = 0
+  for (const p of timed) {
+    if (p.outsideHours) s += HOURS_PENALTY_SECS
+    if (p.lateExit) s += HOURS_PENALTY_SECS / 2
+  }
+  return s
+}
+
 function cost(
   order: ScheduledPlace[],
   day: DayItinerary,
@@ -58,7 +73,8 @@ function cost(
   const wCrowd = opts.avoidCrowds ? 1.0 : 0
   const travel = totalTravelSecs(order, inputs)
   const crowd = wCrowd ? crowdPenalty(timedDay.places, inputs, weekdayIndex(dateIso)) : 0
-  return wTravel * travel + wCrowd * crowd
+  // Opening-hours violations always count, regardless of the toggles.
+  return wTravel * travel + wCrowd * crowd + hoursPenalty(timedDay.places)
 }
 
 export function arrangeDayOrder(

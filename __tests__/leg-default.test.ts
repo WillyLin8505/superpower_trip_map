@@ -7,9 +7,9 @@ it('haversineMeters is 0 for identical points', () => {
 it('haversineMeters ~1113m for 0.01° lng at equator', () => {
   expect(haversineMeters({ lat: 0, lng: 0 }, { lat: 0, lng: 0.01 })).toBeCloseTo(1113, -1)
 })
-it('haversineSeconds equals round(meters / 1.4) — behavior unchanged', () => {
+it('haversineSeconds default (walking) applies road circuity to the straight-line distance', () => {
   const a = { lat: 25.03, lng: 121.56 }, b = { lat: 25.04, lng: 121.57 }
-  expect(haversineSeconds(a, b)).toBe(Math.round(haversineMeters(a, b) / 1.4))
+  expect(haversineSeconds(a, b)).toBe(Math.round((haversineMeters(a, b) * 1.3) / 1.39)) // walking incl. road circuity
 })
 const D = (min: number, distM: number) => ({ min, distM })
 it('pickLegDefault: <=500m → walking (carries walking distance)', () => {

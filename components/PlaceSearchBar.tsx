@@ -50,7 +50,7 @@ export function PlaceSearchBar({ onAdd }: Props) {
           type="button"
           onClick={handleSearch}
           disabled={loading}
-          className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          className="px-4 py-2 bg-clay text-white text-sm rounded-lg hover:bg-clay-deep disabled:opacity-50"
         >
           {loading ? '搜尋中…' : '🔍 搜尋'}
         </button>
