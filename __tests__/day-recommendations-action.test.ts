@@ -205,6 +205,57 @@ it('deduplicates fill candidates across days so no placeId appears in more than 
   expect(allIds.filter((id) => id === 'shared-1').length).toBeLessThanOrEqual(1)
 })
 
+it('uses deeper Open POI candidate pools so later days do not go empty after trip-wide dedupe', async () => {
+  // Regression: ISSUE-002 - Open POI was queried with a limit of 5. Day 1 could
+  // consume those five attractions, then day 2 saw the same five as duplicates
+  // and rendered 景點 0 even though more local candidates existed.
+  // Found by /qa on 2026-07-17.
+  // Report: .gstack/qa-reports/qa-report-attraction-recommendations-2026-07-17.md
+  function scheduledPlace(id: string): DayItinerary['places'][number] {
+    return {
+      ...place(id, 'attraction'),
+      startTime: '09:00',
+      durationMin: 90,
+      travelMinToNext: null,
+      aiDescription: null,
+      outsideHours: false,
+      lateExit: false,
+      startLocked: false,
+      durationLocked: false,
+    }
+  }
+  const day0: DayItinerary = {
+    day: 1, aiSummary: null, dayStart: '09:00', dayEnd: '21:00',
+    places: [scheduledPlace('existing-0')],
+  }
+  const day1: DayItinerary = {
+    day: 2, aiSummary: null, dayStart: '09:00', dayEnd: '21:00',
+    places: [scheduledPlace('existing-1')],
+  }
+  r.mockResolvedValue('[]')
+  ns.mockResolvedValue([])
+  ops.mockImplementation(async (_lat: number, _lng: number, type: string, limit: number) => {
+    if (type !== 'attraction') return []
+    return Array.from({ length: limit }, (_, i) => placeWithPhoto(`open-attraction-${i}`, 'attraction'))
+  })
+
+  const result = await getDayRecommendations([day0, day1])
+
+  expect(result[0].attraction.shown).toHaveLength(5)
+  expect(result[1].attraction.shown).toHaveLength(5)
+  expect(result[1].attraction.shown.map((place) => place.placeId)).toEqual([
+    'open-attraction-5',
+    'open-attraction-6',
+    'open-attraction-7',
+    'open-attraction-8',
+    'open-attraction-9',
+  ])
+  const requestedAttractionLimits = ops.mock.calls
+    .filter((call) => call[2] === 'attraction')
+    .map((call) => call[3] as number)
+  expect(Math.max(...requestedAttractionLimits)).toBeGreaterThan(5)
+})
+
 it('keeps website extractions beyond 5 in reserve', async () => {
   r.mockResolvedValue(JSON.stringify([{ id: 's1', url: 'http://x', label: '部落格', lastFetchedAt: null, lastFetchStatus: null }]))
   const { scrapeText } = await import('@/app/actions/scrape')

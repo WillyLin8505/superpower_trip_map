@@ -14,6 +14,7 @@ import { ensurePoiBackfill } from '@/lib/poiBackfill'
 import { runWithTripId } from '@/lib/apiUsageContext'
 
 const REC_LIMIT = 5
+const REC_CANDIDATE_POOL_LIMIT = REC_LIMIT * 4
 const OPEN_POI_RADII_METERS = [4000, 12000]
 const GOOGLE_SOURCE_LABEL = 'Google 推薦'
 const GOOGLE_REASON = 'Google 高評分推薦'
@@ -98,7 +99,7 @@ async function fillFromOpenData(
   have: Set<string>
 ): Promise<boolean> {
   for (const radius of OPEN_POI_RADII_METERS) {
-    const openCandidates = await safeOpenPoiSearch(center.lat, center.lng, category, REC_LIMIT, radius)
+    const openCandidates = await safeOpenPoiSearch(center.lat, center.lng, category, REC_CANDIDATE_POOL_LIMIT, radius)
     await pushRecommendationCandidates(target, openCandidates, category, have, OPEN_POI_SOURCE_LABEL, OPEN_POI_REASON)
     if (target.length >= REC_LIMIT) return true
   }
@@ -309,7 +310,7 @@ async function fetchReplacementRecommendationImpl(
   if (!centroid) return null
   const exclude = new Set(excludeIds)
   try {
-    const openCandidates = await safeOpenPoiSearch(centroid.lat, centroid.lng, category)
+    const openCandidates = await safeOpenPoiSearch(centroid.lat, centroid.lng, category, REC_CANDIDATE_POOL_LIMIT)
     const openCandidate = openCandidates.find((candidate) => !exclude.has(candidate.placeId))
     if (openCandidate && hasRecommendationPhoto(openCandidate)) {
       return { ...openCandidate, type: category, reason: OPEN_POI_REASON, sourceLabel: OPEN_POI_SOURCE_LABEL }
