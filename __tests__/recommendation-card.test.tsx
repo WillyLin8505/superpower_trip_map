@@ -51,6 +51,20 @@ it('renders name, category, one cover photo, and a short explanation in compact 
   expect(screen.queryByText(/Google/)).not.toBeInTheDocument()
 })
 
+it('renders a visual cover fallback when compact recommendation data has no photo', () => {
+  render(
+    <RecommendationCard
+      rec={{ ...rec, placeId: 'osm:museum-cafe', photoUrl: null, photoUrls: [], sourceLabel: 'Open POI' }}
+      dateIso="2026-07-01"
+      onAdd={() => {}}
+      compact
+    />
+  )
+
+  expect(screen.getByTestId('rec-photo-fallback')).toHaveAccessibleName('Museum Cafe 封面')
+  expect(screen.getByTestId('rec-photo-fallback')).toHaveTextContent('暫無照片')
+})
+
 it('calls onAdd when the arrow button is clicked', () => {
   const onAdd = jest.fn()
   render(<RecommendationCard rec={rec} dateIso="2026-07-01" onAdd={onAdd} />)

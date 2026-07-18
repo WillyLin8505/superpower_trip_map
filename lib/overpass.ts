@@ -57,12 +57,18 @@ export function overpassElementToRow(el: OverpassElement, category: OpenPoiCateg
     source_place_id: `${el.type}/${el.id}`,
     name_primary: name,
     name_zh: nameZh ?? null,
-    name_local: cleanTag(tags['name:en']) ?? cleanTag(tags.name) ?? null,
+    name_local: cleanTag(tags['name:ja']) ?? cleanTag(tags['name:vi']) ?? cleanTag(tags['name:en']) ?? cleanTag(tags.name) ?? null,
     lat,
     lng,
     category: category as PlaceType,
     confidence: null,
-    metadata: { osm: { amenity: tags.amenity, tourism: tags.tourism, shop: tags.shop, historic: tags.historic } },
+    metadata: {
+      osm: { amenity: tags.amenity, tourism: tags.tourism, shop: tags.shop, historic: tags.historic },
+      image: cleanTag(tags.image) ?? null,
+      wikimedia_commons: cleanTag(tags.wikimedia_commons) ?? null,
+      wikidata: cleanTag(tags.wikidata) ?? null,
+      wikipedia: cleanTag(tags.wikipedia) ?? null,
+    },
   }
 }
 

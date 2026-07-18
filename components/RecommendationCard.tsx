@@ -39,6 +39,10 @@ function compactExplanation(rec: DayRecommendation): string | null {
   return null
 }
 
+function canLazyFetchGooglePhotos(placeId: string): boolean {
+  return placeId.length >= 16 && !placeId.includes(':')
+}
+
 export function RecommendationCard({ rec, dateIso, onAdd, onArchive, onDelete, actionLinks, actionTestIds, compact = false }: Props) {
   const meta = TYPE_META[rec.type]
   const todayHours = getHoursForDate(rec.openingHours, dateIso)
@@ -46,6 +50,7 @@ export function RecommendationCard({ rec, dateIso, onAdd, onArchive, onDelete, a
   const displayName = resolveLocalizedText(rec.localizedName, rec.name)
   const mapsUrl = googleMapsSearchUrl(rec, displayName.primary)
   const shortExplanation = compactExplanation(rec)
+  const hasPhotoSource = photos.length > 0 || canLazyFetchGooglePhotos(rec.placeId)
 
   return (
     <div className={`relative border border-border rounded-xl p-3 ${onDelete ? 'pr-9' : ''} ${meta.cardBg}`} data-testid={`rec-${rec.placeId}`}>
@@ -98,7 +103,20 @@ export function RecommendationCard({ rec, dateIso, onAdd, onArchive, onDelete, a
           {displayName.secondary && <p className="text-xs text-gray-500 mt-0.5">{displayName.secondary}</p>}
           {!compact && todayHours && <p className="text-xs text-gray-500 mt-0.5">營業 {todayHours}</p>}
           {!compact && rec.rating && <p className="text-xs text-gray-500 mt-0.5">評分：{rec.rating} ★</p>}
-          <PhotoStrip photos={photos} placeId={rec.placeId} placeName={displayName.primary} className="mt-2" />
+          {hasPhotoSource ? (
+            <PhotoStrip photos={photos} placeId={rec.placeId} placeName={displayName.primary} className="mt-2" />
+          ) : (
+            <div
+              data-testid="rec-photo-fallback"
+              className="mt-2 flex min-h-24 items-center justify-center overflow-hidden rounded-lg bg-clay-tint px-3 text-center text-clay-deep"
+              aria-label={`${displayName.primary} 封面`}
+            >
+              <div className="space-y-1">
+                <div className="text-2xl" aria-hidden="true">{meta.emoji}</div>
+                <div className="text-xs font-semibold">暫無照片</div>
+              </div>
+            </div>
+          )}
           {compact && shortExplanation && <p className="text-xs text-gray-600 mt-1 break-words [overflow-wrap:anywhere]">{shortExplanation}</p>}
           {!compact && rec.description && <p className="text-xs text-gray-600 mt-1 italic break-words [overflow-wrap:anywhere]">{rec.description}</p>}
           {!compact && <p className="text-xs text-gray-600 mt-1 break-words [overflow-wrap:anywhere]">{rec.reason}</p>}

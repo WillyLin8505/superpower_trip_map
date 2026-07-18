@@ -12,6 +12,7 @@ import { shouldEnrichRecommendationsWithDetails, shouldUsePaidRecommendationFall
 import { openPoiSearch } from '@/lib/openPoi'
 import { ensurePoiBackfill } from '@/lib/poiBackfill'
 import { runWithTripId } from '@/lib/apiUsageContext'
+import { ensurePlaceChineseName } from '@/lib/utils/bilingualNames'
 
 const REC_LIMIT = 5
 const REC_CANDIDATE_POOL_LIMIT = REC_LIMIT * 4
@@ -38,6 +39,13 @@ async function maybeEnrichRecommendationDetails(
   return detailed
     ? { ...place, ...detailed, type: category, description: detailed.description ?? place.description }
     : { ...place, type: category }
+}
+
+async function normalizeRecommendationDisplayData(
+  place: Place,
+  category: 'dessert' | 'attraction' | 'restaurant'
+): Promise<Place> {
+  return ensurePlaceChineseName({ ...place, type: category })
 }
 
 async function safeOpenPoiSearch(
@@ -68,7 +76,8 @@ async function pushRecommendationCandidates(
     const filled = sourceLabel === GOOGLE_SOURCE_LABEL
       ? await maybeEnrichRecommendationDetails(candidate, category)
       : { ...candidate, type: category }
-    target.push({ ...filled, reason, sourceLabel })
+    const displayReady = await normalizeRecommendationDisplayData(filled, category)
+    target.push({ ...displayReady, reason, sourceLabel })
     have.add(candidate.placeId)
   }
 }
@@ -90,12 +99,13 @@ async function replacePhotoLessWithGoogleCandidates(
     if (!hasRecommendationPhoto(candidate)) continue
 
     const filled = await maybeEnrichRecommendationDetails(candidate, category)
-    if (!hasRecommendationPhoto(filled)) continue
+    const displayReady = await normalizeRecommendationDisplayData(filled, category)
+    if (!hasRecommendationPhoto(displayReady)) continue
 
     const replaced = target[replacementIndex]
-    target[replacementIndex] = { ...filled, reason: GOOGLE_REASON, sourceLabel: GOOGLE_SOURCE_LABEL }
+    target[replacementIndex] = { ...displayReady, reason: GOOGLE_REASON, sourceLabel: GOOGLE_SOURCE_LABEL }
     have.delete(replaced.placeId)
-    have.add(filled.placeId)
+    have.add(displayReady.placeId)
     replacementIndex = target.findIndex((item, index) => index > replacementIndex && !hasRecommendationPhoto(item))
   }
 }
@@ -332,11 +342,14 @@ async function fetchReplacementRecommendationImpl(
     const openCandidates = await safeOpenPoiSearch(centroid.lat, centroid.lng, category, REC_CANDIDATE_POOL_LIMIT)
     const openCandidate = openCandidates.find((candidate) => !exclude.has(candidate.placeId))
     if (openCandidate && hasRecommendationPhoto(openCandidate)) {
-      return { ...openCandidate, type: category, reason: OPEN_POI_REASON, sourceLabel: OPEN_POI_SOURCE_LABEL }
+      const displayReady = await normalizeRecommendationDisplayData(openCandidate, category)
+      return { ...displayReady, reason: OPEN_POI_REASON, sourceLabel: OPEN_POI_SOURCE_LABEL }
     }
 
     if (!shouldUsePaidRecommendationFallback()) {
-      return openCandidate ? { ...openCandidate, type: category, reason: OPEN_POI_REASON, sourceLabel: OPEN_POI_SOURCE_LABEL } : null
+      if (!openCandidate) return null
+      const displayReady = await normalizeRecommendationDisplayData(openCandidate, category)
+      return { ...displayReady, reason: OPEN_POI_REASON, sourceLabel: OPEN_POI_SOURCE_LABEL }
     }
 
     const candidates = await nearbySearch(centroid.lat, centroid.lng, category)
@@ -344,11 +357,15 @@ async function fetchReplacementRecommendationImpl(
     for (const candidate of candidates) {
       if (exclude.has(candidate.placeId)) continue
       const place = await maybeEnrichRecommendationDetails(candidate, category)
-      const recommendation = { ...place, reason: GOOGLE_REASON, sourceLabel: GOOGLE_SOURCE_LABEL }
-      if (hasRecommendationPhoto(place)) return recommendation
+      const displayReady = await normalizeRecommendationDisplayData(place, category)
+      const recommendation = { ...displayReady, reason: GOOGLE_REASON, sourceLabel: GOOGLE_SOURCE_LABEL }
+      if (hasRecommendationPhoto(displayReady)) return recommendation
       fallbackGoogle ??= recommendation
     }
-    if (openCandidate) return { ...openCandidate, type: category, reason: OPEN_POI_REASON, sourceLabel: OPEN_POI_SOURCE_LABEL }
+    if (openCandidate) {
+      const displayReady = await normalizeRecommendationDisplayData(openCandidate, category)
+      return { ...displayReady, reason: OPEN_POI_REASON, sourceLabel: OPEN_POI_SOURCE_LABEL }
+    }
     return fallbackGoogle
   } catch {
     return null

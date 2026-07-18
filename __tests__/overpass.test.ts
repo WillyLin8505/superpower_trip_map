@@ -33,6 +33,35 @@ describe('overpassElementToRow', () => {
     expect(row).toMatchObject({ source_place_id: 'way/9', lat: 24, lng: 120 })
   })
 
+  it('keeps free image and local-language metadata for Open POI cards', () => {
+    const row = overpassElementToRow(
+      {
+        type: 'node',
+        id: 456,
+        lat: 34.665,
+        lon: 135.432,
+        tags: {
+          name: 'Universal Studios Japan',
+          'name:ja': 'ユニバーサル・スタジオ・ジャパン',
+          image: 'File:Universal Studios Japan.jpg',
+          wikimedia_commons: 'File:USJ globe.jpg',
+          wikidata: 'Q1141980',
+          tourism: 'attraction',
+        },
+      },
+      'attraction',
+    )
+
+    expect(row).toMatchObject({
+      name_local: 'ユニバーサル・スタジオ・ジャパン',
+      metadata: {
+        image: 'File:Universal Studios Japan.jpg',
+        wikimedia_commons: 'File:USJ globe.jpg',
+        wikidata: 'Q1141980',
+      },
+    })
+  })
+
   it('returns null for a nameless element', () => {
     expect(overpassElementToRow({ type: 'node', id: 1, lat: 1, lon: 1, tags: { amenity: 'cafe' } }, 'dessert')).toBeNull()
   })

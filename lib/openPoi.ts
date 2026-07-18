@@ -36,11 +36,44 @@ function cleanText(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
+function metadataString(metadata: Record<string, unknown> | null | undefined, key: string): string | null {
+  return cleanText(metadata?.[key])
+}
+
+function commonsFileUrl(value: string): string | null {
+  const withoutPrefix = value.replace(/^File:/i, '').trim()
+  if (!withoutPrefix || /^Category:/i.test(withoutPrefix)) return null
+  return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(withoutPrefix)}`
+}
+
+function normalizeImageUrl(value: string | null): string | null {
+  if (!value) return null
+  if (/^https?:\/\//i.test(value)) return value
+  if (/^File:/i.test(value)) return commonsFileUrl(value)
+  if (/\.(?:avif|gif|jpe?g|png|webp)$/i.test(value)) return commonsFileUrl(value)
+  return null
+}
+
+function imageUrlsFromMetadata(metadata: Record<string, unknown> | null | undefined): string[] {
+  const candidates = [
+    metadataString(metadata, 'photoUrl'),
+    metadataString(metadata, 'photo_url'),
+    metadataString(metadata, 'imageUrl'),
+    metadataString(metadata, 'image_url'),
+    metadataString(metadata, 'thumbnailUrl'),
+    metadataString(metadata, 'thumbnail_url'),
+    metadataString(metadata, 'image'),
+    metadataString(metadata, 'wikimedia_commons'),
+  ]
+  return Array.from(new Set(candidates.map(normalizeImageUrl).filter((url): url is string => url !== null))).slice(0, 5)
+}
+
 export function mapOpenPoiRowToPlace(row: OpenPoiRow): OpenPoiPlace {
   const description = cleanText(row.metadata?.description) ?? placeShortDescription(row.category)
   const zhName = cleanText(row.name_zh)
   const localName = cleanText(row.name_local)
   const primaryName = cleanText(row.name_primary) ?? row.source_place_id
+  const photoUrls = imageUrlsFromMetadata(row.metadata)
   return {
     id: randomUUID(),
     placeId: `${row.source}:${row.source_place_id}`,
@@ -55,8 +88,8 @@ export function mapOpenPoiRowToPlace(row: OpenPoiRow): OpenPoiPlace {
     address: '',
     openingHours: null,
     rating: null,
-    photoUrl: null,
-    photoUrls: [],
+    photoUrl: photoUrls[0] ?? null,
+    photoUrls,
     description,
     source: row.source,
     sourceLabel: 'Open POI',

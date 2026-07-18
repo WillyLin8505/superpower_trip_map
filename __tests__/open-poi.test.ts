@@ -25,3 +25,21 @@ it('maps an open-data POI row to a recommendation-safe Place without Google enri
     sourceLabel: 'Open POI',
   })
 })
+
+it('maps open-data image metadata to a recommendation cover photo', () => {
+  expect(mapOpenPoiRowToPlace({
+    source: 'osm',
+    source_place_id: 'node/1',
+    name_primary: 'Wanna Waffle?',
+    name_zh: null,
+    name_local: 'Wanna Waffle?',
+    lat: 21.02,
+    lng: 105.85,
+    category: 'dessert',
+    confidence: null,
+    metadata: { image: 'https://images.example/waffle.jpg' },
+  })).toMatchObject({
+    photoUrl: 'https://images.example/waffle.jpg',
+    photoUrls: ['https://images.example/waffle.jpg'],
+  })
+})
