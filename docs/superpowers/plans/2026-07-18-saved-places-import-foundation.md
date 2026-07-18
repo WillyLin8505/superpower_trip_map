@@ -407,26 +407,40 @@ it('resolves title to a typed stub via find-place + essentials details', async (
   })
 })
 
-it('requests only essentials fields (no photos/opening_hours/editorial) and tags the essentials SKU', async () => {
+it('requests the exact Basic field mask (type, singular; no photos/hours/rating/editorial) and tags the essentials SKU', async () => {
   await resolvePlaceEssentials('度小月')
-  const detailsUrl = trackedApiFetch.mock.calls[1][0] as string
-  expect(detailsUrl).toContain('types')
-  expect(detailsUrl).not.toContain('photos')
-  expect(detailsUrl).not.toContain('opening_hours')
+  const detailsUrl = new URL(trackedApiFetch.mock.calls[1][0] as string)
+  expect(detailsUrl.searchParams.get('fields')).toBe('place_id,name,geometry,formatted_address,type')
   expect(trackedApiFetch.mock.calls[1][2]).toMatchObject({ skuHint: 'place_details_essentials' })
 })
 
-it('reuses a cached place_id without calling find-place', async () => {
+it('reuses a cached place_id without calling find-place and without re-caching', async () => {
   readCachedPlaceId.mockResolvedValue('ChIJcached')
-  trackedApiFetch.mockReset().mockResolvedValueOnce({ json: async () => detailsResponse })
+  trackedApiFetch.mockReset().mockResolvedValueOnce({
+    json: async () => ({ ...detailsResponse, result: { ...detailsResponse.result, place_id: 'ChIJcached' } }),
+  })
   const stub = await resolvePlaceEssentials('度小月')
   expect(stub?.placeId).toBe('ChIJcached')
-  expect(trackedApiFetch).toHaveBeenCalledTimes(1) // details only
+  expect(trackedApiFetch).toHaveBeenCalledTimes(1) // details only, no find-place
+  expect(writeCachedPlaceId).not.toHaveBeenCalled()
 })
 
 it('returns null when find-place yields no candidate', async () => {
   trackedApiFetch.mockReset().mockResolvedValueOnce({ json: async () => ({ candidates: [] }) })
   expect(await resolvePlaceEssentials('查無此地')).toBeNull()
+})
+
+it('caches title→place_id only after Details succeeds', async () => {
+  await resolvePlaceEssentials('度小月')
+  expect(writeCachedPlaceId).toHaveBeenCalledWith('度小月', undefined, 'ChIJx')
+})
+
+it('does NOT cache when Details is non-OK or lacks geometry (no cache poisoning)', async () => {
+  trackedApiFetch.mockReset()
+    .mockResolvedValueOnce({ json: async () => findPlaceResponse })
+    .mockResolvedValueOnce({ json: async () => ({ status: 'NOT_FOUND' }) })
+  expect(await resolvePlaceEssentials('度小月')).toBeNull()
+  expect(writeCachedPlaceId).not.toHaveBeenCalled()
 })
 ```
 
@@ -448,9 +462,12 @@ import { classifyPlaceType } from '@/lib/takeout/classify'
 
 const KEY = process.env.GOOGLE_MAPS_API_KEY!
 const BASE = 'https://maps.googleapis.com/maps/api/place'
-// Essentials-tier fields: type/coords/name/address only. NO photos/opening_hours/
-// editorial (those are Pro and are fetched lazily via getPlaceDetails at add-time).
-const ESSENTIALS_FIELDS = ['place_id', 'name', 'geometry', 'formatted_address', 'types'].join(',')
+// Legacy Place Details `fields` Basic-category token is `type` (SINGULAR); the response
+// still returns a `types` ARRAY. Basic tier is the cheap tier (no Atmosphere/photos).
+// Confirmed against Google's legacy "Place Data Fields" docs. skuHint below is the app's
+// internal cost label (New-API-style names), consistent with how places.ts labels its
+// heavier legacy details call `place_details_pro`.
+const ESSENTIALS_FIELDS = ['place_id', 'name', 'geometry', 'formatted_address', 'type'].join(',')
 
 export interface ResolvedStub {
   placeId: string
@@ -461,37 +478,44 @@ export interface ResolvedStub {
   address: string
 }
 
-async function findPlaceId(title: string, coords?: { lat: number; lng: number }): Promise<string | null> {
+// Returns the candidate id WITHOUT writing the cache — the cache is written only after
+// Details confirms the id resolves (see resolvePlaceEssentials), mirroring searchPlace.
+async function findPlaceId(
+  title: string,
+  coords?: { lat: number; lng: number },
+): Promise<{ placeId: string; fromCache: boolean } | null> {
   const cached = await readCachedPlaceId(title)
-  if (cached) return cached
+  if (cached) return { placeId: cached, fromCache: true }
   const params = new URLSearchParams({ input: title, inputtype: 'textquery', fields: 'place_id', key: KEY })
   if (coords) params.set('locationbias', `point:${coords.lat},${coords.lng}`)
   const res = await trackedApiFetch(`${BASE}/findplacefromtext/json?${params.toString()}`, googleMapsFetchOptions(), {
     provider: 'google_maps', endpoint: 'find_place_from_text', skuHint: 'find_place_from_text_id_only',
   })
   const data = await res.json()
-  const placeId = data.candidates?.[0]?.place_id ?? null
-  if (placeId) await writeCachedPlaceId(title, undefined, placeId)
-  return placeId
+  const placeId = data.candidates?.[0]?.place_id
+  return placeId ? { placeId, fromCache: false } : null
 }
 
 export async function resolvePlaceEssentials(
   title: string,
   coords?: { lat: number; lng: number },
 ): Promise<ResolvedStub | null> {
-  const placeId = await findPlaceId(title, coords)
-  if (!placeId) return null
-  const params = new URLSearchParams({ place_id: placeId, fields: ESSENTIALS_FIELDS, key: KEY, language: 'zh-TW' })
+  const found = await findPlaceId(title, coords)
+  if (!found) return null
+  const params = new URLSearchParams({ place_id: found.placeId, fields: ESSENTIALS_FIELDS, key: KEY, language: 'zh-TW' })
   const res = await trackedApiFetch(`${BASE}/details/json?${params.toString()}`, googleMapsFetchOptions(), {
     provider: 'google_maps', endpoint: 'place_details', skuHint: 'place_details_essentials',
   })
   const data = await res.json()
   const r = data.result
+  // Cache the title→place_id mapping ONLY after Details confirms it resolves — never
+  // poison place_id_cache on a bad candidate or a non-OK / geometry-less response.
   if (!r || data.status !== 'OK' || !r.geometry?.location) return null
+  if (!found.fromCache) await writeCachedPlaceId(title, undefined, found.placeId)
   return {
-    placeId: r.place_id ?? placeId,
+    placeId: r.place_id ?? found.placeId,
     name: (r.name ?? title).trim(),
-    type: classifyPlaceType(r.types ?? []),
+    type: classifyPlaceType(r.types ?? []),   // response field is `types` (array)
     lat: r.geometry.location.lat,
     lng: r.geometry.location.lng,
     address: r.formatted_address ?? '',
@@ -522,24 +546,32 @@ git commit -m "feat(saved-places): essentials-tier resolver (type+coords, no Pro
 **Interfaces:**
 - Consumes: `SavedPlaceEntry`/`SavedPlaceSource` types (Task 2); `resolvePlaceEssentials` (Task 4); `createClient` from `@/lib/supabase/server`.
 - Produces:
-  - `importSavedPlaces(entries: SavedPlaceEntry[]): Promise<{ added: number; skipped: number; unresolved: number }>` — entries are parsed + selected **client-side** (the parser is pure), so only chosen places cost a resolve, and no non-serializable predicate crosses the server-action boundary.
+  - `importSavedPlaces(entries: SavedPlaceEntry[]): Promise<{ added: number; existing: number; unresolved: number }>` — entries are parsed + selected **client-side** (the parser is pure), so only chosen places cost a resolve, and no non-serializable predicate crosses the server-action boundary. `added`/`existing` are distinguished via `ignoreDuplicates` + `.select()` (spec: 「新增 N、已存在 M」).
   - `listSavedPlaces(): Promise<SavedPlaceRow[]>` where `SavedPlaceRow = { id: string; listName: string; source: SavedPlaceSource; place: Place }`.
 
 - [ ] **Step 1: Write the failing test**
 
 `__tests__/saved-places-actions.test.ts`:
 ```ts
-const state: { user: { id: string } | null; rows: unknown[] } = { user: { id: 'user-1' }, rows: [] }
-const upsert = jest.fn(async () => ({ error: null }))
+const state: { user: { id: string } | null; rows: unknown[]; insertedIds: string[] } =
+  { user: { id: 'user-1' }, rows: [], insertedIds: [] }
+const upsertCall: { rows?: unknown[]; opts?: unknown } = {}
 const order = jest.fn(async () => ({ data: state.rows, error: null }))
 
 jest.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
     auth: { getUser: async () => ({ data: { user: state.user } }) },
-    from: () => ({
-      upsert,
-      select: () => ({ eq: () => ({ order }) }),
-    }),
+    from: (table: string) => {
+      expect(table).toBe('saved_places')
+      return {
+        upsert: (rows: unknown[], opts: unknown) => {
+          upsertCall.rows = rows
+          upsertCall.opts = opts
+          return { select: async () => ({ data: state.insertedIds.map((place_id) => ({ place_id })), error: null }) }
+        },
+        select: () => ({ eq: () => ({ order }) }),
+      }
+    },
   }),
 }))
 const resolvePlaceEssentials = jest.fn()
@@ -552,20 +584,32 @@ import { importSavedPlaces, listSavedPlaces } from '@/app/actions/savedPlaces'
 beforeEach(() => {
   jest.clearAllMocks()
   state.user = { id: 'user-1' }
+  state.insertedIds = []
   resolvePlaceEssentials.mockImplementation(async (title: string) =>
     title === '查無此地' ? null : { placeId: `pid-${title}`, name: title, type: 'restaurant', lat: 1, lng: 2, address: 'addr' })
 })
 
-it('imports selected entries as owner-scoped stubs, counting unresolved', async () => {
+it('imports selected entries as owner-scoped stubs; counts unresolved; upserts with dedup onConflict', async () => {
+  state.insertedIds = ['pid-度小月'] // resolved + newly inserted (not a duplicate)
   const entries = [
     { listName: '台南', source: 'takeout_list' as const, title: '度小月', note: null, lat: null, lng: null },
     { listName: '台南', source: 'takeout_list' as const, title: '查無此地', note: null, lat: null, lng: null },
   ]
   const result = await importSavedPlaces(entries)
-  expect(result).toEqual({ added: 1, skipped: 0, unresolved: 1 })
-  const payload = upsert.mock.calls[0][0][0] as Record<string, unknown>
+  expect(result).toEqual({ added: 1, existing: 0, unresolved: 1 })
+  expect(upsertCall.opts).toEqual({ onConflict: 'owner_id,list_name,place_id', ignoreDuplicates: true })
+  const payload = (upsertCall.rows as Record<string, unknown>[])[0]
   expect(payload).toMatchObject({ owner_id: 'user-1', list_name: '台南', source: 'takeout_list', place_id: 'pid-度小月' })
   expect((payload.place as { type: string }).type).toBe('restaurant')
+})
+
+it('reports re-imported existing rows as existing, not added', async () => {
+  state.insertedIds = [] // both resolved but already existed → 0 inserted
+  const entries = [
+    { listName: '台南', source: 'takeout_list' as const, title: '度小月', note: null, lat: null, lng: null },
+    { listName: '台南', source: 'takeout_list' as const, title: '牛肉湯', note: null, lat: null, lng: null },
+  ]
+  expect(await importSavedPlaces(entries)).toEqual({ added: 0, existing: 2, unresolved: 0 })
 })
 
 it('throws when logged out', async () => {
@@ -574,10 +618,12 @@ it('throws when logged out', async () => {
   await expect(importSavedPlaces(entries)).rejects.toThrow('NOT_AUTHENTICATED')
 })
 
-it('lists saved rows shaped as { id, listName, source, place }', async () => {
-  state.rows = [{ id: 'r1', list_name: '台南', source: 'takeout_list', place: { placeId: 'p', name: 'X' } }]
+it('lists saved rows shaped as { id, listName, source, place } (full Place)', async () => {
+  const place = { id: 'x', placeId: 'p', name: 'X', type: 'restaurant', lat: 1, lng: 2, address: 'a',
+    openingHours: null, rating: null, photoUrl: null, description: null }
+  state.rows = [{ id: 'r1', list_name: '台南', source: 'takeout_list', place }]
   const rows = await listSavedPlaces()
-  expect(rows[0]).toEqual({ id: 'r1', listName: '台南', source: 'takeout_list', place: { placeId: 'p', name: 'X' } })
+  expect(rows[0]).toEqual({ id: 'r1', listName: '台南', source: 'takeout_list', place })
 })
 ```
 
@@ -625,17 +671,18 @@ function stubToPlace(stub: { placeId: string; name: string; type: Place['type'];
 
 export async function importSavedPlaces(
   entries: SavedPlaceEntry[],
-): Promise<{ added: number; skipped: number; unresolved: number }> {
+): Promise<{ added: number; existing: number; unresolved: number }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('NOT_AUTHENTICATED')
 
-  let added = 0, skipped = 0, unresolved = 0
+  const rows: Record<string, unknown>[] = []
+  let unresolved = 0
   for (const entry of entries) {
     const coords = entry.lat != null && entry.lng != null ? { lat: entry.lat, lng: entry.lng } : undefined
     const stub = await resolvePlaceEssentials(entry.title, coords)
     if (!stub) { unresolved++; continue }
-    const { error } = await supabase.from('saved_places').upsert([{
+    rows.push({
       owner_id: user.id,
       list_name: entry.listName,
       source: entry.source,
@@ -643,11 +690,19 @@ export async function importSavedPlaces(
       place: stubToPlace(stub),
       note: entry.note,
       updated_at: new Date().toISOString(),
-    }], { onConflict: 'owner_id,list_name,place_id' })
-    if (error) skipped++
-    else added++
+    })
   }
-  return { added, skipped, unresolved }
+  if (rows.length === 0) return { added: 0, existing: 0, unresolved }
+
+  // ignoreDuplicates → INSERT ... ON CONFLICT DO NOTHING; .select() returns only the rows
+  // actually inserted, so added vs already-existing is accurate (spec: 「新增 N、已存在 M」).
+  const { data, error } = await supabase
+    .from('saved_places')
+    .upsert(rows, { onConflict: 'owner_id,list_name,place_id', ignoreDuplicates: true })
+    .select('place_id')
+  if (error) throw new Error('匯入失敗，請稍後再試')
+  const added = data?.length ?? 0
+  return { added, existing: rows.length - added, unresolved }
 }
 
 export async function listSavedPlaces(): Promise<SavedPlaceRow[]> {
@@ -683,6 +738,19 @@ git commit -m "feat(saved-places): import + list server actions (owner-scoped, d
 ```
 
 ---
+
+## Codex review notes (addressed before execution)
+
+Independent Codex critique ran on the first draft. Confirmed findings, fixed above:
+- **[P1] Field mask / pricing:** legacy Place Details Basic-category token is `type` (singular; the response returns a `types` array), verified against Google's legacy Place Data Fields docs. Field mask corrected; test asserts the exact mask; `place_details_essentials` kept as the app's internal cost label (consistent with the existing `place_details_pro` label on the heavier legacy call).
+- **[P1] Cache poisoning:** `writeCachedPlaceId` now runs only after Details confirms the id resolves (mirrors `searchPlace`); tests cover cache-on-success and no-cache-on-failure.
+- **[P2] Duplicate counting:** `upsert(..., { ignoreDuplicates: true }).select()` distinguishes `added` vs `existing`; test covers the re-import case.
+- **[P2] Thin Supabase mock:** mock now records `onConflict` + table name and the test asserts them; list fixture is a full `Place`.
+- **[P2] Missing tests:** added Details non-OK / no-geometry, exact field mask, and existing-vs-added counting.
+
+Accepted / deferred:
+- **[P2] Resolver ignores country context:** GeoJSON coords drive a `locationbias`; CSV entries lack both. Acceptable for a user's own saved places; revisit if cross-city name collisions surface.
+- **[P2] No live RLS integration test:** the repo's Jest setup mocks Supabase (`jest.config.ts`), so RLS is covered by owner-scoped action tests + a manual check when `0011` is applied. A live integration test is out of scope for this plan.
 
 ## Follow-up plan (Part B, separate file)
 
