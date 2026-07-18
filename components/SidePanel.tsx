@@ -5,8 +5,9 @@ import { DayRecommendations } from './DayRecommendations'
 import { CandidatePanel } from './CandidatePanel'
 import { CombinedInput } from '@/components/CombinedInput'
 import { RecommendationCard } from './RecommendationCard'
+import { CollectionPanel } from './CollectionPanel'
 
-export type SidePanelTab = 'recommend' | 'line' | 'reserve'
+export type SidePanelTab = 'recommend' | 'line' | 'reserve' | 'collection'
 type Tab = SidePanelTab
 type Category = 'dessert' | 'attraction' | 'restaurant'
 
@@ -35,12 +36,18 @@ interface Props {
   onDeleteCandidate: (candidateId: string) => void
   activeTab?: SidePanelTab
   onTabChange?: (tab: SidePanelTab) => void
+  collectionBuckets?: CategoryBuckets
+  onAddCollectionPlace?: (rec: DayRecommendation) => void
+  onArchiveCollection?: (rec: DayRecommendation) => void
+  onDismissCollection?: (rec: DayRecommendation) => void
+  onCollectionImported?: () => void
 }
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'recommend', label: '推薦行程' },
   { key: 'line', label: 'LINE 討論' },
   { key: 'reserve', label: '備用行程' },
+  { key: 'collection', label: '地圖收藏' },
 ]
 
 function archivedToRecommendation(candidate: Candidate): DayRecommendation {
@@ -126,6 +133,16 @@ export function SidePanel(props: Props) {
               </ul>
             )}
           </section>
+        )}
+        {tab === 'collection' && (
+          <CollectionPanel
+            dateIso={props.dateIso}
+            buckets={props.collectionBuckets}
+            onAdd={props.onAddCollectionPlace ?? (() => {})}
+            onArchive={props.onArchiveCollection ?? (() => {})}
+            onDelete={props.onDismissCollection ?? (() => {})}
+            onImported={props.onCollectionImported ?? (() => {})}
+          />
         )}
       </div>
     </div>

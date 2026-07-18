@@ -36,6 +36,9 @@ import { arrangeDayOrder } from '@/lib/utils/arrangeDay'
 import { AiRearrangeInput } from '@/components/AiRearrangeInput'
 import { createTripSafe, saveTripSafe } from '@/app/actions/trips'
 import { archiveCandidate, archivePlace, removeCandidate, unarchivePlace } from '@/app/actions/candidates'
+import { listSavedPlaces } from '@/app/actions/savedPlaces'
+import { selectCollectionBuckets } from '@/lib/savedPlaces/select'
+import type { SavedPlaceRow } from '@/lib/savedPlaces/types'
 import { checkLateExit, checkOutsideHours } from '@/lib/utils/hours'
 import {
   archivePlaceKey,
@@ -45,7 +48,7 @@ import {
   upsertArchived,
 } from '@/lib/itineraryClientState'
 
-type SidePanelTab = 'recommend' | 'line' | 'reserve'
+type SidePanelTab = 'recommend' | 'line' | 'reserve' | 'collection'
 type RecommendationCategory = 'dessert' | 'attraction' | 'restaurant'
 
 // pointerWithin is essential for multi-container: it checks where the pointer
@@ -169,6 +172,13 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   const [archived, setArchivedState] = useState<Candidate[]>(initialArchived)
   const archivedRef = useRef<Candidate[]>(initialArchived)
   const [sidePanelTabs, setSidePanelTabs] = useState<Record<number, SidePanelTab>>({})
+  const [collectionRows, setCollectionRows] = useState<SavedPlaceRow[]>([])
+  const [collectionExcluded, setCollectionExcluded] = useState<Record<number, string[]>>({})
+  useEffect(() => {
+    // Graceful: an anonymous session or a load failure just leaves the collection empty —
+    // never surface an unhandled rejection from this background load.
+    listSavedPlaces().then(setCollectionRows).catch(() => setCollectionRows([]))
+  }, [])
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const autosaveRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // planRef always tracks the latest committed plan (avoids stale closures in dnd-kit callbacks)
@@ -853,6 +863,32 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     removeRecommendationFromShown(dayIdx, rec, [rec.placeId])
   }, [removeRecommendationFromShown])
 
+  // Collection tab (地圖收藏): reuse the recommendation add/archive paths over saved-places
+  // cards. Add appends to the day (placeId then falls out of the collection buckets next
+  // render); archive/dismiss use a per-day exclude set so the card leaves the suggestion.
+  const handleAddCollectionPlace = useCallback((dayIdx: number, rec: DayRecommendation) => {
+    void handleAddRecommendation(dayIdx, rec)
+  }, [handleAddRecommendation])
+
+  const handleDismissCollection = useCallback((dayIdx: number, rec: DayRecommendation) => {
+    setCollectionExcluded((current) => ({
+      ...current,
+      [dayIdx]: [...(current[dayIdx] ?? []), rec.placeId],
+    }))
+  }, [])
+
+  const handleArchiveCollection = useCallback(async (dayIdx: number, rec: DayRecommendation) => {
+    await handleArchiveRecommendation(dayIdx, rec)
+    setCollectionExcluded((current) => ({
+      ...current,
+      [dayIdx]: [...(current[dayIdx] ?? []), rec.placeId],
+    }))
+  }, [handleArchiveRecommendation])
+
+  const handleCollectionImported = useCallback(() => {
+    listSavedPlaces().then(setCollectionRows).catch(() => {})
+  }, [])
+
   // TASK-010: manual recommendation center — persists to the day, then refetches that day's 3 categories.
   const setDayRecommendationCenter = useCallback((dayIdx: number, center: RecommendationCenter | null) => {
     const newDays = planRef.current.days.map((d, i) => (i === dayIdx ? { ...d, recommendationCenter: center } : d))
@@ -1141,6 +1177,15 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
                 onArchivePlace={(place) => handleArchivePlace(dayIdx, place)}
                 sidePanelTab={sidePanelTabs[dayIdx]}
                 onSidePanelTabChange={(tab) => handleSidePanelTabChange(dayIdx, tab)}
+                collectionBuckets={selectCollectionBuckets(
+                  collectionRows,
+                  resolveDayCenter(plan.days, dayIdx),
+                  new Set([...(collectionExcluded[dayIdx] ?? []), ...day.places.map((p) => p.placeId)]),
+                )}
+                onAddCollectionPlace={(rec) => handleAddCollectionPlace(dayIdx, rec)}
+                onArchiveCollection={(rec) => handleArchiveCollection(dayIdx, rec)}
+                onDismissCollection={(rec) => handleDismissCollection(dayIdx, rec)}
+                onCollectionImported={handleCollectionImported}
                 backfilling={{
                   dessert: backfillKeys.has(`${dayIdx}:dessert`),
                   attraction: backfillKeys.has(`${dayIdx}:attraction`),

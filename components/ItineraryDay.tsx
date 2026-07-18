@@ -54,6 +54,11 @@ interface Props {
   onDeleteCandidate?: (candidateId: string) => void
   sidePanelTab?: SidePanelTab
   onSidePanelTabChange?: (tab: SidePanelTab) => void
+  collectionBuckets?: CategoryBuckets
+  onAddCollectionPlace?: (rec: DayRecommendation) => void
+  onArchiveCollection?: (rec: DayRecommendation) => void
+  onDismissCollection?: (rec: DayRecommendation) => void
+  onCollectionImported?: () => void
   isLastDay?: boolean
   onSmartArrange?: () => void
   onSetAvoid?: (field: 'avoidTraffic' | 'avoidCrowds', value: boolean) => void
@@ -64,7 +69,7 @@ interface Props {
   onArchivePlace?: (place: ScheduledPlace) => void
 }
 
-export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, onArchiveRecommendation, onDeleteRecommendation, candidates, archived, onAddReservePlace, onAddReservePlaces, onAddArchivedToDay, onDeleteArchived, onAddCandidateToDay, onArchiveCandidate, onDeleteCandidate, sidePanelTab, onSidePanelTabChange, backfilling, recsHasCenter, onSetRecommendationCenter, onClearRecommendationCenter, onRefreshRecommendationCategory, recsRefreshing, recsError, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId, onDeletePlace, onArchivePlace }: Props) {
+export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, onArchiveRecommendation, onDeleteRecommendation, candidates, archived, onAddReservePlace, onAddReservePlaces, onAddArchivedToDay, onDeleteArchived, onAddCandidateToDay, onArchiveCandidate, onDeleteCandidate, sidePanelTab, onSidePanelTabChange, collectionBuckets, onAddCollectionPlace, onArchiveCollection, onDismissCollection, onCollectionImported, backfilling, recsHasCenter, onSetRecommendationCenter, onClearRecommendationCenter, onRefreshRecommendationCategory, recsRefreshing, recsError, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId, onDeletePlace, onArchivePlace }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
 
@@ -244,6 +249,11 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
               onDeleteCandidate={onDeleteCandidate ?? (() => {})}
               activeTab={sidePanelTab}
               onTabChange={onSidePanelTabChange}
+              collectionBuckets={collectionBuckets}
+              onAddCollectionPlace={onAddCollectionPlace}
+              onArchiveCollection={onArchiveCollection}
+              onDismissCollection={onDismissCollection}
+              onCollectionImported={onCollectionImported}
             />
           </div>
         )}
