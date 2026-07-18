@@ -1,4 +1,4 @@
-import { mapOpenPoiRowToPlace } from '@/lib/openPoi'
+import { mapOpenPoiRowToPlace, mapOpenPoiRowToPlaceWithFreeImages } from '@/lib/openPoi'
 
 it('maps an open-data POI row to a recommendation-safe Place without Google enrichment', () => {
   expect(mapOpenPoiRowToPlace({
@@ -42,4 +42,48 @@ it('maps open-data image metadata to a recommendation cover photo', () => {
     photoUrl: 'https://images.example/waffle.jpg',
     photoUrls: ['https://images.example/waffle.jpg'],
   })
+})
+
+it('resolves a free Wikidata image when direct OSM image metadata is missing', async () => {
+  const realFetch = global.fetch
+  global.fetch = jest.fn(async () => ({
+    ok: true,
+    json: async () => ({
+      entities: {
+        Q1141980: {
+          claims: {
+            P18: [
+              {
+                mainsnak: {
+                  datavalue: {
+                    value: 'Universal Studios Japan.jpg',
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    }),
+  })) as unknown as typeof fetch
+
+  try {
+    await expect(mapOpenPoiRowToPlaceWithFreeImages({
+      source: 'osm',
+      source_place_id: 'node/1141980',
+      name_primary: 'Universal Studios Japan',
+      name_zh: null,
+      name_local: 'ユニバーサル・スタジオ・ジャパン',
+      lat: 34.665,
+      lng: 135.432,
+      category: 'attraction',
+      confidence: null,
+      metadata: { wikidata: 'Q1141980' },
+    })).resolves.toMatchObject({
+      photoUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Universal%20Studios%20Japan.jpg',
+      photoUrls: ['https://commons.wikimedia.org/wiki/Special:FilePath/Universal%20Studios%20Japan.jpg'],
+    })
+  } finally {
+    global.fetch = realFetch
+  }
 })

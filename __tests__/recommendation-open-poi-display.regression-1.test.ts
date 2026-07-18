@@ -9,7 +9,7 @@ jest.mock('@/app/actions/places', () => ({
 jest.mock('@/lib/openPoi', () => ({
   openPoiSearch: jest.fn(),
 }))
-jest.mock('@/lib/googleTranslate', () => ({
+jest.mock('@/lib/aiTranslate', () => ({
   translateTextToZhTw: jest.fn(),
 }))
 
@@ -17,7 +17,7 @@ import { getDayRecommendations } from '@/app/actions/recommend'
 import { readFile } from 'fs/promises'
 import { nearbySearch } from '@/app/actions/places'
 import { openPoiSearch } from '@/lib/openPoi'
-import { translateTextToZhTw } from '@/lib/googleTranslate'
+import { translateTextToZhTw } from '@/lib/aiTranslate'
 import type { DayItinerary, Place } from '@/lib/types'
 
 const readFileMock = readFile as jest.Mock

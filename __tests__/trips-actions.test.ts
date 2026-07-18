@@ -1,5 +1,11 @@
 import type { PlanResult, RecommendationCenter } from '@/lib/types'
 
+jest.mock('@/lib/aiTranslate', () => ({
+  translateTextToZhTw: jest.fn(),
+}))
+
+import { translateTextToZhTw } from '@/lib/aiTranslate'
+
 // Chainable Supabase mock builder.
 // Mutation chain shape (after fix): .from().update/delete().eq().select('id') → { data, error }
 // Read chain shape: .from().select().eq().single() → { data, error }
@@ -48,18 +54,16 @@ jest.mock('@/lib/supabase/server', () => ({ createClient: () => current.client }
 jest.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => currentAdmin.client }))
 
 const plan = { days: [], transportMode: 'driving', startDate: '2026-07-04' } as PlanResult
-const realFetch = global.fetch
-const realTranslateKey = process.env.GOOGLE_TRANSLATE_API_KEY
+const translateTextToZhTwMock = translateTextToZhTw as jest.Mock
 
 beforeEach(() => {
+  jest.clearAllMocks()
   current = makeSupabase()
   currentAdmin = makeSupabase()
+  translateTextToZhTwMock.mockResolvedValue(null)
 })
 
 afterEach(() => {
-  global.fetch = realFetch
-  if (realTranslateKey === undefined) delete process.env.GOOGLE_TRANSLATE_API_KEY
-  else process.env.GOOGLE_TRANSLATE_API_KEY = realTranslateKey
 })
 
 function mockAdminTripRead(row: unknown) {
@@ -121,12 +125,7 @@ it('getTrip maps plan + title + ownerId on success through the admin client', as
 })
 
 it('getTrip translates saved place names that are missing Traditional Chinese', async () => {
-  process.env.GOOGLE_TRANSLATE_API_KEY = 'test-translate-key'
-  global.fetch = jest.fn(async () => ({
-    json: async () => ({
-      data: { translations: [{ translatedText: '我在麵店' }] },
-    }),
-  })) as unknown as typeof fetch
+  translateTextToZhTwMock.mockResolvedValue('我在麵店')
 
   const savedPlan: PlanResult = {
     days: [{
@@ -173,6 +172,7 @@ it('getTrip translates saved place names that are missing Traditional Chinese', 
       original: 'Me In Noodles',
     },
   }))
+  expect(translateTextToZhTwMock).toHaveBeenCalledWith('Me In Noodles')
 })
 
 it('listTrips maps rows to TripSummary', async () => {

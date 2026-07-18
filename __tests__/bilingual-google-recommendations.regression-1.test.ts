@@ -1,4 +1,9 @@
+jest.mock('@/lib/aiTranslate', () => ({
+  translateTextToZhTw: jest.fn(),
+}))
+
 import { getPlaceDetails, nearbySearch } from '@/app/actions/places'
+import { translateTextToZhTw } from '@/lib/aiTranslate'
 
 const vietnameseName = 'VOU Cafe - T\u1ed5ng D\u00e2n'
 const englishName = 'VOU Cafe - Tong Dan'
@@ -21,24 +26,20 @@ function detailsResult(name: string, address = 'Hanoi') {
 
 describe('bilingual Google recommendation names regression', () => {
   const realFetch = global.fetch
-  const realTranslateKey = process.env.GOOGLE_TRANSLATE_API_KEY
+  const translateTextToZhTwMock = translateTextToZhTw as jest.Mock
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    translateTextToZhTwMock.mockResolvedValue(null)
+  })
 
   afterEach(() => {
     global.fetch = realFetch
-    if (realTranslateKey === undefined) delete process.env.GOOGLE_TRANSLATE_API_KEY
-    else process.env.GOOGLE_TRANSLATE_API_KEY = realTranslateKey
   })
 
-  it('uses Google Translate as Chinese primary and default-language details as native secondary', async () => {
-    process.env.GOOGLE_TRANSLATE_API_KEY = 'test-translate-key'
+  it('uses AI translation as Chinese primary and default-language details as native secondary', async () => {
+    translateTextToZhTwMock.mockResolvedValue(chineseName)
     const fetchMock = jest.fn(async (url: string) => {
-      if (url.includes('translation.googleapis.com')) {
-        return {
-          json: async () => ({
-            data: { translations: [{ translatedText: chineseName }] },
-          }),
-        }
-      }
       const language = new URL(url).searchParams.get('language')
       return {
         json: async () => detailsResult(language ? englishName : vietnameseName),
@@ -56,7 +57,9 @@ describe('bilingual Google recommendation names regression', () => {
         original: vietnameseName,
       },
     }))
-    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(translateTextToZhTwMock).toHaveBeenCalledWith(vietnameseName)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('translation.googleapis.com'))).toBe(false)
   })
 
   it('latinizes the original name when Google cannot provide a separate English name', async () => {
@@ -77,15 +80,8 @@ describe('bilingual Google recommendation names regression', () => {
   })
 
   it('adds translated Chinese primary and native secondary to nearby Google recommendation candidates', async () => {
-    process.env.GOOGLE_TRANSLATE_API_KEY = 'test-translate-key'
-    global.fetch = jest.fn(async (url: string) => {
-      if (url.includes('translation.googleapis.com')) {
-        return {
-          json: async () => ({
-            data: { translations: [{ translatedText: chineseName }] },
-          }),
-        }
-      }
+    translateTextToZhTwMock.mockResolvedValue(chineseName)
+    global.fetch = jest.fn(async () => {
       return {
         json: async () => ({
           status: 'OK',
@@ -113,5 +109,6 @@ describe('bilingual Google recommendation names regression', () => {
       },
       photoUrl: '/api/photo?ref=photo-1',
     }))
+    expect(translateTextToZhTwMock).toHaveBeenCalledWith(vietnameseName)
   })
 })

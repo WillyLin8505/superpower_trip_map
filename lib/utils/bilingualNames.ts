@@ -1,5 +1,5 @@
 import type { Candidate, Place, PlanResult } from '@/lib/types'
-import { translateTextToZhTw } from '@/lib/googleTranslate'
+import { translateTextToZhTw } from '@/lib/aiTranslate'
 
 function cleanText(value: string | null | undefined): string | null {
   const trimmed = value?.trim()
