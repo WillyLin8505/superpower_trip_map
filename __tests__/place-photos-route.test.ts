@@ -105,8 +105,25 @@ describe('GET /api/place-photos', () => {
     expect(body.photoUrls).toEqual(['https://images.example/hanoi-train-street.jpg'])
   })
 
-  it('does not call Google photo metadata for non-Google place ids when free lookup misses', async () => {
+  it('uses Google Maps as the last fallback for non-Google place ids when free lookup misses', async () => {
     resolveFreeImageForPlaceMock.mockResolvedValueOnce(null)
+    ;(fetch as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: 'OK',
+          candidates: [{ place_id: 'ChIJmvtGooglePlace' }],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: 'OK',
+          result: {
+            photos: [{ photo_reference: 'mvt-google-photo' }],
+          },
+        }),
+      })
 
     const req = new NextRequest('http://localhost/api/place-photos?placeId=osm%3Anode%2F1308439468&placeName=MVTTS+%E5%92%96%E5%95%A1&placeType=dessert&alias=C%C3%A0+Ph%C3%AA+MVTTS&limit=1')
     const res = await GET(req)
@@ -120,7 +137,9 @@ describe('GET /api/place-photos', () => {
       allowGeneric: true,
       limit: 1,
     })
-    expect(fetch).not.toHaveBeenCalled()
-    expect(body.photoUrls).toEqual([])
+    expect(fetch).toHaveBeenNthCalledWith(1, expect.stringContaining('/findplacefromtext/json?'), expect.any(Object))
+    expect(fetch).toHaveBeenNthCalledWith(1, expect.stringContaining('input=MVTTS+%E5%92%96%E5%95%A1+C%C3%A0+Ph%C3%AA+MVTTS'), expect.any(Object))
+    expect(fetch).toHaveBeenNthCalledWith(2, expect.stringContaining('place_id=ChIJmvtGooglePlace'), expect.any(Object))
+    expect(body.photoUrls).toEqual(['/api/photo?ref=mvt-google-photo'])
   })
 })
