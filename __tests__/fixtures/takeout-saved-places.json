@@ -1,0 +1,17 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "geometry": { "type": "Point", "coordinates": [120.2, 22.99] },
+      "properties": {
+        "Title": "度小月",
+        "Location": { "Address": "台南市中西區", "Business Name": "度小月擔仔麵" },
+        "Google Maps URL": "https://www.google.com/maps/place/?q=place_id:ChIJd0"
+      }
+    },
+    {
+      "geometry": null,
+      "properties": { "Title": "無座標景點", "Google Maps URL": "https://maps.google.com/?cid=1" }
+    }
+  ]
+}
