@@ -173,6 +173,9 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   const archivedRef = useRef<Candidate[]>(initialArchived)
   const [sidePanelTabs, setSidePanelTabs] = useState<Record<number, SidePanelTab>>({})
   const [collectionRows, setCollectionRows] = useState<SavedPlaceRow[]>([])
+  // Ephemeral per-day dismiss set for collection cards (keyed by dayIdx). Not shifted when a
+  // day is deleted/scattered — a dismissed card may reappear until reload; acceptable since
+  // this is a soft, session-only hide (KNOWN P2, deferred).
   const [collectionExcluded, setCollectionExcluded] = useState<Record<number, string[]>>({})
   useEffect(() => {
     // Graceful: an anonymous session or a load failure just leaves the collection empty —
@@ -877,12 +880,12 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     }))
   }, [])
 
-  const handleArchiveCollection = useCallback(async (dayIdx: number, rec: DayRecommendation) => {
-    await handleArchiveRecommendation(dayIdx, rec)
-    setCollectionExcluded((current) => ({
-      ...current,
-      [dayIdx]: [...(current[dayIdx] ?? []), rec.placeId],
-    }))
+  // Archive moves the place into the 備用行程 pool but keeps it in the (cross-trip) collection
+  // suggestions — you may still want it on another day, and only 刪除 (dismiss) hides it. This
+  // also sidesteps a "archive failed but the card vanished" mismatch, since
+  // handleArchiveRecommendation swallows failures internally.
+  const handleArchiveCollection = useCallback((dayIdx: number, rec: DayRecommendation) => {
+    void handleArchiveRecommendation(dayIdx, rec)
   }, [handleArchiveRecommendation])
 
   const handleCollectionImported = useCallback(() => {
