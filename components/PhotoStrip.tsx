@@ -21,6 +21,10 @@ function photoCacheKey(placeId: string, kind: 'cover' | 'all'): string {
   return `${PHOTO_CACHE_PREFIX}:${kind}:${placeId}`
 }
 
+function isGooglePlaceId(placeId: string | null | undefined): placeId is string {
+  return Boolean(placeId && placeId.length >= 16 && !placeId.includes(':'))
+}
+
 function readCachedPhotos(placeId: string, kind: 'cover' | 'all'): string[] | null {
   if (typeof window === 'undefined') return null
   try {
@@ -82,8 +86,9 @@ export function PhotoStrip({ photos, placeId, placeName, className = '' }: Props
   const [coverEligible, setCoverEligible] = useState(() => typeof IntersectionObserver === 'undefined')
   const [fetchedCover, setFetchedCover] = useState(false)
   const [fetchedMore, setFetchedMore] = useState(false)
+  const fetchablePlaceId = isGooglePlaceId(placeId) ? placeId : null
   const coverPhoto = resolvedPhotos[0]
-  const canLoadMore = resolvedPhotos.length > 1 || Boolean(placeId && !fetchedMore)
+  const canLoadMore = resolvedPhotos.length > 1 || Boolean(fetchablePlaceId && !fetchedMore)
 
   useEffect(() => {
     setResolvedPhotos(incomingPhotos)
@@ -93,7 +98,7 @@ export function PhotoStrip({ photos, placeId, placeName, className = '' }: Props
   }, [incomingPhotos, placeId])
 
   useEffect(() => {
-    if (coverPhoto || !placeId || fetchedCover || coverEligible) return
+    if (coverPhoto || !fetchablePlaceId || fetchedCover || coverEligible) return
     if (typeof IntersectionObserver === 'undefined') {
       setCoverEligible(true)
       return
@@ -110,13 +115,13 @@ export function PhotoStrip({ photos, placeId, placeName, className = '' }: Props
 
     observer.observe(node)
     return () => observer.disconnect()
-  }, [coverEligible, coverPhoto, fetchedCover, placeId])
+  }, [coverEligible, coverPhoto, fetchedCover, fetchablePlaceId])
 
   useEffect(() => {
-    if (coverPhoto || !placeId || fetchedCover || !coverEligible || typeof fetch !== 'function') return
+    if (coverPhoto || !fetchablePlaceId || fetchedCover || !coverEligible || typeof fetch !== 'function') return
 
     let cancelled = false
-    fetchPhotoUrls(placeId, 'cover')
+    fetchPhotoUrls(fetchablePlaceId, 'cover')
       .then((photoUrls) => {
         if (cancelled || !photoUrls.length) return
         setResolvedPhotos(photoUrls.slice(0, 1))
@@ -129,20 +134,20 @@ export function PhotoStrip({ photos, placeId, placeName, className = '' }: Props
     return () => {
       cancelled = true
     }
-  }, [coverEligible, coverPhoto, fetchedCover, placeId])
+  }, [coverEligible, coverPhoto, fetchedCover, fetchablePlaceId])
 
   const loadMorePhotos = useCallback(async (): Promise<string[]> => {
     if (resolvedPhotos.length > 1) return resolvedPhotos.slice(0, 5)
-    if (!placeId || fetchedMore || typeof fetch !== 'function') return resolvedPhotos.slice(0, 5)
+    if (!fetchablePlaceId || fetchedMore || typeof fetch !== 'function') return resolvedPhotos.slice(0, 5)
 
     setFetchedMore(true)
-    const photoUrls = await fetchPhotoUrls(placeId, 'all')
+    const photoUrls = await fetchPhotoUrls(fetchablePlaceId, 'all')
     const nextPhotos = mergePhotos(resolvedPhotos, photoUrls)
     setResolvedPhotos(nextPhotos)
     return nextPhotos
-  }, [fetchedMore, placeId, resolvedPhotos])
+  }, [fetchablePlaceId, fetchedMore, resolvedPhotos])
 
-  if (!coverPhoto && placeId) {
+  if (!coverPhoto && fetchablePlaceId && !fetchedCover) {
     return (
       <div
         ref={slotRef}

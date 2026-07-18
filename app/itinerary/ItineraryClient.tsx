@@ -28,7 +28,7 @@ import { getTripCostUsd } from '@/app/actions/cost'
 import { TripCostBadge } from '@/components/TripCostBadge'
 import { applyDragResult, findContainer } from '@/lib/utils/dragContainers'
 import { findClosestDay } from '@/lib/utils/geo'
-import { removeRecsDay, resolveDayCenter } from '@/lib/utils/dayRecommend'
+import { dayHasRecommendationAnchor, removeRecsDay, resolveDayCenter } from '@/lib/utils/dayRecommend'
 import { CombinedInput } from '@/components/CombinedInput'
 import { DWELL } from '@/lib/placeType'
 import { fetchDayArrangeInputs } from '@/app/actions/arrange'
@@ -881,6 +881,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
 
   // TASK-010: 換一批 — replace one day/category's shown set, preserving unrelated buckets.
   const handleRefreshCategory = useCallback((dayIdx: number, category: 'dessert' | 'attraction' | 'restaurant') => {
+    if (!dayHasRecommendationAnchor(planRef.current.days[dayIdx])) return
     const center = resolveDayCenter(planRef.current.days, dayIdx)
     if (!center) return
     const key = `${dayIdx}:${category}`
@@ -1145,7 +1146,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
                   attraction: backfillKeys.has(`${dayIdx}:attraction`),
                   restaurant: backfillKeys.has(`${dayIdx}:restaurant`),
                 }}
-                recsHasCenter={resolveDayCenter(plan.days, dayIdx) !== null}
+                recsHasCenter={dayHasRecommendationAnchor(day)}
                 onSetRecommendationCenter={(center) => handleSetRecommendationCenter(dayIdx, center)}
                 onClearRecommendationCenter={() => handleClearRecommendationCenter(dayIdx)}
                 onRefreshRecommendationCategory={(category) => handleRefreshCategory(dayIdx, category)}

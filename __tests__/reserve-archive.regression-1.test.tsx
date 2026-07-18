@@ -9,6 +9,7 @@ const getDayRecommendations = jest.fn()
 const computeLegPlan = jest.fn()
 const fetchDayArrangeInputs = jest.fn()
 const realFetch = global.fetch
+const reserveGooglePlaceId = 'ChIJreserveplace1234567890'
 
 jest.mock('@/app/actions/candidates', () => ({
   archiveCandidate: jest.fn(),
@@ -121,10 +122,10 @@ function plan(): PlanResult {
   }
 }
 
-function candidate(id: string): Candidate {
+function candidate(id: string, placeId = id): Candidate {
   return {
     id,
-    place: place(id),
+    place: { ...place(placeId, id), id },
     addedBy: 'u1',
     addedByName: 'User',
     source: null,
@@ -141,7 +142,7 @@ function sidePanelProps() {
     },
     onAddRecommendation: jest.fn(),
     candidates: [] as Candidate[],
-    archived: [candidate('reserve-a')],
+    archived: [candidate('reserve-a', reserveGooglePlaceId)],
     onAddReservePlace: jest.fn(),
     onAddReservePlaces: jest.fn(),
     onAddArchivedToDay: jest.fn(),
@@ -233,7 +234,7 @@ it('keeps fetched photos available in the reserve-card lightbox after parent rer
 
   expect(await screen.findByTestId('photo-thumb-0')).toBeInTheDocument()
   expect(screen.getByTestId('photo-thumb-0').querySelector('img')).toHaveAttribute('src', '/api/photo?ref=reserve-one')
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/place-photos?placeId=reserve-a&limit=1'))
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(`/api/place-photos?placeId=${reserveGooglePlaceId}&limit=1`))
 
   fireEvent.click(screen.getByText('rerender-reserve'))
 

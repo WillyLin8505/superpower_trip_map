@@ -5,7 +5,7 @@ import type { Source } from '@/lib/types'
 import { scrapeText } from './scrape'
 import { searchPlace, getPlaceDetails, nearbySearch } from './places'
 import { validateType } from '@/lib/placeType'
-import { REC_CATEGORIES, resolveDayCenter, centroidOf, dedupeAndExclude, assignToDays, bucketByCategory, splitShownReserve } from '@/lib/utils/dayRecommend'
+import { REC_CATEGORIES, dayHasRecommendationAnchor, resolveDayCenter, centroidOf, dedupeAndExclude, assignToDays, bucketByCategory, splitShownReserve } from '@/lib/utils/dayRecommend'
 import type { DayItinerary, DayRecommendation, RecommendationsByDay, CategoryBuckets, Place } from '@/lib/types'
 import { callClaude } from '@/lib/claude'
 import { shouldEnrichRecommendationsWithDetails, shouldUsePaidRecommendationFallback } from '@/lib/googleMapsCost'
@@ -20,6 +20,14 @@ const GOOGLE_SOURCE_LABEL = 'Google 推薦'
 const GOOGLE_REASON = 'Google 高評分推薦'
 const OPEN_POI_SOURCE_LABEL = 'Open POI'
 const OPEN_POI_REASON = '開放 POI 候選池推薦'
+
+function emptyCategoryBuckets(): CategoryBuckets {
+  return {
+    dessert: splitShownReserve([], REC_LIMIT),
+    attraction: splitShownReserve([], REC_LIMIT),
+    restaurant: splitShownReserve([], REC_LIMIT),
+  }
+}
 
 async function maybeEnrichRecommendationDetails(
   place: Place,
@@ -158,6 +166,9 @@ export async function getDayRecommendations(
 async function getDayRecommendationsImpl(
   days: DayItinerary[]
 ): Promise<RecommendationsByDay> {
+  const recommendationAnchors = days.map(dayHasRecommendationAnchor)
+  if (!recommendationAnchors.some(Boolean)) return days.map(() => emptyCategoryBuckets())
+
   const existingIds = new Set(days.flatMap((d) => d.places.map((p) => p.placeId)))
 
   let extracted: DayRecommendation[] = []
@@ -209,6 +220,11 @@ async function getDayRecommendationsImpl(
 
   const result: RecommendationsByDay = []
   for (let i = 0; i < days.length; i++) {
+    if (!recommendationAnchors[i]) {
+      result.push(emptyCategoryBuckets())
+      continue
+    }
+
     const websiteBuckets = bucketByCategory(perDay[i])
     const dayResult: CategoryBuckets = {
       dessert: splitShownReserve(websiteBuckets.dessert, REC_LIMIT),

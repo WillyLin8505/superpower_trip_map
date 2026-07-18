@@ -95,7 +95,7 @@ export function RecommendationCard({ rec, dateIso, onAdd, onArchive, onDelete, a
             </h4>
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${meta.badge}`}>{meta.label}</span>
           </div>
-          {!compact && displayName.secondary && <p className="text-xs text-gray-500 mt-0.5">{displayName.secondary}</p>}
+          {displayName.secondary && <p className="text-xs text-gray-500 mt-0.5">{displayName.secondary}</p>}
           {!compact && todayHours && <p className="text-xs text-gray-500 mt-0.5">營業 {todayHours}</p>}
           {!compact && rec.rating && <p className="text-xs text-gray-500 mt-0.5">評分：{rec.rating} ★</p>}
           <PhotoStrip photos={photos} placeId={rec.placeId} placeName={displayName.primary} className="mt-2" />

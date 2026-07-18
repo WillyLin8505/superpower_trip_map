@@ -23,6 +23,13 @@ export async function GET(req: NextRequest) {
   const placeId = req.nextUrl.searchParams.get('placeId')
   if (!placeId) return NextResponse.json({ error: 'missing placeId' }, { status: 400 })
   const limit = parseLimit(req.nextUrl.searchParams.get('limit'))
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY
+  if (!apiKey) {
+    return NextResponse.json(
+      { photoUrls: [] },
+      { headers: { 'cache-control': googleMapsPhotoCacheControl() } }
+    )
+  }
 
   const tripId = tripIdFromReferer(req.headers.get('referer'), req.nextUrl.origin)
 
@@ -34,7 +41,7 @@ export async function GET(req: NextRequest) {
       const params = new URLSearchParams({
         place_id: placeId,
         fields: 'photos',
-        key: process.env.GOOGLE_MAPS_API_KEY ?? '',
+        key: apiKey,
         language: 'zh-TW',
       })
       const upstream = await trackedApiFetch(`${BASE}/details/json?${params.toString()}`, googleMapsFetchOptions(), {

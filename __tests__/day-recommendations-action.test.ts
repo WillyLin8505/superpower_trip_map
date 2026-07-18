@@ -54,6 +54,13 @@ function oneDay(existingPlaceId: string): DayItinerary {
   }
 }
 
+function emptyDay(day = 1): DayItinerary {
+  return {
+    day, aiSummary: null, dayStart: '09:00', dayEnd: '21:00',
+    places: [],
+  }
+}
+
 beforeEach(() => {
   jest.clearAllMocks()
   ops.mockResolvedValue([])
@@ -301,7 +308,7 @@ it('keeps website extractions beyond 5 in reserve', async () => {
 })
 
 // --- TASK-010: getDayRecommendations must resolve centers via DEC-304, not just day-or-trip centroid ---
-it('an empty day walks backward to the previous day centroid, not straight to the trip mean', async () => {
+it('does not fill recommendations for an empty day without a manual center', async () => {
   function scheduledPlace(id: string, lat: number, lng: number) {
     return {
       ...place(id, 'attraction'), lat, lng,
@@ -310,20 +317,51 @@ it('an empty day walks backward to the previous day centroid, not straight to th
     }
   }
   const day0: DayItinerary = { day: 1, aiSummary: null, dayStart: '09:00', dayEnd: '21:00', places: [scheduledPlace('p0', 10, 10)] }
-  const day1: DayItinerary = { day: 2, aiSummary: null, dayStart: '09:00', dayEnd: '21:00', places: [scheduledPlace('p1', 50, 50)] }
-  const day2: DayItinerary = { day: 3, aiSummary: null, dayStart: '09:00', dayEnd: '21:00', places: [] } // empty — no centroid of its own
+  const day1 = emptyDay(2)
 
   r.mockResolvedValue('[]')
-  ns.mockResolvedValue([])
-  gd.mockImplementation(async (id: string) => place(id, 'attraction'))
+  ops.mockImplementation(async (_lat: number, _lng: number, type: string) =>
+    Array.from({ length: 5 }, (_, i) => placeWithPhoto(`open-${type}-${i}`, type as Place['type']))
+  )
 
-  await getDayRecommendations([day0, day1, day2])
+  const result = await getDayRecommendations([day0, day1])
 
-  // day2's nearbySearch calls must use day1's centroid (50,50) — the trip mean of (10,10)+(50,50) would be (30,30)
-  const day2Calls = ns.mock.calls.filter(([lat, lng]: [number, number]) => lat === 50 && lng === 50)
-  expect(day2Calls.length).toBeGreaterThan(0)
-  const wrongCalls = ns.mock.calls.filter(([lat, lng]: [number, number]) => lat === 30 && lng === 30)
-  expect(wrongCalls).toHaveLength(0)
+  expect(result[0].dessert.shown).toHaveLength(5)
+  expect(result[1].dessert.shown).toEqual([])
+  expect(result[1].attraction.shown).toEqual([])
+  expect(result[1].restaurant.shown).toEqual([])
+  expect(ops).toHaveBeenCalledTimes(3)
+})
+
+it('does not read recommendation sources when every day lacks an itinerary and manual center', async () => {
+  const result = await getDayRecommendations([emptyDay(1), emptyDay(2)])
+
+  expect(result).toHaveLength(2)
+  expect(result[0].dessert.shown).toEqual([])
+  expect(result[1].restaurant.shown).toEqual([])
+  expect(r).not.toHaveBeenCalled()
+  expect(st).not.toHaveBeenCalled()
+  expect(cc).not.toHaveBeenCalled()
+  expect(ops).not.toHaveBeenCalled()
+  expect(ns).not.toHaveBeenCalled()
+})
+
+it('fills recommendations for an empty day when the user sets a manual center', async () => {
+  const day = {
+    ...emptyDay(),
+    recommendationCenter: { placeId: 'center-1', name: 'Manual Center', lat: 25, lng: 121, address: null, source: 'manual' as const },
+  }
+
+  r.mockResolvedValue('[]')
+  ops.mockImplementation(async (_lat: number, _lng: number, type: string) =>
+    Array.from({ length: 5 }, (_, i) => placeWithPhoto(`open-${type}-${i}`, type as Place['type']))
+  )
+
+  const result = await getDayRecommendations([day])
+
+  expect(result[0].dessert.shown).toHaveLength(5)
+  expect(result[0].attraction.shown).toHaveLength(5)
+  expect(result[0].restaurant.shown).toHaveLength(5)
 })
 
 // --- TASK-010: refreshDayCategoryRecommendations (換一批) ---

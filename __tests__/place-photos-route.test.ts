@@ -62,4 +62,15 @@ describe('GET /api/place-photos', () => {
 
     expect(body.photoUrls).toEqual(['/api/photo?ref=ref1'])
   })
+
+  it('returns no photos without calling Google when the API key is missing', async () => {
+    delete process.env.GOOGLE_MAPS_API_KEY
+
+    const req = new NextRequest('http://localhost/api/place-photos?placeId=place-1&limit=1')
+    const res = await GET(req)
+    const body = await res.json()
+
+    expect(fetch).not.toHaveBeenCalled()
+    expect(body.photoUrls).toEqual([])
+  })
 })

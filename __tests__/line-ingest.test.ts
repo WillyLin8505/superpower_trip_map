@@ -226,6 +226,20 @@ it('scrapes article URLs, extracts places, verifies them, and replies with added
   expect(verifyPlace).toHaveBeenNthCalledWith(1, 'Tokyo Tower')
   expect(verifyPlace).toHaveBeenNthCalledWith(2, 'Sushi Place')
   expect(addCandidateFromLine).toHaveBeenCalledTimes(2)
+  expect(addCandidateFromLine).toHaveBeenNthCalledWith(1, expect.objectContaining({
+    place: expect.objectContaining({
+      name: '東京鐵塔',
+      localizedName: { zhTw: '東京鐵塔', original: 'Tokyo Tower' },
+      localizedAddress: { zhTw: '東京', original: 'Tokyo' },
+    }),
+  }))
+  expect(addCandidateFromLine).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    place: expect.objectContaining({
+      name: '壽司店',
+      localizedName: { zhTw: '壽司店', original: 'Sushi Place' },
+      localizedAddress: { zhTw: '東京', original: 'Tokyo' },
+    }),
+  }))
 })
 
 it('returns noPlaceFound when no place can be resolved', async () => {

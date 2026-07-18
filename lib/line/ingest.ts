@@ -14,6 +14,11 @@ import { LINE_MESSAGES } from './messages'
 import { classifyLineText } from './urlClassifier'
 import { runWithTripId } from '@/lib/apiUsageContext'
 
+function cleanText(value: string | null | undefined): string | null {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : null
+}
+
 export async function processLineTextMessage(input: {
   lineGroupId: string
   lineUserId?: string
@@ -108,11 +113,13 @@ async function processArticleUrl(input: {
     const place: Place = {
       id: randomUUID(),
       placeId: verified.placeId,
-      name: item.name,
+      name: cleanText(verified.localizedName?.zhTw) ?? cleanText(verified.localizedName?.original) ?? item.name,
+      localizedName: verified.localizedName,
       type: item.type,
       lat: verified.lat,
       lng: verified.lng,
-      address: '',
+      address: cleanText(verified.localizedAddress?.zhTw) ?? cleanText(verified.localizedAddress?.original) ?? '',
+      localizedAddress: verified.localizedAddress,
       openingHours: null,
       rating: null,
       photoUrl: null,

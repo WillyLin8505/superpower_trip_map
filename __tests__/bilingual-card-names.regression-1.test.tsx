@@ -43,4 +43,13 @@ describe('bilingual card names regression', () => {
     expect(screen.queryByText('Ho Chi Minh City Opera House')).not.toBeInTheDocument()
     expect(screen.getByLabelText('加入 胡志明市歌劇院')).toBeInTheDocument()
   })
+
+  it('renders compact recommendation cards with bilingual names', () => {
+    // Regression: compact cards are used by 推薦行程. They must not hide the
+    // native-language secondary name.
+    render(<RecommendationCard rec={recommendation} dateIso="2026-07-13" onAdd={() => {}} compact />)
+
+    expect(screen.getByText('胡志明市歌劇院')).toBeInTheDocument()
+    expect(screen.getByText('Nhà hát Thành phố Hồ Chí Minh')).toBeInTheDocument()
+  })
 })

@@ -26,6 +26,10 @@ export function resolveDayCenter(
   return centroidOf(days.flatMap((d) => d.places))
 }
 
+export function dayHasRecommendationAnchor(day: DayItinerary): boolean {
+  return Boolean(day.recommendationCenter || day.places.length > 0)
+}
+
 export const REC_CATEGORIES = ['dessert', 'attraction', 'restaurant'] as const
 
 // Keep the per-day recommendations array index-aligned with plan.days when a day
