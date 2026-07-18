@@ -252,6 +252,55 @@ it('uses Openverse exact search when metadata has no direct Wikimedia image', as
   }))
 })
 
+it('uses alternate names to resolve free images for localized landmark names', async () => {
+  const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url.includes('api.openverse.org')) {
+      return {
+        ok: true,
+        json: async () => ({
+          results: [
+            {
+              title: 'Hanoi Train Street',
+              thumbnail: 'https://images.example/hanoi-train-street.jpg',
+              foreign_landing_url: 'https://www.flickr.com/photos/example/hanoi-train-street',
+              license: 'by',
+              creator: 'Example creator',
+            },
+          ],
+        }),
+      }
+    }
+
+    return {
+      ok: true,
+      json: async () => ({ results: [] }),
+    }
+  })
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  await expect(mapOpenPoiRowToPlaceWithFreeImages({
+    source: 'osm',
+    source_place_id: 'way/train-street',
+    name_primary: '火車街',
+    name_zh: '火車街',
+    name_local: 'Ngõ 224 Lê Duẩn',
+    lat: 21.024,
+    lng: 105.842,
+    category: 'attraction',
+    confidence: null,
+    metadata: {},
+  })).resolves.toMatchObject({
+    photoUrl: 'https://images.example/hanoi-train-street.jpg',
+    photoUrls: ['https://images.example/hanoi-train-street.jpg'],
+  })
+
+  expect(fetchMock).toHaveBeenCalledWith(
+    expect.stringContaining('q=Hanoi+Train+Street'),
+    expect.anything(),
+  )
+})
+
 it('skips external image lookups for recent not-found cache entries', async () => {
   global.fetch = jest.fn() as unknown as typeof fetch
 

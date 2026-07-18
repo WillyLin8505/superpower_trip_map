@@ -51,10 +51,29 @@ it('renders name, category, one cover photo, and a short explanation in compact 
   expect(screen.queryByText(/Google/)).not.toBeInTheDocument()
 })
 
-it('renders a visual cover fallback when compact recommendation data has no photo', () => {
+it('fetches a free cover photo for Open POI recommendations without stored photos', async () => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ photoUrls: ['https://images.example/museum-cafe.jpg'] }),
+  }) as unknown as typeof fetch
+
   render(
     <RecommendationCard
       rec={{ ...rec, placeId: 'osm:museum-cafe', photoUrl: null, photoUrls: [], sourceLabel: 'Open POI' }}
+      dateIso="2026-07-01"
+      onAdd={() => {}}
+      compact
+    />
+  )
+
+  expect(await screen.findByTestId('photo-thumb-0')).toBeInTheDocument()
+  expect(global.fetch).toHaveBeenCalledWith('/api/place-photos?placeId=osm%3Amuseum-cafe&placeName=Museum+Cafe&limit=1')
+})
+
+it('renders a visual cover fallback when compact recommendation data has no fetchable photo source', () => {
+  render(
+    <RecommendationCard
+      rec={{ ...rec, placeId: 'local-1', photoUrl: null, photoUrls: [], sourceLabel: 'Open POI' }}
       dateIso="2026-07-01"
       onAdd={() => {}}
       compact

@@ -29,7 +29,7 @@ export type OpenPoiPlace = Place & {
   sourceLabel: 'Open POI'
 }
 
-interface FreeImageResult {
+export interface FreeImageResult {
   photoUrls: string[]
   source: FreeImageSource
   pageUrl?: string | null
@@ -319,11 +319,73 @@ const OPENVERSE_STOP_WORDS = new Set([
   'the', 'and', 'for', 'with', 'cafe', 'coffee', 'restaurant', 'shop', 'store',
 ])
 
+interface KnownFreeImageEntity {
+  aliases: string[]
+  wikidata?: string
+  wikipedia?: { lang: string; title: string }
+  commonsCategory?: string
+}
+
+const KNOWN_FREE_IMAGE_ENTITIES: KnownFreeImageEntity[] = [
+  {
+    aliases: [
+      'Hanoi Train Street',
+      'Train Street Hanoi',
+      '火車街',
+      '河內火車街',
+      'Ngõ 224 Lê Duẩn',
+      'Ngo 224 Le Duan',
+    ],
+    wikidata: 'Q85788921',
+    wikipedia: { lang: 'en', title: 'Hanoi Train Street' },
+    commonsCategory: 'Category:Hanoi Train Street',
+  },
+]
+
 function normalizeSearchText(value: string): string {
   return value
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[Đđ]/g, 'd')
     .toLowerCase()
+}
+
+function normalizeAliasLookupText(value: string): string {
+  return normalizeSearchText(value)
+    .replace(/[^\u4e00-\u9fffa-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function addUniqueText(values: string[], value: string | null | undefined): void {
+  const cleaned = cleanText(value)
+  if (!cleaned) return
+  if (!values.some((existing) => normalizeAliasLookupText(existing) === normalizeAliasLookupText(cleaned))) {
+    values.push(cleaned)
+  }
+}
+
+function knownFreeImageEntityForText(value: string | null | undefined): KnownFreeImageEntity | null {
+  const normalized = value ? normalizeAliasLookupText(value) : ''
+  if (!normalized) return null
+  return KNOWN_FREE_IMAGE_ENTITIES.find((entity) =>
+    entity.aliases.some((alias) => {
+      const normalizedAlias = normalizeAliasLookupText(alias)
+      if (normalized === normalizedAlias) return true
+      const hasHan = /[\u4e00-\u9fff]/.test(normalizedAlias)
+      if (hasHan && normalizedAlias.length >= 3) return normalized.includes(normalizedAlias)
+      if (normalizedAlias.length >= 10 && normalized.includes(normalizedAlias)) return true
+      return normalized.length >= 10 && normalizedAlias.includes(normalized)
+    })
+  ) ?? null
+}
+
+function knownFreeImageEntityForAliases(aliases: string[]): KnownFreeImageEntity | null {
+  for (const alias of aliases) {
+    const entity = knownFreeImageEntityForText(alias)
+    if (entity) return entity
+  }
+  return null
 }
 
 function significantSearchTokens(value: string | null): string[] {
@@ -335,8 +397,28 @@ function significantSearchTokens(value: string | null): string[] {
     .filter((token) => token.length >= 3 && !OPENVERSE_STOP_WORDS.has(token))))
 }
 
-function openverseQueryForRow(row: OpenPoiRow): string | null {
-  return cleanText(row.name_local) ?? cleanText(row.name_primary) ?? cleanText(row.name_zh)
+function imageSearchAliasesForRow(row: OpenPoiRow): string[] {
+  const aliases: string[] = []
+  for (const alias of [
+    ...metadataStrings(row.metadata, 'image_search_aliases'),
+    ...metadataStrings(row.metadata, 'search_aliases'),
+    ...metadataStrings(row.metadata, 'aliases'),
+  ]) {
+    addUniqueText(aliases, alias)
+  }
+  addUniqueText(aliases, row.name_local)
+  addUniqueText(aliases, row.name_primary)
+  addUniqueText(aliases, row.name_zh)
+
+  const entity = knownFreeImageEntityForAliases(aliases)
+  if (entity) {
+    const entityAliases: string[] = []
+    entity.aliases.forEach((alias) => addUniqueText(entityAliases, alias))
+    aliases.forEach((alias) => addUniqueText(entityAliases, alias))
+    return entityAliases
+  }
+
+  return aliases
 }
 
 function openverseResultMatches(query: string, item: OpenverseImageResult): boolean {
@@ -350,8 +432,7 @@ function openverseResultMatches(query: string, item: OpenverseImageResult): bool
   return requiredTokens.every((token) => haystack.includes(token))
 }
 
-async function openverseImageResult(row: OpenPoiRow): Promise<FreeImageResult | null> {
-  const query = openverseQueryForRow(row)
+async function openverseImageResultForQuery(query: string, category: PlaceType): Promise<FreeImageResult | null> {
   if (!query) return null
   return cachedFreeImage(['openverse', query], async () => {
     const params = new URLSearchParams({
@@ -363,7 +444,7 @@ async function openverseImageResult(row: OpenPoiRow): Promise<FreeImageResult | 
       provider: 'openverse',
       endpoint: 'image_search',
       skuHint: 'openverse_free',
-      metadata: { query, category: row.category },
+      metadata: { query, category },
     }) as OpenverseImageResponse
     const result = (data.results ?? []).find((item) =>
       openverseResultMatches(query, item) && normalizeImageUrl(cleanText(item.thumbnail) ?? cleanText(item.url))
@@ -378,6 +459,14 @@ async function openverseImageResult(row: OpenPoiRow): Promise<FreeImageResult | 
       attribution: cleanText(result.creator),
     }
   })
+}
+
+async function openverseImageResult(row: OpenPoiRow): Promise<FreeImageResult | null> {
+  for (const query of imageSearchAliasesForRow(row)) {
+    const result = await openverseImageResultForQuery(query, row.category)
+    if (result?.photoUrls.length) return result
+  }
+  return null
 }
 
 async function runImageResolver(resolver: () => Promise<FreeImageResult | null>): Promise<{
@@ -399,11 +488,12 @@ async function freeImageResultForRow(row: OpenPoiRow): Promise<FreeImageLookupOu
   if (direct) return { result: direct, cacheableMiss: true }
 
   const resolvers: Array<() => Promise<FreeImageResult | null>> = []
-  const commonsCategory = commonsCategoryFromMetadata(row.metadata)
+  const knownEntity = knownFreeImageEntityForAliases(imageSearchAliasesForRow(row))
+  const commonsCategory = commonsCategoryFromMetadata(row.metadata) ?? knownEntity?.commonsCategory ?? null
   if (commonsCategory) resolvers.push(() => wikimediaCommonsCategoryImageResult(commonsCategory))
-  const qid = wikidataIdFromMetadata(row.metadata)
+  const qid = wikidataIdFromMetadata(row.metadata) ?? knownEntity?.wikidata ?? null
   if (qid) resolvers.push(() => wikidataImageResult(qid))
-  const wikipedia = wikipediaTagFromMetadata(row.metadata)
+  const wikipedia = wikipediaTagFromMetadata(row.metadata) ?? knownEntity?.wikipedia ?? null
   if (wikipedia) resolvers.push(() => wikipediaImageResult(wikipedia.lang, wikipedia.title))
   resolvers.push(() => openverseImageResult(row))
 
@@ -415,6 +505,38 @@ async function freeImageResultForRow(row: OpenPoiRow): Promise<FreeImageLookupOu
   }
 
   return { result: null, cacheableMiss: !hadFailure }
+}
+
+export async function resolveFreeImageForPlace({
+  placeId,
+  placeName,
+  aliases = [],
+  limit = 5,
+}: {
+  placeId?: string | null
+  placeName: string
+  aliases?: string[]
+  limit?: number
+}): Promise<FreeImageResult | null> {
+  const sourcePlaceId = cleanText(placeId) ?? cleanText(placeName) ?? 'unknown'
+  const metadataAliases = aliases.filter((alias) => cleanText(alias))
+  const { result } = await freeImageResultForRow({
+    source: 'user',
+    source_place_id: sourcePlaceId,
+    name_primary: placeName,
+    name_zh: null,
+    name_local: placeName,
+    lat: 0,
+    lng: 0,
+    category: 'attraction',
+    confidence: null,
+    metadata: metadataAliases.length ? { image_search_aliases: metadataAliases } : {},
+  })
+  if (!result?.photoUrls.length) return null
+  return {
+    ...result,
+    photoUrls: result.photoUrls.slice(0, Math.max(1, Math.min(5, Math.trunc(limit)))),
+  }
 }
 
 function buildFreeImageMetadataPatch(

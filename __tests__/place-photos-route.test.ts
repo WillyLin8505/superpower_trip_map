@@ -1,7 +1,14 @@
 import { GET } from '@/app/api/place-photos/route'
 import { NextRequest } from 'next/server'
 
+jest.mock('@/lib/openPoi', () => ({
+  resolveFreeImageForPlace: jest.fn(),
+}))
+
+import { resolveFreeImageForPlace } from '@/lib/openPoi'
+
 global.fetch = jest.fn()
+const resolveFreeImageForPlaceMock = resolveFreeImageForPlace as jest.Mock
 
 describe('GET /api/place-photos', () => {
   beforeEach(() => {
@@ -72,5 +79,24 @@ describe('GET /api/place-photos', () => {
 
     expect(fetch).not.toHaveBeenCalled()
     expect(body.photoUrls).toEqual([])
+  })
+
+  it('uses free image lookup by place name before Google photo metadata', async () => {
+    resolveFreeImageForPlaceMock.mockResolvedValueOnce({
+      photoUrls: ['https://images.example/hanoi-train-street.jpg'],
+      source: 'wikidata',
+    })
+
+    const req = new NextRequest('http://localhost/api/place-photos?placeId=ChIJtrainstreet123456&placeName=%E7%81%AB%E8%BB%8A%E8%A1%97&limit=1')
+    const res = await GET(req)
+    const body = await res.json()
+
+    expect(resolveFreeImageForPlaceMock).toHaveBeenCalledWith({
+      placeId: 'ChIJtrainstreet123456',
+      placeName: '火車街',
+      limit: 1,
+    })
+    expect(fetch).not.toHaveBeenCalled()
+    expect(body.photoUrls).toEqual(['https://images.example/hanoi-train-street.jpg'])
   })
 })

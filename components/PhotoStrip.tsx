@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import Image from 'next/image'
 import { PhotoLightbox } from './PhotoLightbox'
 
@@ -8,6 +8,7 @@ interface Props {
   placeId?: string
   placeName: string
   className?: string
+  emptyFallback?: ReactNode
 }
 
 function mergePhotos(primary: string[], fetched: string[]): string[] {
@@ -23,6 +24,12 @@ function photoCacheKey(placeId: string, kind: 'cover' | 'all'): string {
 
 function isGooglePlaceId(placeId: string | null | undefined): placeId is string {
   return Boolean(placeId && placeId.length >= 16 && !placeId.includes(':'))
+}
+
+function isOpenDataPlaceId(placeId: string | null | undefined): placeId is string {
+  if (!placeId?.includes(':')) return false
+  const [source] = placeId.split(':')
+  return ['osm', 'overture', 'wikidata', 'user'].includes(source)
 }
 
 function readCachedPhotos(placeId: string, kind: 'cover' | 'all'): string[] | null {
@@ -45,7 +52,14 @@ function writeCachedPhotos(placeId: string, kind: 'cover' | 'all', photoUrls: st
   }
 }
 
-async function fetchPhotoUrls(placeId: string, kind: 'cover' | 'all'): Promise<string[]> {
+function placePhotosUrl(placeId: string, placeName: string, kind: 'cover' | 'all'): string {
+  const params = new URLSearchParams({ placeId })
+  if (placeName.trim()) params.set('placeName', placeName.trim())
+  if (kind === 'cover') params.set('limit', '1')
+  return `/api/place-photos?${params.toString()}`
+}
+
+async function fetchPhotoUrls(placeId: string, placeName: string, kind: 'cover' | 'all'): Promise<string[]> {
   const allCached = readCachedPhotos(placeId, 'all')
   if (kind === 'cover' && allCached?.length) return allCached.slice(0, 1)
 
@@ -56,8 +70,7 @@ async function fetchPhotoUrls(placeId: string, kind: 'cover' | 'all'): Promise<s
   const existingRequest = photoRequestCache.get(requestKey)
   if (existingRequest) return existingRequest
 
-  const limitParam = kind === 'cover' ? '&limit=1' : ''
-  const request = fetch(`/api/place-photos?placeId=${encodeURIComponent(placeId)}${limitParam}`)
+  const request = fetch(placePhotosUrl(placeId, placeName, kind))
     .then(async (response) => {
       if (!response.ok) return []
       const data = await response.json() as { photoUrls?: string[] }
@@ -77,7 +90,7 @@ async function fetchPhotoUrls(placeId: string, kind: 'cover' | 'all'): Promise<s
   return request
 }
 
-export function PhotoStrip({ photos, placeId, placeName, className = '' }: Props) {
+export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFallback = null }: Props) {
   const photoKey = photos.join('\u0000')
   const incomingPhotos = useMemo(() => (photoKey ? photoKey.split('\u0000') : []), [photoKey])
   const [resolvedPhotos, setResolvedPhotos] = useState(incomingPhotos)
@@ -86,7 +99,7 @@ export function PhotoStrip({ photos, placeId, placeName, className = '' }: Props
   const [coverEligible, setCoverEligible] = useState(() => typeof IntersectionObserver === 'undefined')
   const [fetchedCover, setFetchedCover] = useState(false)
   const [fetchedMore, setFetchedMore] = useState(false)
-  const fetchablePlaceId = isGooglePlaceId(placeId) ? placeId : null
+  const fetchablePlaceId = isGooglePlaceId(placeId) || isOpenDataPlaceId(placeId) ? placeId : null
   const coverPhoto = resolvedPhotos[0]
   const canLoadMore = resolvedPhotos.length > 1 || Boolean(fetchablePlaceId && !fetchedMore)
 
@@ -95,7 +108,7 @@ export function PhotoStrip({ photos, placeId, placeName, className = '' }: Props
     setCoverEligible(typeof IntersectionObserver === 'undefined')
     setFetchedCover(false)
     setFetchedMore(false)
-  }, [incomingPhotos, placeId])
+  }, [incomingPhotos, placeId, placeName])
 
   useEffect(() => {
     if (coverPhoto || !fetchablePlaceId || fetchedCover || coverEligible) return
@@ -115,13 +128,13 @@ export function PhotoStrip({ photos, placeId, placeName, className = '' }: Props
 
     observer.observe(node)
     return () => observer.disconnect()
-  }, [coverEligible, coverPhoto, fetchedCover, fetchablePlaceId])
+  }, [coverEligible, coverPhoto, fetchedCover, fetchablePlaceId, placeName])
 
   useEffect(() => {
     if (coverPhoto || !fetchablePlaceId || fetchedCover || !coverEligible || typeof fetch !== 'function') return
 
     let cancelled = false
-    fetchPhotoUrls(fetchablePlaceId, 'cover')
+    fetchPhotoUrls(fetchablePlaceId, placeName, 'cover')
       .then((photoUrls) => {
         if (cancelled || !photoUrls.length) return
         setResolvedPhotos(photoUrls.slice(0, 1))
@@ -134,18 +147,18 @@ export function PhotoStrip({ photos, placeId, placeName, className = '' }: Props
     return () => {
       cancelled = true
     }
-  }, [coverEligible, coverPhoto, fetchedCover, fetchablePlaceId])
+  }, [coverEligible, coverPhoto, fetchedCover, fetchablePlaceId, placeName])
 
   const loadMorePhotos = useCallback(async (): Promise<string[]> => {
     if (resolvedPhotos.length > 1) return resolvedPhotos.slice(0, 5)
     if (!fetchablePlaceId || fetchedMore || typeof fetch !== 'function') return resolvedPhotos.slice(0, 5)
 
     setFetchedMore(true)
-    const photoUrls = await fetchPhotoUrls(fetchablePlaceId, 'all')
+    const photoUrls = await fetchPhotoUrls(fetchablePlaceId, placeName, 'all')
     const nextPhotos = mergePhotos(resolvedPhotos, photoUrls)
     setResolvedPhotos(nextPhotos)
     return nextPhotos
-  }, [fetchablePlaceId, fetchedMore, resolvedPhotos])
+  }, [fetchablePlaceId, fetchedMore, placeName, resolvedPhotos])
 
   if (!coverPhoto && fetchablePlaceId && !fetchedCover) {
     return (
@@ -160,7 +173,7 @@ export function PhotoStrip({ photos, placeId, placeName, className = '' }: Props
     )
   }
 
-  if (!coverPhoto) return null
+  if (!coverPhoto) return <>{emptyFallback}</>
 
   return (
     <>

@@ -3,6 +3,7 @@ import { googleMapsFetchOptions, googleMapsPhotoCacheControl } from '@/lib/googl
 import { trackedApiFetch } from '@/lib/apiUsageEvents'
 import { tripIdFromReferer } from '@/lib/apiUsageContext'
 import { cachedGoogle, RETRYABLE_GOOGLE_STATUSES } from '@/lib/googleCache'
+import { resolveFreeImageForPlace } from '@/lib/openPoi'
 
 const BASE = 'https://maps.googleapis.com/maps/api/place'
 
@@ -23,6 +24,17 @@ export async function GET(req: NextRequest) {
   const placeId = req.nextUrl.searchParams.get('placeId')
   if (!placeId) return NextResponse.json({ error: 'missing placeId' }, { status: 400 })
   const limit = parseLimit(req.nextUrl.searchParams.get('limit'))
+  const placeName = req.nextUrl.searchParams.get('placeName')?.trim()
+  if (placeName) {
+    const freeImage = await resolveFreeImageForPlace({ placeId, placeName, limit })
+    if (freeImage?.photoUrls.length) {
+      return NextResponse.json(
+        { photoUrls: freeImage.photoUrls, source: freeImage.source },
+        { headers: { 'cache-control': googleMapsPhotoCacheControl() } }
+      )
+    }
+  }
+
   const apiKey = process.env.GOOGLE_MAPS_API_KEY
   if (!apiKey) {
     return NextResponse.json(
