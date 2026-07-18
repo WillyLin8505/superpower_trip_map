@@ -3,16 +3,8 @@ import { randomUUID } from 'crypto'
 import type { Place } from '@/lib/types'
 import { createClient } from '@/lib/supabase/server'
 import type { SavedPlaceEntry, SavedPlaceSource } from '@/lib/takeout/parse'
+import type { SavedPlaceRow } from '@/lib/savedPlaces/types'
 import { resolvePlaceEssentials } from '@/app/actions/savedPlacesResolve'
-
-// Not exported: `'use server'` modules may only export async functions (Next build rule).
-// Part B will lift this row shape into a shared non-server types module when the tab needs it.
-interface SavedPlaceRow {
-  id: string
-  listName: string
-  source: SavedPlaceSource
-  place: Place
-}
 
 function stubToPlace(stub: { placeId: string; name: string; type: Place['type']; lat: number; lng: number; address: string }): Place {
   return {
