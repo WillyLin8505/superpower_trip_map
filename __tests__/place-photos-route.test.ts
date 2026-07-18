@@ -11,6 +11,8 @@ global.fetch = jest.fn()
 const resolveFreeImageForPlaceMock = resolveFreeImageForPlace as jest.Mock
 
 describe('GET /api/place-photos', () => {
+  const googlePlaceId = 'ChIJplace1234567890'
+
   beforeEach(() => {
     jest.clearAllMocks()
     process.env.GOOGLE_MAPS_API_KEY = 'test-key'
@@ -34,11 +36,11 @@ describe('GET /api/place-photos', () => {
       }),
     })
 
-    const req = new NextRequest('http://localhost/api/place-photos?placeId=place-1')
+    const req = new NextRequest(`http://localhost/api/place-photos?placeId=${googlePlaceId}`)
     const res = await GET(req)
     const body = await res.json()
 
-    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('place_id=place-1'), expect.any(Object))
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining(`place_id=${googlePlaceId}`), expect.any(Object))
     expect(res.headers.get('cache-control')).toContain('s-maxage=')
     expect(body.photoUrls).toEqual([
       '/api/photo?ref=ref1',
@@ -63,7 +65,7 @@ describe('GET /api/place-photos', () => {
       }),
     })
 
-    const req = new NextRequest('http://localhost/api/place-photos?placeId=place-1&limit=1')
+    const req = new NextRequest(`http://localhost/api/place-photos?placeId=${googlePlaceId}&limit=1`)
     const res = await GET(req)
     const body = await res.json()
 
@@ -94,9 +96,31 @@ describe('GET /api/place-photos', () => {
     expect(resolveFreeImageForPlaceMock).toHaveBeenCalledWith({
       placeId: 'ChIJtrainstreet123456',
       placeName: '火車街',
+      aliases: [],
+      category: 'attraction',
+      allowGeneric: false,
       limit: 1,
     })
     expect(fetch).not.toHaveBeenCalled()
     expect(body.photoUrls).toEqual(['https://images.example/hanoi-train-street.jpg'])
+  })
+
+  it('does not call Google photo metadata for non-Google place ids when free lookup misses', async () => {
+    resolveFreeImageForPlaceMock.mockResolvedValueOnce(null)
+
+    const req = new NextRequest('http://localhost/api/place-photos?placeId=osm%3Anode%2F1308439468&placeName=MVTTS+%E5%92%96%E5%95%A1&placeType=dessert&alias=C%C3%A0+Ph%C3%AA+MVTTS&limit=1')
+    const res = await GET(req)
+    const body = await res.json()
+
+    expect(resolveFreeImageForPlaceMock).toHaveBeenCalledWith({
+      placeId: 'osm:node/1308439468',
+      placeName: 'MVTTS 咖啡',
+      aliases: ['Cà Phê MVTTS'],
+      category: 'dessert',
+      allowGeneric: true,
+      limit: 1,
+    })
+    expect(fetch).not.toHaveBeenCalled()
+    expect(body.photoUrls).toEqual([])
   })
 })

@@ -4,6 +4,13 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { RecommendationCard } from '@/components/RecommendationCard'
 import type { DayRecommendation } from '@/lib/types'
 
+const realFetch = global.fetch
+
+afterEach(() => {
+  global.fetch = realFetch
+  jest.restoreAllMocks()
+})
+
 const rec: DayRecommendation = {
   id: 'p1',
   placeId: 'p1',
@@ -59,7 +66,16 @@ it('fetches a free cover photo for Open POI recommendations without stored photo
 
   render(
     <RecommendationCard
-      rec={{ ...rec, placeId: 'osm:museum-cafe', photoUrl: null, photoUrls: [], sourceLabel: 'Open POI' }}
+      rec={{
+        ...rec,
+        placeId: 'osm:node/1308439468',
+        name: 'MVTTS 咖啡',
+        localizedName: { zhTw: 'MVTTS 咖啡', original: 'Cà Phê MVTTS' },
+        type: 'dessert',
+        photoUrl: null,
+        photoUrls: [],
+        sourceLabel: 'Open POI',
+      }}
       dateIso="2026-07-01"
       onAdd={() => {}}
       compact
@@ -67,7 +83,13 @@ it('fetches a free cover photo for Open POI recommendations without stored photo
   )
 
   expect(await screen.findByTestId('photo-thumb-0')).toBeInTheDocument()
-  expect(global.fetch).toHaveBeenCalledWith('/api/place-photos?placeId=osm%3Amuseum-cafe&placeName=Museum+Cafe&limit=1')
+  const [requestUrl] = (global.fetch as jest.Mock).mock.calls[0]
+  const params = new URL(String(requestUrl), 'http://localhost').searchParams
+  expect(params.get('placeId')).toBe('osm:node/1308439468')
+  expect(params.get('placeName')).toBe('MVTTS 咖啡')
+  expect(params.get('placeType')).toBe('dessert')
+  expect(params.getAll('alias')).toContain('Cà Phê MVTTS')
+  expect(params.get('limit')).toBe('1')
 })
 
 it('renders a visual cover fallback when compact recommendation data has no fetchable photo source', () => {

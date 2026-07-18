@@ -52,6 +52,10 @@ function canLazyFetchPlacePhotos(placeId: string): boolean {
   return canLazyFetchGooglePhotos(placeId) || canLazyFetchOpenDataPhotos(placeId)
 }
 
+function uniqueText(values: Array<string | null | undefined>): string[] {
+  return Array.from(new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value))))
+}
+
 export function RecommendationCard({ rec, dateIso, onAdd, onArchive, onDelete, actionLinks, actionTestIds, compact = false }: Props) {
   const meta = TYPE_META[rec.type]
   const todayHours = getHoursForDate(rec.openingHours, dateIso)
@@ -59,6 +63,11 @@ export function RecommendationCard({ rec, dateIso, onAdd, onArchive, onDelete, a
   const displayName = resolveLocalizedText(rec.localizedName, rec.name)
   const mapsUrl = googleMapsSearchUrl(rec, displayName.primary)
   const shortExplanation = compactExplanation(rec)
+  const photoAliases = uniqueText([
+    displayName.secondary,
+    rec.localizedName?.original,
+    rec.localizedName?.en,
+  ])
   const hasPhotoSource = photos.length > 0 || canLazyFetchPlacePhotos(rec.placeId)
   const photoFallback = (
     <div
@@ -125,7 +134,7 @@ export function RecommendationCard({ rec, dateIso, onAdd, onArchive, onDelete, a
           {!compact && todayHours && <p className="text-xs text-gray-500 mt-0.5">營業 {todayHours}</p>}
           {!compact && rec.rating && <p className="text-xs text-gray-500 mt-0.5">評分：{rec.rating} ★</p>}
           {hasPhotoSource ? (
-            <PhotoStrip photos={photos} placeId={rec.placeId} placeName={displayName.primary} className="mt-2" emptyFallback={photoFallback} />
+            <PhotoStrip photos={photos} placeId={rec.placeId} placeName={displayName.primary} className="mt-2" emptyFallback={photoFallback} placeType={rec.type} aliases={photoAliases} />
           ) : photoFallback}
           {compact && shortExplanation && <p className="text-xs text-gray-600 mt-1 break-words [overflow-wrap:anywhere]">{shortExplanation}</p>}
           {!compact && rec.description && <p className="text-xs text-gray-600 mt-1 italic break-words [overflow-wrap:anywhere]">{rec.description}</p>}

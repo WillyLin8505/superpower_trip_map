@@ -319,6 +319,13 @@ const OPENVERSE_STOP_WORDS = new Set([
   'the', 'and', 'for', 'with', 'cafe', 'coffee', 'restaurant', 'shop', 'store',
 ])
 
+const CATEGORY_FREE_IMAGE_QUERIES: Record<PlaceType, string> = {
+  attraction: 'travel landmark attraction',
+  restaurant: 'local restaurant food',
+  dessert: 'cafe dessert cake',
+  accommodation: 'hotel building',
+}
+
 interface KnownFreeImageEntity {
   aliases: string[]
   wikidata?: string
@@ -469,6 +476,36 @@ async function openverseImageResult(row: OpenPoiRow): Promise<FreeImageResult | 
   return null
 }
 
+async function openverseCategoryImageResult(category: PlaceType): Promise<FreeImageResult | null> {
+  const query = CATEGORY_FREE_IMAGE_QUERIES[category]
+  return cachedFreeImage(['openverse-category', category, query], async () => {
+    const params = new URLSearchParams({
+      q: query,
+      page_size: '10',
+      license_type: 'commercial,modification',
+    })
+    const data = await fetchJsonWithTimeout(`https://api.openverse.org/v1/images?${params.toString()}`, {
+      provider: 'openverse',
+      endpoint: 'category_image_search',
+      skuHint: 'openverse_free',
+      metadata: { query, category, fallback: 'category' },
+    }) as OpenverseImageResponse
+    const result = (data.results ?? []).find((item) =>
+      normalizeImageUrl(cleanText(item.thumbnail) ?? cleanText(item.url))
+    )
+    const url = normalizeImageUrl(cleanText(result?.thumbnail) ?? cleanText(result?.url))
+    if (!result || !url) return null
+    return {
+      photoUrls: [url],
+      source: 'openverse',
+      pageUrl: cleanText(result.foreign_landing_url),
+      license: cleanText(result.license),
+      attribution: cleanText(result.creator),
+      generic: true,
+    }
+  })
+}
+
 async function runImageResolver(resolver: () => Promise<FreeImageResult | null>): Promise<{
   result: FreeImageResult | null
   failed: boolean
@@ -483,7 +520,7 @@ async function runImageResolver(resolver: () => Promise<FreeImageResult | null>)
   }
 }
 
-async function freeImageResultForRow(row: OpenPoiRow): Promise<FreeImageLookupOutcome> {
+async function freeImageResultForRow(row: OpenPoiRow, allowGenericFallback = true): Promise<FreeImageLookupOutcome> {
   const direct = directImageResultFromMetadata(row.metadata)
   if (direct) return { result: direct, cacheableMiss: true }
 
@@ -496,6 +533,7 @@ async function freeImageResultForRow(row: OpenPoiRow): Promise<FreeImageLookupOu
   const wikipedia = wikipediaTagFromMetadata(row.metadata) ?? knownEntity?.wikipedia ?? null
   if (wikipedia) resolvers.push(() => wikipediaImageResult(wikipedia.lang, wikipedia.title))
   resolvers.push(() => openverseImageResult(row))
+  if (allowGenericFallback) resolvers.push(() => openverseCategoryImageResult(row.category))
 
   let hadFailure = false
   for (const resolver of resolvers) {
@@ -511,11 +549,15 @@ export async function resolveFreeImageForPlace({
   placeId,
   placeName,
   aliases = [],
+  category = 'attraction',
+  allowGeneric = true,
   limit = 5,
 }: {
   placeId?: string | null
   placeName: string
   aliases?: string[]
+  category?: PlaceType
+  allowGeneric?: boolean
   limit?: number
 }): Promise<FreeImageResult | null> {
   const sourcePlaceId = cleanText(placeId) ?? cleanText(placeName) ?? 'unknown'
@@ -528,10 +570,10 @@ export async function resolveFreeImageForPlace({
     name_local: placeName,
     lat: 0,
     lng: 0,
-    category: 'attraction',
+    category,
     confidence: null,
     metadata: metadataAliases.length ? { image_search_aliases: metadataAliases } : {},
-  })
+  }, allowGeneric)
   if (!result?.photoUrls.length) return null
   return {
     ...result,

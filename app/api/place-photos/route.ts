@@ -4,6 +4,7 @@ import { trackedApiFetch } from '@/lib/apiUsageEvents'
 import { tripIdFromReferer } from '@/lib/apiUsageContext'
 import { cachedGoogle, RETRYABLE_GOOGLE_STATUSES } from '@/lib/googleCache'
 import { resolveFreeImageForPlace } from '@/lib/openPoi'
+import type { PlaceType } from '@/lib/types'
 
 const BASE = 'https://maps.googleapis.com/maps/api/place'
 
@@ -20,19 +21,45 @@ function parseLimit(value: string | null): number {
   return Math.min(5, Math.max(1, Math.trunc(parsed)))
 }
 
+function parsePlaceType(value: string | null): PlaceType {
+  if (value === 'restaurant' || value === 'dessert' || value === 'accommodation') return value
+  return 'attraction'
+}
+
+function isGooglePlaceId(placeId: string): boolean {
+  return placeId.length >= 16 && !placeId.includes(':')
+}
+
 export async function GET(req: NextRequest) {
   const placeId = req.nextUrl.searchParams.get('placeId')
   if (!placeId) return NextResponse.json({ error: 'missing placeId' }, { status: 400 })
   const limit = parseLimit(req.nextUrl.searchParams.get('limit'))
   const placeName = req.nextUrl.searchParams.get('placeName')?.trim()
+  const aliases = req.nextUrl.searchParams.getAll('alias').map((alias) => alias.trim()).filter(Boolean)
+  const category = parsePlaceType(req.nextUrl.searchParams.get('placeType'))
+  const googlePlaceId = isGooglePlaceId(placeId)
   if (placeName) {
-    const freeImage = await resolveFreeImageForPlace({ placeId, placeName, limit })
+    const freeImage = await resolveFreeImageForPlace({
+      placeId,
+      placeName,
+      aliases,
+      category,
+      allowGeneric: !googlePlaceId,
+      limit,
+    })
     if (freeImage?.photoUrls.length) {
       return NextResponse.json(
         { photoUrls: freeImage.photoUrls, source: freeImage.source },
         { headers: { 'cache-control': googleMapsPhotoCacheControl() } }
       )
     }
+  }
+
+  if (!googlePlaceId) {
+    return NextResponse.json(
+      { photoUrls: [] },
+      { headers: { 'cache-control': googleMapsPhotoCacheControl() } }
+    )
   }
 
   const apiKey = process.env.GOOGLE_MAPS_API_KEY

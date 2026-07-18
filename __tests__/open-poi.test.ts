@@ -301,6 +301,56 @@ it('uses alternate names to resolve free images for localized landmark names', a
   )
 })
 
+it('falls back to a free category image when a small local POI has no exact image metadata', async () => {
+  const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (!url.includes('api.openverse.org')) {
+      return {
+        ok: true,
+        json: async () => ({ results: [] }),
+      }
+    }
+
+    const query = new URL(url).searchParams.get('q')
+    return {
+      ok: true,
+      json: async () => ({
+        results: query === 'cafe dessert cake' ? [
+          {
+            title: 'Cafe dessert counter',
+            thumbnail: 'https://images.example/generic-cafe-dessert.jpg',
+            foreign_landing_url: 'https://www.flickr.com/photos/example/generic-cafe-dessert',
+            license: 'by',
+            creator: 'Example creator',
+          },
+        ] : [],
+      }),
+    }
+  })
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  await expect(mapOpenPoiRowToPlaceWithFreeImages({
+    source: 'osm',
+    source_place_id: 'node/1308439468',
+    name_primary: 'MVTTS 咖啡',
+    name_zh: 'MVTTS 咖啡',
+    name_local: 'Cà Phê MVTTS',
+    lat: 21.0284992,
+    lng: 105.8484194,
+    category: 'dessert',
+    confidence: null,
+    metadata: { osm: { amenity: 'cafe' } },
+  })).resolves.toMatchObject({
+    photoUrl: 'https://images.example/generic-cafe-dessert.jpg',
+    photoUrls: ['https://images.example/generic-cafe-dessert.jpg'],
+  })
+
+  expect(fetchMock).toHaveBeenCalledWith(
+    expect.stringContaining('q=cafe+dessert+cake'),
+    expect.anything(),
+  )
+})
+
 it('skips external image lookups for recent not-found cache entries', async () => {
   global.fetch = jest.fn() as unknown as typeof fetch
 

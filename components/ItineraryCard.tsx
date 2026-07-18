@@ -15,6 +15,10 @@ import { effectivePinned, isDerived } from '@/lib/utils/lockDerive'
 const ARCHIVE_LABEL = '\u79fb\u5230\u5099\u7528'
 const ARCHIVE_ICON = '\uD83D\uDCBE'
 
+function uniqueText(values: Array<string | null | undefined>): string[] {
+  return Array.from(new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value))))
+}
+
 function toMin(t: string): number {
   const [h, m] = t.split(':').map(Number)
   return h * 60 + m
@@ -62,6 +66,11 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
   const mapsUrl = googleMapsSearchUrl(place, displayName.primary)
   const endTime = addMinutes(place.startTime, place.durationMin)
   const photos = place.photoUrls?.length ? place.photoUrls : place.photoUrl ? [place.photoUrl] : []
+  const photoAliases = uniqueText([
+    displayName.secondary,
+    place.localizedName?.original,
+    place.localizedName?.en,
+  ])
   const isCompact = compact || isDragging
 
   if (isCompact) {
@@ -209,7 +218,7 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
           {place.rating && (
             <p className="text-sm text-muted mt-0.5">評分：{place.rating} &#x2605;</p>
           )}
-          <PhotoStrip photos={photos} placeId={place.placeId} placeName={displayName.primary} className="mt-2" />
+          <PhotoStrip photos={photos} placeId={place.placeId} placeName={displayName.primary} className="mt-2" placeType={place.type} aliases={photoAliases} />
           {descriptionText && (
             <p className="text-sm text-gray-600 mt-2 italic">{descriptionText}</p>
           )}
