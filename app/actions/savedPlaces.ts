@@ -33,6 +33,11 @@ function stubToPlace(stub: { placeId: string; name: string; type: Place['type'];
   }
 }
 
+// Persist resolved rows every IMPORT_CHUNK so a large import that hits the server-action
+// time limit keeps the progress made so far (a full async job for very large libraries is
+// future work; the Part B client also chunks big selections across calls).
+const IMPORT_CHUNK = 25
+
 export async function importSavedPlaces(
   entries: SavedPlaceEntry[],
 ): Promise<{ added: number; existing: number; unresolved: number }> {
@@ -40,13 +45,34 @@ export async function importSavedPlaces(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('NOT_AUTHENTICATED')
 
-  const rows: Record<string, unknown>[] = []
-  let unresolved = 0
+  let added = 0, existing = 0, unresolved = 0
+  let batch: Record<string, unknown>[] = []
+
+  // ignoreDuplicates → INSERT ... ON CONFLICT DO NOTHING; .select() returns only the rows
+  // actually inserted, so added vs already-existing is accurate (spec: 「新增 N、已存在 M」).
+  const flush = async () => {
+    if (batch.length === 0) return
+    const { data, error } = await supabase
+      .from('saved_places')
+      .upsert(batch, { onConflict: 'owner_id,list_name,place_id', ignoreDuplicates: true })
+      .select('place_id')
+    if (error) throw new Error('匯入失敗，請稍後再試')
+    const inserted = data?.length ?? 0
+    added += inserted
+    existing += batch.length - inserted
+    batch = []
+  }
+
   for (const entry of entries) {
     const coords = entry.lat != null && entry.lng != null ? { lat: entry.lat, lng: entry.lng } : undefined
-    const stub = await resolvePlaceEssentials(entry.title, coords)
+    let stub
+    try {
+      stub = await resolvePlaceEssentials(entry.title, coords)
+    } catch {
+      stub = null // transient / Google error → count unresolved, never abort the whole import
+    }
     if (!stub) { unresolved++; continue }
-    rows.push({
+    batch.push({
       owner_id: user.id,
       list_name: entry.listName,
       source: entry.source,
@@ -55,18 +81,10 @@ export async function importSavedPlaces(
       note: entry.note,
       updated_at: new Date().toISOString(),
     })
+    if (batch.length >= IMPORT_CHUNK) await flush()
   }
-  if (rows.length === 0) return { added: 0, existing: 0, unresolved }
-
-  // ignoreDuplicates → INSERT ... ON CONFLICT DO NOTHING; .select() returns only the rows
-  // actually inserted, so added vs already-existing is accurate (spec: 「新增 N、已存在 M」).
-  const { data, error } = await supabase
-    .from('saved_places')
-    .upsert(rows, { onConflict: 'owner_id,list_name,place_id', ignoreDuplicates: true })
-    .select('place_id')
-  if (error) throw new Error('匯入失敗，請稍後再試')
-  const added = data?.length ?? 0
-  return { added, existing: rows.length - added, unresolved }
+  await flush()
+  return { added, existing, unresolved }
 }
 
 export async function listSavedPlaces(): Promise<SavedPlaceRow[]> {

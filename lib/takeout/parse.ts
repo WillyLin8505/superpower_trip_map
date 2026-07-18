@@ -82,7 +82,7 @@ export function parseTakeoutFile(filename: string, content: string): SavedPlaceE
   if (/\.json$/i.test(filename) || (trimmed.startsWith('{') && trimmed.includes('FeatureCollection'))) {
     return parseGeoJson(content)
   }
-  if (/\.csv$/i.test(filename) || /^title\s*,/i.test(trimmed)) {
+  if (/\.csv$/i.test(filename) || /^"?title"?\s*,/i.test(trimmed)) {
     return parseCsv(filename, content)
   }
   throw new Error('無法辨識的檔案格式，請上傳 Google Takeout 匯出的 JSON 或 CSV')

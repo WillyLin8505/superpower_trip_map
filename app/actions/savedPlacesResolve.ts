@@ -27,11 +27,14 @@ interface ResolvedStub {
 
 // Returns the candidate id WITHOUT writing the cache — the cache is written only after
 // Details confirms the id resolves (see resolvePlaceEssentials), mirroring searchPlace.
+// `scope` namespaces the cache key (see resolvePlaceEssentials) so a generic title can't
+// collide across locations.
 async function findPlaceId(
   title: string,
-  coords?: { lat: number; lng: number },
+  coords: { lat: number; lng: number } | undefined,
+  scope: string | undefined,
 ): Promise<{ placeId: string; fromCache: boolean } | null> {
-  const cached = await readCachedPlaceId(title)
+  const cached = await readCachedPlaceId(title, scope)
   if (cached) return { placeId: cached, fromCache: true }
   const params = new URLSearchParams({ input: title, inputtype: 'textquery', fields: 'place_id', key: KEY })
   if (coords) params.set('locationbias', `point:${coords.lat},${coords.lng}`)
@@ -47,7 +50,11 @@ export async function resolvePlaceEssentials(
   title: string,
   coords?: { lat: number; lng: number },
 ): Promise<ResolvedStub | null> {
-  const found = await findPlaceId(title, coords)
+  // Namespace the title→id cache by a coarse (~11km) coord bucket when Takeout provides
+  // coords, so a generic name ("Starbucks") can't collide across locations or poison the
+  // global title-only cache. Falls back to title-only for CSV entries without coords.
+  const scope = coords ? `${coords.lat.toFixed(1)},${coords.lng.toFixed(1)}` : undefined
+  const found = await findPlaceId(title, coords, scope)
   if (!found) return null
   const params = new URLSearchParams({ place_id: found.placeId, fields: ESSENTIALS_FIELDS, key: KEY, language: 'zh-TW' })
   const res = await trackedApiFetch(`${BASE}/details/json?${params.toString()}`, googleMapsFetchOptions(), {
@@ -58,7 +65,7 @@ export async function resolvePlaceEssentials(
   // Cache the title→place_id mapping ONLY after Details confirms it resolves — never
   // poison place_id_cache on a bad candidate or a non-OK / geometry-less response.
   if (!r || data.status !== 'OK' || !r.geometry?.location) return null
-  if (!found.fromCache) await writeCachedPlaceId(title, undefined, found.placeId)
+  if (!found.fromCache) await writeCachedPlaceId(title, scope, found.placeId)
   return {
     placeId: r.place_id ?? found.placeId,
     name: (r.name ?? title).trim(),

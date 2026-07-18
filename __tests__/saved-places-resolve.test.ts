@@ -64,6 +64,12 @@ it('caches title→place_id only after Details succeeds', async () => {
   expect(writeCachedPlaceId).toHaveBeenCalledWith('度小月', undefined, 'ChIJx')
 })
 
+it('namespaces the place_id cache by a coarse coord bucket when coords are given', async () => {
+  await resolvePlaceEssentials('Starbucks', { lat: 25.03, lng: 121.56 })
+  expect(readCachedPlaceId).toHaveBeenCalledWith('Starbucks', '25.0,121.6')
+  expect(writeCachedPlaceId).toHaveBeenCalledWith('Starbucks', '25.0,121.6', 'ChIJx')
+})
+
 it('does NOT cache when Details is non-OK or lacks geometry (no cache poisoning)', async () => {
   trackedApiFetch.mockReset()
     .mockResolvedValueOnce({ json: async () => findPlaceResponse })

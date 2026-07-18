@@ -57,6 +57,19 @@ it('reports re-imported existing rows as existing, not added', async () => {
   expect(await importSavedPlaces(entries)).toEqual({ added: 0, existing: 2, unresolved: 0 })
 })
 
+it('isolates a per-row resolver error as unresolved without aborting the import', async () => {
+  state.insertedIds = ['pid-度小月']
+  resolvePlaceEssentials.mockImplementation(async (title: string) => {
+    if (title === '爆炸') throw new Error('google 500')
+    return { placeId: `pid-${title}`, name: title, type: 'restaurant', lat: 1, lng: 2, address: 'addr' }
+  })
+  const entries = [
+    { listName: '台南', source: 'takeout_list' as const, title: '度小月', note: null, lat: null, lng: null },
+    { listName: '台南', source: 'takeout_list' as const, title: '爆炸', note: null, lat: null, lng: null },
+  ]
+  expect(await importSavedPlaces(entries)).toEqual({ added: 1, existing: 0, unresolved: 1 })
+})
+
 it('throws when logged out', async () => {
   state.user = null
   const entries = [{ listName: 'x', source: 'takeout_list' as const, title: 'a', note: null, lat: null, lng: null }]
