@@ -45,3 +45,22 @@ it('never calls Google Translate fetch', async () => {
 
   expect(fetchMock).not.toHaveBeenCalled()
 })
+
+it('falls back to a local Chinese cafe name when AI translation is unavailable', async () => {
+  const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined)
+  callClaudeMock.mockRejectedValue(new Error('Could not resolve authentication method'))
+
+  try {
+    await expect(translateTextToZhTw('Orick Coffee')).resolves.toBe('Orick 咖啡')
+  } finally {
+    consoleErrorSpy.mockRestore()
+  }
+})
+
+it('fills missing AI translation keys with local Chinese fallbacks', async () => {
+  callClaudeMock.mockResolvedValue('{}')
+
+  const result = await translateTextsToZhTw(['Orick Coffee'])
+
+  expect(result).toEqual({ 'Orick Coffee': 'Orick 咖啡' })
+})

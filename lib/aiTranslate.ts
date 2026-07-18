@@ -15,6 +15,40 @@ function hasHanText(value: string | null | undefined): boolean {
   return /[\u3400-\u9fff]/.test(value ?? '')
 }
 
+const localChinesePlaceRules: Array<{ pattern: RegExp; suffix: string }> = [
+  { pattern: /\b(coffee|cafe|café|espresso|roastery|coffeehouse|coffee house|coffee shop)\b|cà\s*phê/i, suffix: '咖啡' },
+  { pattern: /\b(tea|milk tea|boba|bubble tea)\b/i, suffix: '茶飲' },
+  { pattern: /\b(waffle|cake|dessert|bakery|bakes|pastry|patisserie|gelato|ice cream|sweet|tart)\b/i, suffix: '甜點' },
+  { pattern: /\b(noodle|noodles|ramen|pho)\b|phở/i, suffix: '麵店' },
+  { pattern: /\b(restaurant|kitchen|bistro|eatery|grill|bbq|bar)\b/i, suffix: '餐廳' },
+]
+
+function fallbackPlaceNameToZhTw(source: string): string | null {
+  const cleanedSource = cleanText(source.replace(/\s+/g, ' '))
+  if (!cleanedSource || hasHanText(cleanedSource)) return cleanedSource
+
+  for (const rule of localChinesePlaceRules) {
+    if (!rule.pattern.test(cleanedSource)) continue
+    const brandName = cleanText(cleanedSource
+      .replace(rule.pattern, ' ')
+      .replace(/[|/·・•,，.。:：;；!?？()[\]{}"'“”‘’]+/g, ' ')
+      .replace(/\s+/g, ' '))
+    return brandName ? `${brandName} ${rule.suffix}` : rule.suffix
+  }
+
+  return null
+}
+
+function fillLocalFallbacks(sources: string[], translated: Record<string, string>): Record<string, string> {
+  const withFallbacks = { ...translated }
+  for (const source of sources) {
+    if (cleanText(withFallbacks[source])) continue
+    const fallback = fallbackPlaceNameToZhTw(source)
+    if (fallback) withFallbacks[source] = fallback
+  }
+  return withFallbacks
+}
+
 function uniqueCleanTexts(texts: string[]): string[] {
   return Array.from(new Set(texts.map((text) => cleanText(text)).filter((text): text is string => text !== null)))
 }
@@ -85,17 +119,17 @@ export async function translateTextsToZhTw(texts: string[]): Promise<Record<stri
   if (needsAi.length === 0) return translated
 
   try {
-    return {
+    return fillLocalFallbacks(needsAi, {
       ...translated,
       ...(await cachedAiTranslations(needsAi)),
-    }
+    })
   } catch (error) {
     console.error('[ai-translate] failed to translate place names', {
       target: TARGET_LANGUAGE,
       count: needsAi.length,
       error: error instanceof Error ? error.message : 'unknown',
     })
-    return translated
+    return fillLocalFallbacks(needsAi, translated)
   }
 }
 

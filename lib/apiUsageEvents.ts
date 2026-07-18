@@ -43,6 +43,9 @@ const ESTIMATED_USD_PER_1000_UNITS: Record<string, number> = {
   place_photo_media: 7,
   distance_matrix_essentials: 5,
   cloud_translation_basic_chars: 0.02,
+  wikimedia_free: 0,
+  wikipedia_free: 0,
+  openverse_free: 0,
 }
 
 function isEnabled(): boolean {

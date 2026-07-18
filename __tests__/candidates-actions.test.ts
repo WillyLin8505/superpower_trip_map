@@ -52,6 +52,17 @@ const placeFixture: Place = {
   description: 'A typed place fixture',
 }
 
+function expectedLocalizedCafe(place: Place, zhTwName: string): Place {
+  return {
+    ...place,
+    name: zhTwName,
+    localizedName: {
+      original: place.name,
+      zhTw: zhTwName,
+    },
+  }
+}
+
 jest.mock('@/lib/supabase/server', () => ({
   createClient: () => ({
     auth: {
@@ -80,6 +91,10 @@ jest.mock('@/lib/supabase/admin', () => ({
       throw new Error(`Unexpected admin table ${table}`)
     }),
   }),
+}))
+
+jest.mock('@/lib/claude', () => ({
+  callClaude: jest.fn(async () => '{}'),
 }))
 
 function makeTripAccessBuilder() {
@@ -275,7 +290,7 @@ it('listCandidates maps only LINE-sourced rows to read-only discussion candidate
   const expected: Candidate[] = [
     {
       id: 'candidate-1',
-      place: placeFixture,
+      place: expectedLocalizedCafe(placeFixture, 'Test 咖啡'),
       addedBy: 'user-a',
       addedByName: 'Alice',
       source: { kind: 'line_group', lineGroupId: 'group-1', messageId: 'msg-1' },
@@ -379,10 +394,10 @@ it('listArchived filters to list=archived and maps rows the same way as listCand
   const { listArchived } = loadActions()
 
   const expected: Candidate[] = [
-    { id: 'candidate-1', place: placeFixture, addedBy: 'user-a', addedByName: 'Alice', source: { kind: 'line_group', lineGroupId: 'group-1', messageId: 'msg-1' } },
+    { id: 'candidate-1', place: expectedLocalizedCafe(placeFixture, 'Test 咖啡'), addedBy: 'user-a', addedByName: 'Alice', source: { kind: 'line_group', lineGroupId: 'group-1', messageId: 'msg-1' } },
     {
       id: 'candidate-2',
-      place: { ...placeFixture, id: 'place-local-2', placeId: 'google-place-2', name: 'Second Cafe' },
+      place: expectedLocalizedCafe({ ...placeFixture, id: 'place-local-2', placeId: 'google-place-2', name: 'Second Cafe' }, 'Second 咖啡'),
       addedBy: 'user-b',
       addedByName: 'Bob',
       source: null,

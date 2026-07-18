@@ -1,5 +1,31 @@
 import { mapOpenPoiRowToPlace, mapOpenPoiRowToPlaceWithFreeImages } from '@/lib/openPoi'
 
+const mockUpdateBuilder: { error: null; eq: jest.Mock } = {
+  error: null,
+  eq: jest.fn(),
+}
+const mockUpdate = jest.fn(() => mockUpdateBuilder)
+const mockFrom = jest.fn(() => ({ update: mockUpdate }))
+
+jest.mock('@/lib/supabase/admin', () => ({
+  createAdminClient: () => ({ from: mockFrom }),
+}))
+
+const originalEnv = { ...process.env }
+
+beforeEach(() => {
+  jest.clearAllMocks()
+  mockUpdateBuilder.eq.mockImplementation(() => mockUpdateBuilder)
+  process.env = { ...originalEnv }
+  delete process.env.NEXT_PUBLIC_SUPABASE_URL
+  delete process.env.SUPABASE_SERVICE_ROLE_KEY
+})
+
+afterEach(() => {
+  process.env = originalEnv
+  jest.restoreAllMocks()
+})
+
 it('maps an open-data POI row to a recommendation-safe Place without Google enrichment', () => {
   expect(mapOpenPoiRowToPlace({
     source: 'overture',
@@ -86,4 +112,205 @@ it('resolves a free Wikidata image when direct OSM image metadata is missing', a
   } finally {
     global.fetch = realFetch
   }
+})
+
+it('persists resolved free image metadata back to poi_places', async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role'
+  global.fetch = jest.fn(async () => ({
+    ok: true,
+    json: async () => ({
+      entities: {
+        Q321242: {
+          claims: {
+            P18: [
+              {
+                mainsnak: {
+                  datavalue: {
+                    value: 'Osaka Castle 02bs3200.jpg',
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    }),
+  })) as unknown as typeof fetch
+
+  await expect(mapOpenPoiRowToPlaceWithFreeImages({
+    source: 'osm',
+    source_place_id: 'way/34619038',
+    name_primary: 'Osaka Castle',
+    name_zh: '大阪城',
+    name_local: '大阪城',
+    lat: 34.687,
+    lng: 135.526,
+    category: 'attraction',
+    confidence: null,
+    metadata: { wikidata: 'Q321242' },
+  })).resolves.toMatchObject({
+    photoUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Osaka%20Castle%2002bs3200.jpg',
+  })
+
+  expect(mockFrom).toHaveBeenCalledWith('poi_places')
+  expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({
+    metadata: expect.objectContaining({
+      photoUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Osaka%20Castle%2002bs3200.jpg',
+      photoUrls: ['https://commons.wikimedia.org/wiki/Special:FilePath/Osaka%20Castle%2002bs3200.jpg'],
+      free_image: expect.objectContaining({
+        status: 'found',
+        source: 'wikidata',
+      }),
+    }),
+  }))
+})
+
+it('resolves Wikimedia Commons category metadata to a free image', async () => {
+  global.fetch = jest.fn(async () => ({
+    ok: true,
+    json: async () => ({
+      query: {
+        pages: {
+          '1': {
+            title: 'File:Osaka Castle cherry blossoms.jpg',
+            imageinfo: [
+              {
+                thumburl: 'https://upload.wikimedia.org/osaka-castle-cherry.jpg',
+                mime: 'image/jpeg',
+                extmetadata: {
+                  LicenseShortName: { value: 'CC BY-SA 4.0' },
+                  Artist: { value: 'Example photographer' },
+                },
+              },
+            ],
+          },
+        },
+      },
+    }),
+  })) as unknown as typeof fetch
+
+  await expect(mapOpenPoiRowToPlaceWithFreeImages({
+    source: 'osm',
+    source_place_id: 'way/34619038',
+    name_primary: 'Osaka Castle',
+    name_zh: '大阪城',
+    name_local: '大阪城',
+    lat: 34.687,
+    lng: 135.526,
+    category: 'attraction',
+    confidence: null,
+    metadata: { wikimedia_commons: 'Category:Osaka Castle' },
+  })).resolves.toMatchObject({
+    photoUrl: 'https://upload.wikimedia.org/osaka-castle-cherry.jpg',
+    photoUrls: ['https://upload.wikimedia.org/osaka-castle-cherry.jpg'],
+  })
+})
+
+it('uses Openverse exact search when metadata has no direct Wikimedia image', async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role'
+  global.fetch = jest.fn(async () => ({
+    ok: true,
+    json: async () => ({
+      results: [
+        {
+          title: 'Ozakajō Osaka castle',
+          thumbnail: 'https://api.openverse.org/v1/images/osaka-castle/thumb/',
+          foreign_landing_url: 'https://www.flickr.com/photos/example/osaka-castle',
+          license: 'by',
+          creator: 'Example creator',
+        },
+      ],
+    }),
+  })) as unknown as typeof fetch
+
+  await expect(mapOpenPoiRowToPlaceWithFreeImages({
+    source: 'osm',
+    source_place_id: 'way/openverse',
+    name_primary: 'Osaka Castle',
+    name_zh: null,
+    name_local: 'Osaka Castle',
+    lat: 34.687,
+    lng: 135.526,
+    category: 'attraction',
+    confidence: null,
+    metadata: {},
+  })).resolves.toMatchObject({
+    photoUrl: 'https://api.openverse.org/v1/images/osaka-castle/thumb/',
+    photoUrls: ['https://api.openverse.org/v1/images/osaka-castle/thumb/'],
+  })
+
+  expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({
+    metadata: expect.objectContaining({
+      free_image: expect.objectContaining({
+        source: 'openverse',
+        license: 'by',
+        attribution: 'Example creator',
+      }),
+    }),
+  }))
+})
+
+it('skips external image lookups for recent not-found cache entries', async () => {
+  global.fetch = jest.fn() as unknown as typeof fetch
+
+  await expect(mapOpenPoiRowToPlaceWithFreeImages({
+    source: 'osm',
+    source_place_id: 'node/recent-miss',
+    name_primary: 'No Image Cafe',
+    name_zh: null,
+    name_local: 'No Image Cafe',
+    lat: 21.024,
+    lng: 105.847,
+    category: 'dessert',
+    confidence: null,
+    metadata: {
+      wikidata: 'Q999999',
+      free_image: {
+        status: 'not_found',
+        version: 1,
+        fetchedAt: new Date().toISOString(),
+      },
+    },
+  })).resolves.toMatchObject({
+    photoUrl: null,
+    photoUrls: [],
+  })
+
+  expect(global.fetch).not.toHaveBeenCalled()
+})
+
+it('persists not-found image lookups so future reloads skip external searches', async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role'
+  global.fetch = jest.fn(async () => ({
+    ok: true,
+    json: async () => ({ results: [] }),
+  })) as unknown as typeof fetch
+
+  await expect(mapOpenPoiRowToPlaceWithFreeImages({
+    source: 'osm',
+    source_place_id: 'node/no-image',
+    name_primary: 'No Image Cafe',
+    name_zh: null,
+    name_local: 'No Image Cafe',
+    lat: 21.024,
+    lng: 105.847,
+    category: 'dessert',
+    confidence: null,
+    metadata: {},
+  })).resolves.toMatchObject({
+    photoUrl: null,
+    photoUrls: [],
+  })
+
+  expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({
+    metadata: expect.objectContaining({
+      free_image: expect.objectContaining({
+        status: 'not_found',
+        version: 1,
+      }),
+    }),
+  }))
 })
