@@ -1,0 +1,20 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  // Exclude exports tagged /** @knipignore */ (deliberately kept, see each site).
+  "tags": ["-knipignore"],
+  "ignore": [
+    // Spike/POC documents kept for reference, not shipped code.
+    "docs/**",
+    // Crowd-forecast feature scaffold: lib/crowd is live via app/actions/arrange.ts,
+    // but the server-action entry point and its public types await UI wiring.
+    "app/actions/crowd.ts",
+    "lib/crowd/index.ts",
+    "lib/crowd/types.ts"
+  ],
+  "ignoreDependencies": [
+    // Ambient google.maps types used in components without imports.
+    "@types/google.maps",
+    // Loaded via FlatCompat string "next/core-web-vitals" in eslint.config.mjs.
+    "eslint-config-next"
+  ]
+}

@@ -72,6 +72,7 @@ async function resolveCandidateNames(
   return ensureCandidateChineseNames(out)
 }
 
+/** @knipignore UI 已改走 archivePlace；保留這個有測試的 API 待產品決定是否移除 */
 export async function addCandidate(tripId: string, place: Place): Promise<{ id: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

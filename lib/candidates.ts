@@ -49,6 +49,7 @@ export async function addCandidateFromLine(input: {
   return 'added'
 }
 
+/** @knipignore admin-client 版本，line-candidates 測試覆蓋；尚未接進 UI */
 export async function listCandidates(tripId: string): Promise<TripCandidate[]> {
   const admin = createAdminClient()
   const { data, error } = await admin

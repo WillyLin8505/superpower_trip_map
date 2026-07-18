@@ -171,27 +171,3 @@ export interface TripCandidate {
   source: CandidateSource | null
   createdAt: string
 }
-
-export interface LineGroupBinding {
-  id: string
-  lineGroupId: string
-  tripId: string
-  writeAsUserId: string
-  status: 'active' | 'disabled'
-  createdAt: string
-  updatedAt: string
-  lastMessageAt: string | null
-}
-
-export interface LineIngestJob {
-  id: string
-  lineGroupId: string | null
-  lineUserId: string | null
-  messageId: string
-  messageText: string | null
-  eventPayload: unknown
-  status: 'queued' | 'processing' | 'done' | 'ignored' | 'failed'
-  error: string | null
-  createdAt: string
-  processedAt: string | null
-}

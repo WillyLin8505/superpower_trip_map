@@ -14,6 +14,9 @@ const config = [
     ignores: [
       ".next/**",
       ".gstack/**",
+      // Flat config does not honor .gitignore; keep nested worktrees and
+      // other tool state out of `eslint .`.
+      ".claude/**",
       "test-results/**",
       "playwright-report/**",
       "next-env.d.ts",

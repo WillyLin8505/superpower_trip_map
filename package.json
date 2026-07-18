@@ -37,9 +37,10 @@
     "eslint-config-next": "^15.5.18",
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
+    "knip": "^6.27.0",
     "postcss": "8.5.15",
+    "postcss-load-config": "^6.0.1",
     "tailwindcss": "^3.4.1",
-    "ts-jest": "^29.4.11",
     "typescript": "^5"
   },
   "overrides": {

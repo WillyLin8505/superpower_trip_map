@@ -18,7 +18,7 @@ function nativeNameFor(place: Place): string | null {
   )
 }
 
-export async function ensurePlaceChineseName<T extends Place>(place: T): Promise<T> {
+async function ensurePlaceChineseName<T extends Place>(place: T): Promise<T> {
   const existingZh = cleanText(place.localizedName?.zhTw)
   if (existingZh && hasHanText(existingZh)) return place
 

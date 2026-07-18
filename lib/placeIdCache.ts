@@ -20,7 +20,7 @@ function normalizeText(value: string | null | undefined): string {
   return (value ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
-export function buildPlaceIdLookupHash(query: string, countryName?: string): string {
+function buildPlaceIdLookupHash(query: string, countryName?: string): string {
   return createHash('sha256')
     .update(JSON.stringify({
       query: normalizeText(query),

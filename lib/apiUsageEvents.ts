@@ -75,7 +75,7 @@ export function redactGoogleMapsApiKey(value: string): string {
   }
 }
 
-export function estimateApiUsageCostUsd(skuHint: string | null | undefined, units: number): number | null {
+function estimateApiUsageCostUsd(skuHint: string | null | undefined, units: number): number | null {
   if (!skuHint) return null
   const per1000 = ESTIMATED_USD_PER_1000_UNITS[skuHint]
   if (per1000 === undefined) return null

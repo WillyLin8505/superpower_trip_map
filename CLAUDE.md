@@ -64,6 +64,7 @@ the diff so context never drifts between the two models.
 - typecheck: npx tsc --noEmit
 - lint: npm run lint
 - test: npm test
+- deadcode: npx knip
 
 ## Skill routing
 

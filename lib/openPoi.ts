@@ -3,7 +3,7 @@ import type { Place, PlaceType } from '@/lib/types'
 import { haversineMeters } from '@/lib/haversine'
 import { placeShortDescription } from '@/lib/utils/placeShortDescription'
 
-export type OpenPoiSource = 'overture' | 'osm' | 'wikidata' | 'user'
+type OpenPoiSource = 'overture' | 'osm' | 'wikidata' | 'user'
 
 export interface OpenPoiRow {
   source: OpenPoiSource

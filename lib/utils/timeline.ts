@@ -3,7 +3,7 @@ import type { ScheduledPlace } from '@/lib/types'
 
 export const PX_PER_MIN = 1.2
 export const MIN_CARD_PX = 36
-export const RESIZE_SNAP_MIN = 5
+const RESIZE_SNAP_MIN = 5
 export const MIN_DURATION_MIN = 5
 
 function toMin(time: string): number {
@@ -11,7 +11,7 @@ function toMin(time: string): number {
   return h * 60 + m
 }
 
-export interface TimelineCardLayout {
+interface TimelineCardLayout {
   id: string
   heightPx: number
   travelGapPx: number
