@@ -34,6 +34,10 @@ function googleFallbackQuery(placeName: string, aliases: string[]): string {
   return Array.from(new Set([placeName, ...aliases].map((value) => value.trim()).filter(Boolean))).join(' ')
 }
 
+function mergePhotoUrls(primary: string[], fallback: string[], limit: number): string[] {
+  return Array.from(new Set([...primary, ...fallback].filter(Boolean))).slice(0, limit)
+}
+
 async function googlePhotoUrlsForPlaceId(placeId: string, limit: number, tripId: string | null | undefined): Promise<string[]> {
   return cachedGoogle(['photos', placeId, String(limit)], async () => {
     const apiKey = process.env.GOOGLE_MAPS_API_KEY!
@@ -126,6 +130,7 @@ export async function GET(req: NextRequest) {
   const aliases = req.nextUrl.searchParams.getAll('alias').map((alias) => alias.trim()).filter(Boolean)
   const category = parsePlaceType(req.nextUrl.searchParams.get('placeType'))
   const googlePlaceId = isGooglePlaceId(placeId)
+  let freePhotoUrls: string[] = []
   if (placeName) {
     const freeImage = await resolveFreeImageForPlace({
       placeId,
@@ -135,9 +140,12 @@ export async function GET(req: NextRequest) {
       allowGeneric: false,
       limit,
     })
-    if (freeImage?.photoUrls.length && !freeImage.generic) {
+    freePhotoUrls = freeImage?.photoUrls.length && !freeImage.generic
+      ? freeImage.photoUrls.slice(0, limit)
+      : []
+    if (freePhotoUrls.length >= limit) {
       return NextResponse.json(
-        { photoUrls: freeImage.photoUrls, source: freeImage.source },
+        { photoUrls: freePhotoUrls, source: freeImage?.source },
         { headers: { 'cache-control': googleMapsPhotoCacheControl() } }
       )
     }
@@ -146,7 +154,7 @@ export async function GET(req: NextRequest) {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY
   if (!apiKey) {
     return NextResponse.json(
-      { photoUrls: [] },
+      { photoUrls: freePhotoUrls },
       { headers: { 'cache-control': googleMapsPhotoCacheControl() } }
     )
   }
@@ -154,11 +162,12 @@ export async function GET(req: NextRequest) {
   const tripId = tripIdFromReferer(req.headers.get('referer'), req.nextUrl.origin)
 
   try {
-    const photoUrls = googlePlaceId
+    const googlePhotoUrls = googlePlaceId
       ? await googlePhotoUrlsForPlaceId(placeId, limit, tripId)
       : placeName
         ? await googlePhotoUrlsForTextFallback({ placeName, aliases, category, limit, tripId })
         : []
+    const photoUrls = mergePhotoUrls(freePhotoUrls, googlePhotoUrls, limit)
 
     return NextResponse.json(
       { photoUrls },

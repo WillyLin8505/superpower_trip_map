@@ -15,6 +15,8 @@ describe('GET /api/place-photos', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+    ;(fetch as jest.Mock).mockReset()
+    resolveFreeImageForPlaceMock.mockReset()
     process.env.GOOGLE_MAPS_API_KEY = 'test-key'
   })
 
@@ -141,6 +143,49 @@ describe('GET /api/place-photos', () => {
     expect(fetch).toHaveBeenNthCalledWith(1, expect.stringContaining('input=MVTTS+%E5%92%96%E5%95%A1+C%C3%A0+Ph%C3%AA+MVTTS'), expect.any(Object))
     expect(fetch).toHaveBeenNthCalledWith(2, expect.stringContaining('place_id=ChIJmvtGooglePlace'), expect.any(Object))
     expect(body.photoUrls).toEqual(['/api/photo?ref=mvt-google-photo'])
+  })
+
+  it('tops up a single exact free image with Google photos when the card asks for all five', async () => {
+    resolveFreeImageForPlaceMock.mockResolvedValueOnce({
+      photoUrls: ['https://images.example/hanoi-train-street.jpg'],
+      source: 'wikidata',
+    })
+    ;(fetch as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: 'OK',
+          candidates: [{ place_id: 'ChIJtrainStreetGooglePlace' }],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: 'OK',
+          result: {
+            photos: [
+              { photo_reference: 'train-google-1' },
+              { photo_reference: 'train-google-2' },
+              { photo_reference: 'train-google-3' },
+              { photo_reference: 'train-google-4' },
+            ],
+          },
+        }),
+      })
+
+    const req = new NextRequest('http://localhost/api/place-photos?placeId=osm%3Away%2Ftrain-street&placeName=Train+Street&placeType=attraction')
+    const res = await GET(req)
+    const body = await res.json()
+
+    expect(fetch).toHaveBeenNthCalledWith(1, expect.stringContaining('/findplacefromtext/json?'), expect.any(Object))
+    expect(fetch).toHaveBeenNthCalledWith(2, expect.stringContaining('place_id=ChIJtrainStreetGooglePlace'), expect.any(Object))
+    expect(body.photoUrls).toEqual([
+      'https://images.example/hanoi-train-street.jpg',
+      '/api/photo?ref=train-google-1',
+      '/api/photo?ref=train-google-2',
+      '/api/photo?ref=train-google-3',
+      '/api/photo?ref=train-google-4',
+    ])
   })
 
   it('does not return a generic category image before the Google text fallback', async () => {

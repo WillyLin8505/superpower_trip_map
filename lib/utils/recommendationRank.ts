@@ -46,6 +46,16 @@ const EXCLUDED_CATEGORY_TAGS: Record<RecommendationCategory, Set<string>> = {
   restaurant: new Set(['lodging', 'hotel', 'motel', 'hostel', 'resort', 'campground', 'rv_park']),
 }
 
+const DESSERT_SPECIFIC_TAGS = new Set([
+  'bakery', 'dessert_shop', 'ice_cream_shop', 'confectionery',
+  'chocolate_shop', 'patisserie', 'cake_shop', 'sweets',
+])
+
+const DESSERT_BEVERAGE_OR_GENERIC_TAGS = new Set([
+  'cafe', 'coffee_shop', 'tea_house', 'bubble_tea_shop',
+  'food', 'store', 'point_of_interest', 'establishment',
+])
+
 function clamp01(value: number): number {
   if (!Number.isFinite(value)) return 0
   return Math.max(0, Math.min(1, value))
@@ -57,6 +67,12 @@ function normalizeTag(value: string): string {
 
 function numericOrNull(value: number | null | undefined): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function normalizedTags(place: RankablePlace): string[] {
+  return (place.categoryTags ?? [])
+    .map(normalizeTag)
+    .filter(Boolean)
 }
 
 export function recommendationScore(
@@ -83,9 +99,7 @@ export function recommendationCategoryFit(
   place: RankablePlace,
   category: RecommendationCategory
 ): number {
-  const tags = (place.categoryTags ?? [])
-    .map(normalizeTag)
-    .filter(Boolean)
+  const tags = normalizedTags(place)
 
   if (tags.some((tag) => EXCLUDED_CATEGORY_TAGS[category].has(tag))) return 0
   if (tags.some((tag) => STRONG_CATEGORY_TAGS[category].has(tag))) return 1
@@ -94,6 +108,23 @@ export function recommendationCategoryFit(
   if (place.type === category) return 0.65
   if (tags.some((tag) => WEAK_CATEGORY_TAGS[category].has(tag))) return 0.35
   return 0
+}
+
+export function isRecommendationCandidateAcceptable(
+  place: RankablePlace,
+  category: RecommendationCategory
+): boolean {
+  const score = recommendationScore(place, category)
+  if (score.categoryFit <= 0) return false
+
+  if (category !== 'dessert') return true
+
+  const tags = normalizedTags(place).filter((tag) => tag !== category)
+  const hasQualitySignal = numericOrNull(place.rating) !== null || (numericOrNull(place.reviewCount) ?? 0) > 0
+  const hasSpecificDessertSignal = tags.some((tag) => DESSERT_SPECIFIC_TAGS.has(tag))
+  const isBeverageOnly = tags.length > 0 && tags.every((tag) => DESSERT_BEVERAGE_OR_GENERIC_TAGS.has(tag))
+
+  return hasQualitySignal || hasSpecificDessertSignal || !isBeverageOnly
 }
 
 export function compareRecommendationCandidates<T extends RankablePlace>(

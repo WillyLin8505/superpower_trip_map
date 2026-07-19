@@ -150,6 +150,32 @@ it('orders fill candidates by rating quality, review confidence, and category fi
   ])
 })
 
+it('skips cafe-only dessert candidates without rating or review confidence', async () => {
+  process.env.GOOGLE_MAPS_RECOMMENDATION_PAID_FALLBACK_MODE = 'on'
+  r.mockResolvedValue('[]')
+  ops.mockImplementation(async (_lat: number, _lng: number, type: string) => {
+    if (type !== 'dessert') return []
+    return [
+      place('orick-coffee', 'dessert', { rating: null, reviewCount: null, categoryTags: ['cafe', 'coffee_shop'] }),
+      place('trusted-bakery-1', 'dessert', { rating: 4.6, reviewCount: 500, categoryTags: ['bakery'] }),
+      place('trusted-bakery-2', 'dessert', { rating: 4.5, reviewCount: 300, categoryTags: ['dessert'] }),
+      place('trusted-bakery-3', 'dessert', { rating: 4.4, reviewCount: 250, categoryTags: ['cake_shop'] }),
+      place('trusted-bakery-4', 'dessert', { rating: 4.3, reviewCount: 200, categoryTags: ['ice_cream_shop'] }),
+    ]
+  })
+  ns.mockImplementation(async (_lat: number, _lng: number, type: string) =>
+    type === 'dessert'
+      ? [place('google-dessert-topup', 'dessert', { rating: 4.7, reviewCount: 1000, categoryTags: ['bakery', 'food'] })]
+      : []
+  )
+
+  const result = await getDayRecommendations([oneDay('existing')])
+
+  expect(result[0].dessert.shown).toHaveLength(5)
+  expect(result[0].dessert.shown.map((candidate) => candidate.placeId)).not.toContain('orick-coffee')
+  expect(result[0].dessert.shown.map((candidate) => candidate.placeId)).toContain('google-dessert-topup')
+})
+
 it('does not use paid Google Nearby fallback when recommendation paid fallback is disabled', async () => {
   // Regression: ISSUE-001 — reloading a saved itinerary auto-filled missing
   // recommendations through paid Google Nearby Search, adding about US$0.20 for
