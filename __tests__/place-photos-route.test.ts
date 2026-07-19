@@ -134,12 +134,53 @@ describe('GET /api/place-photos', () => {
       placeName: 'MVTTS 咖啡',
       aliases: ['Cà Phê MVTTS'],
       category: 'dessert',
-      allowGeneric: true,
+      allowGeneric: false,
       limit: 1,
     })
     expect(fetch).toHaveBeenNthCalledWith(1, expect.stringContaining('/findplacefromtext/json?'), expect.any(Object))
     expect(fetch).toHaveBeenNthCalledWith(1, expect.stringContaining('input=MVTTS+%E5%92%96%E5%95%A1+C%C3%A0+Ph%C3%AA+MVTTS'), expect.any(Object))
     expect(fetch).toHaveBeenNthCalledWith(2, expect.stringContaining('place_id=ChIJmvtGooglePlace'), expect.any(Object))
     expect(body.photoUrls).toEqual(['/api/photo?ref=mvt-google-photo'])
+  })
+
+  it('does not return a generic category image before the Google text fallback', async () => {
+    resolveFreeImageForPlaceMock.mockResolvedValueOnce({
+      photoUrls: ['https://images.example/generic-cafe-dessert.jpg'],
+      source: 'openverse',
+      generic: true,
+    })
+    ;(fetch as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: 'OK',
+          candidates: [{ place_id: 'ChIJorickCoffee' }],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: 'OK',
+          result: {
+            photos: [{ photo_reference: 'orick-google-photo' }],
+          },
+        }),
+      })
+
+    const req = new NextRequest('http://localhost/api/place-photos?placeId=osm%3Anode%2Forick&placeName=Orick+Coffee&placeType=dessert&limit=1')
+    const res = await GET(req)
+    const body = await res.json()
+
+    expect(resolveFreeImageForPlaceMock).toHaveBeenCalledWith({
+      placeId: 'osm:node/orick',
+      placeName: 'Orick Coffee',
+      aliases: [],
+      category: 'dessert',
+      allowGeneric: false,
+      limit: 1,
+    })
+    expect(fetch).toHaveBeenNthCalledWith(1, expect.stringContaining('/findplacefromtext/json?'), expect.any(Object))
+    expect(fetch).toHaveBeenNthCalledWith(2, expect.stringContaining('place_id=ChIJorickCoffee'), expect.any(Object))
+    expect(body.photoUrls).toEqual(['/api/photo?ref=orick-google-photo'])
   })
 })

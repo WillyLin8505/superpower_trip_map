@@ -19,7 +19,8 @@ function mergePhotos(primary: string[], fetched: string[]): string[] {
 }
 
 const photoRequestCache = new Map<string, Promise<string[]>>()
-const PHOTO_CACHE_PREFIX = 'photo-strip:v1'
+const PHOTO_LOOKUP_VERSION = '2'
+const PHOTO_CACHE_PREFIX = `photo-strip:v${PHOTO_LOOKUP_VERSION}`
 
 function photoCacheKey(placeId: string, kind: 'cover' | 'all'): string {
   return `${PHOTO_CACHE_PREFIX}:${kind}:${placeId}`
@@ -58,6 +59,7 @@ function writeCachedPhotos(placeId: string, kind: 'cover' | 'all', photoUrls: st
 function placePhotosUrl(placeId: string, placeName: string, kind: 'cover' | 'all', placeType?: PlaceType, aliases: string[] = []): string {
   const params = new URLSearchParams({ placeId })
   if (placeName.trim()) params.set('placeName', placeName.trim())
+  params.set('v', PHOTO_LOOKUP_VERSION)
   if (placeType) params.set('placeType', placeType)
   aliases.forEach((alias) => {
     if (alias.trim() && alias.trim() !== placeName.trim()) params.append('alias', alias.trim())

@@ -132,10 +132,10 @@ export async function GET(req: NextRequest) {
       placeName,
       aliases,
       category,
-      allowGeneric: !googlePlaceId,
+      allowGeneric: false,
       limit,
     })
-    if (freeImage?.photoUrls.length) {
+    if (freeImage?.photoUrls.length && !freeImage.generic) {
       return NextResponse.json(
         { photoUrls: freeImage.photoUrls, source: freeImage.source },
         { headers: { 'cache-control': googleMapsPhotoCacheControl() } }

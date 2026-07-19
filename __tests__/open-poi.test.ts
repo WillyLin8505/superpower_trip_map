@@ -301,7 +301,7 @@ it('uses alternate names to resolve free images for localized landmark names', a
   )
 })
 
-it('falls back to a free category image when a small local POI has no exact image metadata', async () => {
+it('does not use a generic category image when a small local POI has no exact image metadata', async () => {
   const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
     const url = String(input)
     if (!url.includes('api.openverse.org')) {
@@ -341,14 +341,43 @@ it('falls back to a free category image when a small local POI has no exact imag
     confidence: null,
     metadata: { osm: { amenity: 'cafe' } },
   })).resolves.toMatchObject({
-    photoUrl: 'https://images.example/generic-cafe-dessert.jpg',
-    photoUrls: ['https://images.example/generic-cafe-dessert.jpg'],
+    photoUrl: null,
+    photoUrls: [],
   })
 
-  expect(fetchMock).toHaveBeenCalledWith(
+  expect(fetchMock).not.toHaveBeenCalledWith(
     expect.stringContaining('q=cafe+dessert+cake'),
     expect.anything(),
   )
+})
+
+it('ignores previously persisted generic free image metadata', () => {
+  expect(mapOpenPoiRowToPlace({
+    source: 'osm',
+    source_place_id: 'node/orick',
+    name_primary: 'Orick Coffee',
+    name_zh: null,
+    name_local: 'Orick Coffee',
+    lat: 21.028,
+    lng: 105.848,
+    category: 'dessert',
+    confidence: null,
+    metadata: {
+      photoUrl: 'https://images.example/generic-cafe-dessert.jpg',
+      photoUrls: ['https://images.example/generic-cafe-dessert.jpg'],
+      free_image: {
+        status: 'found',
+        version: 1,
+        source: 'openverse',
+        generic: true,
+        url: 'https://images.example/generic-cafe-dessert.jpg',
+        urls: ['https://images.example/generic-cafe-dessert.jpg'],
+      },
+    },
+  })).toMatchObject({
+    photoUrl: null,
+    photoUrls: [],
+  })
 })
 
 it('skips external image lookups for recent not-found cache entries', async () => {

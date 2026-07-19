@@ -83,7 +83,7 @@ describe('PhotoStrip', () => {
 
     fireEvent.click(screen.getByTestId('photo-next'))
 
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Avoccino`))
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Avoccino&v=2`))
     expect(await screen.findByRole('img', { name: 'Avoccino 照片 2' })).toHaveAttribute('src', '/api/photo?ref=two')
   })
 
@@ -105,7 +105,7 @@ describe('PhotoStrip', () => {
     const coverImg = screen.getByTestId('photo-thumb-0').querySelector('img')
     expect(coverImg).toHaveAttribute('src', '/api/photo?ref=cover')
     expect(coverImg).toHaveAttribute('loading', 'lazy')
-    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Avoccino&limit=1`)
+    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Avoccino&v=2&limit=1`)
   })
 
   it('waits until the photo slot is near the viewport before fetching a missing cover', async () => {
@@ -123,7 +123,7 @@ describe('PhotoStrip', () => {
     MockIntersectionObserver.instances[0].intersect()
 
     expect(await screen.findByTestId('photo-thumb-0')).toBeInTheDocument()
-    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Avoccino&limit=1`)
+    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Avoccino&v=2&limit=1`)
   })
 
   it('deduplicates simultaneous missing-cover requests for the same place', async () => {
@@ -152,7 +152,21 @@ describe('PhotoStrip', () => {
     render(<PhotoStrip placeId="osm:123" placeName="Train Street" photos={[]} />)
 
     expect(await screen.findByTestId('photo-thumb-0')).toBeInTheDocument()
-    expect(global.fetch).toHaveBeenCalledWith('/api/place-photos?placeId=osm%3A123&placeName=Train+Street&limit=1')
+    expect(global.fetch).toHaveBeenCalledWith('/api/place-photos?placeId=osm%3A123&placeName=Train+Street&v=2&limit=1')
+  })
+
+  it('ignores stale v1 cached cover photos so old generic images are not reused', async () => {
+    window.sessionStorage.setItem(`photo-strip:v1:cover:${googlePlaceId}`, JSON.stringify(['/api/photo?ref=stale-generic']))
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ photoUrls: ['/api/photo?ref=fresh-place-photo'] }),
+    }) as unknown as typeof fetch
+
+    render(<PhotoStrip placeId={googlePlaceId} placeName="Fresh Place" photos={[]} />)
+
+    expect(await screen.findByTestId('photo-thumb-0')).toBeInTheDocument()
+    expect(screen.getByTestId('photo-thumb-0').querySelector('img')).toHaveAttribute('src', '/api/photo?ref=fresh-place-photo')
+    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Fresh+Place&v=2&limit=1`)
   })
 
   it('does not show a gray placeholder or fetch Google photos for short local ids', () => {

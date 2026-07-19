@@ -102,6 +102,7 @@ function isKnownNonEmbeddableImageUrl(value: string): boolean {
 }
 
 function imageUrlsFromMetadata(metadata: Record<string, unknown> | null | undefined): string[] {
+  const genericImageUrls = genericFreeImageUrlSet(metadata)
   const candidates = [
     ...metadataStrings(metadata, 'photoUrls'),
     ...metadataStrings(metadata, 'photo_urls'),
@@ -117,7 +118,19 @@ function imageUrlsFromMetadata(metadata: Record<string, unknown> | null | undefi
     metadataString(metadata, 'image:1'),
     metadataString(metadata, 'wikimedia_commons'),
   ]
-  return Array.from(new Set(candidates.map(normalizeImageUrl).filter((url): url is string => url !== null))).slice(0, 5)
+  return Array.from(new Set(candidates
+    .map(normalizeImageUrl)
+    .filter((url): url is string => url !== null && !genericImageUrls.has(url))))
+    .slice(0, 5)
+}
+
+function genericFreeImageUrlSet(metadata: Record<string, unknown> | null | undefined): Set<string> {
+  const cache = freeImageCache(metadata)
+  if (cache?.status !== 'found' || cache.generic !== true) return new Set()
+  return new Set([
+    ...metadataStrings(cache, 'urls'),
+    metadataString(cache, 'url'),
+  ].map(normalizeImageUrl).filter((url): url is string => url !== null))
 }
 
 function directImageResultFromMetadata(metadata: Record<string, unknown> | null | undefined): FreeImageResult | null {
@@ -520,7 +533,7 @@ async function runImageResolver(resolver: () => Promise<FreeImageResult | null>)
   }
 }
 
-async function freeImageResultForRow(row: OpenPoiRow, allowGenericFallback = true): Promise<FreeImageLookupOutcome> {
+async function freeImageResultForRow(row: OpenPoiRow, allowGenericFallback = false): Promise<FreeImageLookupOutcome> {
   const direct = directImageResultFromMetadata(row.metadata)
   if (direct) return { result: direct, cacheableMiss: true }
 
@@ -550,7 +563,7 @@ export async function resolveFreeImageForPlace({
   placeName,
   aliases = [],
   category = 'attraction',
-  allowGeneric = true,
+  allowGeneric = false,
   limit = 5,
 }: {
   placeId?: string | null

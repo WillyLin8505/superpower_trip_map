@@ -234,7 +234,7 @@ it('keeps fetched photos available in the reserve-card lightbox after parent rer
 
   expect(await screen.findByTestId('photo-thumb-0')).toBeInTheDocument()
   expect(screen.getByTestId('photo-thumb-0').querySelector('img')).toHaveAttribute('src', '/api/photo?ref=reserve-one')
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(`/api/place-photos?placeId=${reserveGooglePlaceId}&placeName=reserve-a&placeType=attraction&limit=1`))
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(`/api/place-photos?placeId=${reserveGooglePlaceId}&placeName=reserve-a&v=2&placeType=attraction&limit=1`))
 
   fireEvent.click(screen.getByText('rerender-reserve'))
 
