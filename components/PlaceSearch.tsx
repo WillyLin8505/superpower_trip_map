@@ -8,11 +8,23 @@ interface Props {
 
 export function PlaceSearch({ onAdd }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
+  // Latest callback via ref so the Autocomplete is created ONCE (empty deps) without
+  // going stale — avoids re-attaching a new Autocomplete/listener on every parent render.
+  const onAddRef = useRef(onAdd)
+  useEffect(() => { onAddRef.current = onAdd }, [onAdd])
 
   useEffect(() => {
-    if (!inputRef.current || !window.google) return
-    const ac = new window.google.maps.places.Autocomplete(inputRef.current)
-    ac.addListener('place_changed', () => {
+    if (!inputRef.current) return
+    // With loading=async the Maps API may not be ready at mount, so poll until it is
+    // (the first attempt is synchronous, so an already-loaded API — incl. tests — wires
+    // up immediately with no behavior change).
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const setup = () => {
+      if (cancelled || !inputRef.current) return
+      if (!window.google?.maps?.places) { timer = setTimeout(setup, 200); return }
+      const ac = new window.google.maps.places.Autocomplete(inputRef.current)
+      ac.addListener('place_changed', () => {
       const p = ac.getPlace()
       if (!p.place_id || !p.geometry?.location) return
       const place: Place = {
@@ -36,10 +48,13 @@ export function PlaceSearch({ onAdd }: Props) {
         photoUrl: null,
         description: null,
       }
-      onAdd(place)
+      onAddRef.current(place)
       if (inputRef.current) inputRef.current.value = ''
-    })
-  }, [onAdd])
+      })
+    }
+    setup()
+    return () => { cancelled = true; if (timer) clearTimeout(timer) }
+  }, [])
 
   return (
     <input
