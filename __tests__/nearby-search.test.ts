@@ -36,6 +36,32 @@ describe('nearbySearch', () => {
     expect(await nearbySearch(25.0, 121.5, 'restaurant')).toEqual([])
   })
 
+  it('maps Google review count and raw category tags for ranking', async () => {
+    mockFetch({
+      status: 'OK',
+      results: [
+        {
+          place_id: 'p1',
+          name: 'Ann Dessert',
+          geometry: { location: { lat: 25.01, lng: 121.51 } },
+          vicinity: 'Taipei',
+          rating: 4.6,
+          user_ratings_total: 1234,
+          types: ['bakery', 'cafe', 'food'],
+          photos: [{ photo_reference: 'ref1' }],
+        },
+      ],
+    })
+
+    const out = await nearbySearch(25.0, 121.5, 'dessert')
+
+    expect(out[0]).toMatchObject({
+      placeId: 'p1',
+      reviewCount: 1234,
+      categoryTags: ['bakery', 'cafe', 'food'],
+    })
+  })
+
   it('maps up to five Google photos while preserving photoUrl compatibility', async () => {
     mockFetch({
       status: 'OK',

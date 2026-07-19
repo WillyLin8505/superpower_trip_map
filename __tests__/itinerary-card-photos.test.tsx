@@ -55,7 +55,7 @@ beforeEach(() => {
   sortableIsDragging = false
 })
 
-it('shows a cover photo and previews additional photos from the lightbox', async () => {
+it('shows available thumbnails and previews photos from the lightbox', async () => {
   render(
     <ItineraryCard
       place={{
@@ -74,7 +74,8 @@ it('shows a cover photo and previews additional photos from the lightbox', async
   )
 
   expect(screen.getByTestId('photo-thumb-0')).toBeInTheDocument()
-  expect(screen.queryByTestId('photo-thumb-1')).toBeNull()
+  expect(screen.getByTestId('photo-thumb-1')).toBeInTheDocument()
+  expect(screen.getByTestId('photo-thumb-3')).toBeInTheDocument()
   fireEvent.click(screen.getByTestId('photo-thumb-0'))
   expect(screen.getByRole('dialog')).toBeInTheDocument()
 

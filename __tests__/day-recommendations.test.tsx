@@ -126,7 +126,7 @@ it('renders recommendation-list cards in compact mode with a short explanation',
 
   expect(screen.getByText('rich-1')).toBeInTheDocument()
   expect(screen.getByTestId('photo-thumb-0')).toBeInTheDocument()
-  expect(screen.queryByTestId('photo-thumb-1')).toBeNull()
+  expect(screen.getByTestId('photo-thumb-1')).toBeInTheDocument()
   expect(screen.queryByText(/4.9/)).not.toBeInTheDocument()
   expect(screen.getByText('Detailed description')).toBeInTheDocument()
   expect(screen.queryByText('Detailed reason')).not.toBeInTheDocument()

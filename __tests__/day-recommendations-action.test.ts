@@ -28,11 +28,16 @@ const ops = openPoiSearch as jest.Mock
 const origRecommendationDetailsMode = process.env.GOOGLE_MAPS_RECOMMENDATION_DETAILS_MODE
 const origPaidFallbackMode = process.env.GOOGLE_MAPS_RECOMMENDATION_PAID_FALLBACK_MODE
 
-function place(id: string, type: Place['type']): Place {
-  return {
+function place(
+  id: string,
+  type: Place['type'],
+  overrides: Partial<Place> & { reviewCount?: number | null; categoryTags?: string[] } = {}
+): Place {
+  const base: Place = {
     id, placeId: id, name: id, type, lat: 25, lng: 121, address: '',
     openingHours: null, rating: 4.5, photoUrl: null, description: null,
   }
+  return { ...base, ...overrides }
 }
 
 function placeWithPhoto(id: string, type: Place['type']): Place {
@@ -117,6 +122,32 @@ it('can fill Google recommendations from Nearby Search without per-card Place De
 
   expect(result[0].dessert.shown).toHaveLength(5)
   expect(gd).not.toHaveBeenCalled()
+})
+
+it('orders fill candidates by rating quality, review confidence, and category fit', async () => {
+  r.mockResolvedValue('[]')
+  ns.mockResolvedValue([])
+  ops.mockImplementation(async (_lat: number, _lng: number, type: string) => {
+    if (type !== 'dessert') return []
+    return [
+      place('high-stars-low-confidence', 'dessert', { rating: 4.9, reviewCount: 4, categoryTags: ['cafe'] }),
+      place('wrong-category-popular', 'restaurant', { rating: 4.9, reviewCount: 8000, categoryTags: ['lodging', 'restaurant'] }),
+      place('trusted-dessert', 'dessert', { rating: 4.6, reviewCount: 2500, categoryTags: ['bakery', 'cafe'] }),
+      place('good-dessert', 'dessert', { rating: 4.7, reviewCount: 500, categoryTags: ['dessert'] }),
+      place('thin-dessert', 'dessert', { rating: 4.1, reviewCount: 30, categoryTags: ['cafe'] }),
+      place('unrated-dessert', 'dessert', { rating: null, reviewCount: null, categoryTags: ['bakery'] }),
+    ]
+  })
+
+  const result = await getDayRecommendations([oneDay('existing')])
+
+  expect(result[0].dessert.shown.map((candidate) => candidate.placeId)).toEqual([
+    'trusted-dessert',
+    'good-dessert',
+    'high-stars-low-confidence',
+    'thin-dessert',
+    'unrated-dessert',
+  ])
 })
 
 it('does not use paid Google Nearby fallback when recommendation paid fallback is disabled', async () => {

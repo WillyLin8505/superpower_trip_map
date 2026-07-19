@@ -23,6 +23,8 @@ export interface Place {
   localizedAddress?: LocalizedText | null
   openingHours: string[] | null   // e.g. ["Monday: 9:00 AM – 5:00 PM", ...]
   rating: number | null
+  reviewCount?: number | null
+  categoryTags?: string[]
   photoUrl: string | null
   photoUrls?: string[]
   description: string | null   // from Google editorial_summary.overview; null if unavailable

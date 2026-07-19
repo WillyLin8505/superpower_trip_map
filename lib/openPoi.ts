@@ -4,6 +4,7 @@ import type { Place, PlaceType } from '@/lib/types'
 import { haversineMeters } from '@/lib/haversine'
 import { placeShortDescription } from '@/lib/utils/placeShortDescription'
 import { trackedApiFetch } from '@/lib/apiUsageEvents'
+import { compareRecommendationCandidates } from '@/lib/utils/recommendationRank'
 
 type OpenPoiSource = 'overture' | 'osm' | 'wikidata' | 'user'
 type FreeImageSource = 'metadata' | 'wikimedia_commons' | 'wikidata' | 'wikipedia' | 'openverse'
@@ -76,6 +77,47 @@ function metadataStrings(metadata: Record<string, unknown> | null | undefined, k
   if (typeof value === 'string') return cleanText(value) ? [value.trim()] : []
   if (!Array.isArray(value)) return []
   return value.map(cleanText).filter((text): text is string => text !== null)
+}
+
+function numberFromUnknown(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value !== 'string') return null
+  const parsed = Number(value.replace(/,/g, '').trim())
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function metadataNumber(metadata: Record<string, unknown> | null | undefined, keys: string[]): number | null {
+  for (const key of keys) {
+    const parsed = numberFromUnknown(metadata?.[key])
+    if (parsed !== null) return parsed
+  }
+  return null
+}
+
+function addUniqueTag(tags: string[], value: unknown): void {
+  const cleaned = cleanText(value)?.toLowerCase().replace(/[\s-]+/g, '_')
+  if (!cleaned || tags.includes(cleaned)) return
+  tags.push(cleaned)
+}
+
+function categoryTagsFromOpenPoiRow(row: OpenPoiRow): string[] {
+  const tags: string[] = []
+  addUniqueTag(tags, row.category)
+
+  const osm = row.metadata?.osm
+  if (isRecord(osm)) {
+    for (const key of ['amenity', 'tourism', 'shop', 'leisure', 'historic', 'religion', 'cuisine']) {
+      addUniqueTag(tags, osm[key])
+    }
+  }
+
+  for (const key of ['categoryTags', 'category_tags', 'types', 'google_types', 'tags']) {
+    for (const tag of metadataStrings(row.metadata, key)) {
+      addUniqueTag(tags, tag)
+    }
+  }
+
+  return tags
 }
 
 function commonsFileUrl(value: string): string | null {
@@ -659,6 +701,15 @@ export function mapOpenPoiRowToPlace(row: OpenPoiRow): OpenPoiPlace {
   const localName = cleanText(row.name_local)
   const primaryName = cleanText(row.name_primary) ?? row.source_place_id
   const photoUrls = imageUrlsFromMetadata(row.metadata)
+  const rating = metadataNumber(row.metadata, ['rating', 'google_rating', 'stars'])
+  const reviewCount = metadataNumber(row.metadata, [
+    'reviewCount',
+    'review_count',
+    'reviews',
+    'review_total',
+    'user_ratings_total',
+    'google_user_ratings_total',
+  ])
   return {
     id: randomUUID(),
     placeId: `${row.source}:${row.source_place_id}`,
@@ -672,7 +723,9 @@ export function mapOpenPoiRowToPlace(row: OpenPoiRow): OpenPoiPlace {
     lng: row.lng,
     address: '',
     openingHours: null,
-    rating: null,
+    rating,
+    reviewCount,
+    categoryTags: categoryTagsFromOpenPoiRow(row),
     photoUrl: photoUrls[0] ?? null,
     photoUrls,
     description,
@@ -742,15 +795,22 @@ export async function openPoiSearch(
   if (isMissingPoiTable(error) || error || !Array.isArray(data)) return []
 
   const rankedRows = (data as OpenPoiRow[])
-    .map((row) => ({
+    .map((row, index) => ({
       row,
+      index,
       distance: haversineMeters({ lat, lng }, { lat: row.lat, lng: row.lng }),
+      rankingPlace: mapOpenPoiRowToPlace(row),
     }))
     .filter(({ distance }) => distance <= radiusMeters)
     .sort((a, b) => {
       const confidenceA = a.row.confidence ?? 0
       const confidenceB = b.row.confidence ?? 0
-      return a.distance - b.distance || confidenceB - confidenceA
+      return (
+        compareRecommendationCandidates(a.rankingPlace, b.rankingPlace, category) ||
+        a.distance - b.distance ||
+        confidenceB - confidenceA ||
+        a.index - b.index
+      )
     })
     .slice(0, limit)
   return Promise.all(rankedRows.map(({ row }) => mapOpenPoiRowToPlaceWithFreeImages(row)))

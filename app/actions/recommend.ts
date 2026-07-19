@@ -13,6 +13,7 @@ import { openPoiSearch } from '@/lib/openPoi'
 import { ensurePoiBackfill } from '@/lib/poiBackfill'
 import { runWithTripId } from '@/lib/apiUsageContext'
 import { ensurePlaceChineseName } from '@/lib/utils/bilingualNames'
+import { sortRecommendationCandidates } from '@/lib/utils/recommendationRank'
 
 const REC_LIMIT = 5
 const REC_CANDIDATE_POOL_LIMIT = REC_LIMIT * 4
@@ -70,7 +71,7 @@ async function pushRecommendationCandidates(
   sourceLabel: string,
   reason: string
 ): Promise<void> {
-  for (const candidate of candidates) {
+  for (const candidate of sortRecommendationCandidates(candidates, category)) {
     if (target.length >= REC_LIMIT) break
     if (have.has(candidate.placeId)) continue
     const filled = sourceLabel === GOOGLE_SOURCE_LABEL
@@ -93,7 +94,7 @@ async function replacePhotoLessWithGoogleCandidates(
   have: Set<string>
 ): Promise<void> {
   let replacementIndex = target.findIndex((item) => !hasRecommendationPhoto(item))
-  for (const candidate of candidates) {
+  for (const candidate of sortRecommendationCandidates(candidates, category)) {
     if (replacementIndex === -1) break
     if (have.has(candidate.placeId)) continue
     if (!hasRecommendationPhoto(candidate)) continue
@@ -354,7 +355,7 @@ async function fetchReplacementRecommendationImpl(
 
     const candidates = await nearbySearch(centroid.lat, centroid.lng, category)
     let fallbackGoogle: DayRecommendation | null = null
-    for (const candidate of candidates) {
+    for (const candidate of sortRecommendationCandidates(candidates, category)) {
       if (exclude.has(candidate.placeId)) continue
       const place = await maybeEnrichRecommendationDetails(candidate, category)
       const displayReady = await normalizeRecommendationDisplayData(place, category)

@@ -70,6 +70,30 @@ it('maps open-data image metadata to a recommendation cover photo', () => {
   })
 })
 
+it('maps open-data quality metadata used by recommendation ranking', () => {
+  expect(mapOpenPoiRowToPlace({
+    source: 'osm',
+    source_place_id: 'node/ranked-dessert',
+    name_primary: 'Ranked Dessert',
+    name_zh: null,
+    name_local: 'Ranked Dessert',
+    lat: 21.02,
+    lng: 105.85,
+    category: 'dessert',
+    confidence: 0.91,
+    metadata: {
+      rating: 4.8,
+      review_count: 432,
+      osm: { amenity: 'cafe' },
+      types: ['bakery'],
+    },
+  })).toMatchObject({
+    rating: 4.8,
+    reviewCount: 432,
+    categoryTags: ['dessert', 'cafe', 'bakery'],
+  })
+})
+
 it('resolves a free Wikidata image when direct OSM image metadata is missing', async () => {
   const realFetch = global.fetch
   global.fetch = jest.fn(async () => ({

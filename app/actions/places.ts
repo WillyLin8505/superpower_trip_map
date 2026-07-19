@@ -217,6 +217,7 @@ interface NearbyPlaceResult {
   geometry?: { location?: { lat: number; lng: number } }
   vicinity?: string
   rating?: number
+  user_ratings_total?: number
   types?: string[]
   photos?: Array<{ photo_reference: string }>
 }
@@ -289,6 +290,8 @@ export async function nearbySearch(
         address: r.vicinity ?? '',
         openingHours: null,
         rating: r.rating ?? null,
+        reviewCount: r.user_ratings_total ?? null,
+        categoryTags: r.types ?? [],
         photoUrl: photoUrls[0] ?? null,
         photoUrls,
         description: placeShortDescription(placeType, r.types),

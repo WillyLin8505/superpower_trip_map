@@ -14,13 +14,14 @@ interface Props {
   aliases?: string[]
 }
 
-function mergePhotos(primary: string[], fetched: string[]): string[] {
-  return Array.from(new Set([...primary, ...fetched].filter(Boolean))).slice(0, 5)
-}
-
+const MAX_PHOTOS = 5
 const photoRequestCache = new Map<string, Promise<string[]>>()
 const PHOTO_LOOKUP_VERSION = '2'
 const PHOTO_CACHE_PREFIX = `photo-strip:v${PHOTO_LOOKUP_VERSION}`
+
+function mergePhotos(primary: string[], fetched: string[]): string[] {
+  return Array.from(new Set([...primary, ...fetched].filter(Boolean))).slice(0, MAX_PHOTOS)
+}
 
 function photoCacheKey(placeId: string, kind: 'cover' | 'all'): string {
   return `${PHOTO_CACHE_PREFIX}:${kind}:${placeId}`
@@ -51,7 +52,7 @@ function readCachedPhotos(placeId: string, kind: 'cover' | 'all'): string[] | nu
 function writeCachedPhotos(placeId: string, kind: 'cover' | 'all', photoUrls: string[]): void {
   if (typeof window === 'undefined' || photoUrls.length === 0) return
   try {
-    window.sessionStorage.setItem(photoCacheKey(placeId, kind), JSON.stringify(photoUrls.slice(0, 5)))
+    window.sessionStorage.setItem(photoCacheKey(placeId, kind), JSON.stringify(photoUrls.slice(0, MAX_PHOTOS)))
   } catch {
   }
 }
@@ -73,7 +74,7 @@ async function fetchPhotoUrls(placeId: string, placeName: string, kind: 'cover' 
   if (kind === 'cover' && allCached?.length) return allCached.slice(0, 1)
 
   const cached = readCachedPhotos(placeId, kind)
-  if (cached?.length) return kind === 'cover' ? cached.slice(0, 1) : cached.slice(0, 5)
+  if (cached?.length) return kind === 'cover' ? cached.slice(0, 1) : cached.slice(0, MAX_PHOTOS)
 
   const requestKey = `${kind}:${placeId}`
   const existingRequest = photoRequestCache.get(requestKey)
@@ -83,7 +84,7 @@ async function fetchPhotoUrls(placeId: string, placeName: string, kind: 'cover' 
     .then(async (response) => {
       if (!response.ok) return []
       const data = await response.json() as { photoUrls?: string[] }
-      const photoUrls = (data.photoUrls ?? []).filter(Boolean).slice(0, kind === 'cover' ? 1 : 5)
+      const photoUrls = (data.photoUrls ?? []).filter(Boolean).slice(0, kind === 'cover' ? 1 : MAX_PHOTOS)
       if (photoUrls.length > 0) {
         writeCachedPhotos(placeId, kind, photoUrls)
         if (kind === 'all') writeCachedPhotos(placeId, 'cover', photoUrls.slice(0, 1))
@@ -102,29 +103,29 @@ async function fetchPhotoUrls(placeId: string, placeName: string, kind: 'cover' 
 export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFallback = null, placeType, aliases = [] }: Props) {
   const photoKey = photos.join('\u0000')
   const aliasKey = aliases.join('\u0000')
-  const incomingPhotos = useMemo(() => (photoKey ? photoKey.split('\u0000') : []), [photoKey])
+  const incomingPhotos = useMemo(() => (photoKey ? photoKey.split('\u0000').slice(0, MAX_PHOTOS) : []), [photoKey])
   const photoAliases = useMemo(() => (aliasKey ? aliasKey.split('\u0000') : []), [aliasKey])
   const [resolvedPhotos, setResolvedPhotos] = useState(incomingPhotos)
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const slotRef = useRef<HTMLDivElement | null>(null)
-  const [coverEligible, setCoverEligible] = useState(() => typeof IntersectionObserver === 'undefined')
-  const [fetchedCover, setFetchedCover] = useState(false)
-  const [fetchedMore, setFetchedMore] = useState(false)
+  const [photosEligible, setPhotosEligible] = useState(() => typeof IntersectionObserver === 'undefined')
+  const [fetchedPhotos, setFetchedPhotos] = useState(false)
   const fetchablePlaceId = isGooglePlaceId(placeId) || isOpenDataPlaceId(placeId) ? placeId : null
   const coverPhoto = resolvedPhotos[0]
-  const canLoadMore = resolvedPhotos.length > 1 || Boolean(fetchablePlaceId && !fetchedMore)
+  const displayPhotos = resolvedPhotos.slice(0, MAX_PHOTOS)
+  const shouldFetchPhotos = Boolean(fetchablePlaceId && resolvedPhotos.length < MAX_PHOTOS)
+  const canLoadMore = Boolean(fetchablePlaceId && resolvedPhotos.length < MAX_PHOTOS && !fetchedPhotos)
 
   useEffect(() => {
     setResolvedPhotos(incomingPhotos)
-    setCoverEligible(typeof IntersectionObserver === 'undefined')
-    setFetchedCover(false)
-    setFetchedMore(false)
+    setPhotosEligible(typeof IntersectionObserver === 'undefined')
+    setFetchedPhotos(false)
   }, [incomingPhotos, placeId, placeName, placeType, aliasKey])
 
   useEffect(() => {
-    if (coverPhoto || !fetchablePlaceId || fetchedCover || coverEligible) return
+    if (!shouldFetchPhotos || fetchedPhotos || photosEligible) return
     if (typeof IntersectionObserver === 'undefined') {
-      setCoverEligible(true)
+      setPhotosEligible(true)
       return
     }
 
@@ -133,45 +134,45 @@ export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFa
 
     const observer = new IntersectionObserver((entries) => {
       if (!entries.some((entry) => entry.isIntersecting)) return
-      setCoverEligible(true)
+      setPhotosEligible(true)
       observer.disconnect()
     }, { rootMargin: '400px 0px' })
 
     observer.observe(node)
     return () => observer.disconnect()
-  }, [coverEligible, coverPhoto, fetchedCover, fetchablePlaceId, placeName, placeType, aliasKey])
+  }, [fetchedPhotos, photosEligible, shouldFetchPhotos])
 
   useEffect(() => {
-    if (coverPhoto || !fetchablePlaceId || fetchedCover || !coverEligible || typeof fetch !== 'function') return
+    if (!fetchablePlaceId || !shouldFetchPhotos || fetchedPhotos || !photosEligible || typeof fetch !== 'function') return
 
     let cancelled = false
-    fetchPhotoUrls(fetchablePlaceId, placeName, 'cover', placeType, photoAliases)
+    fetchPhotoUrls(fetchablePlaceId, placeName, 'all', placeType, photoAliases)
       .then((photoUrls) => {
         if (cancelled || !photoUrls.length) return
-        setResolvedPhotos(photoUrls.slice(0, 1))
+        setResolvedPhotos((current) => mergePhotos(current, photoUrls))
       })
       .finally(() => {
         if (cancelled) return
-        setFetchedCover(true)
+        setFetchedPhotos(true)
       })
 
     return () => {
       cancelled = true
     }
-  }, [coverEligible, coverPhoto, fetchedCover, fetchablePlaceId, placeName, placeType, photoAliases])
+  }, [fetchablePlaceId, fetchedPhotos, photosEligible, placeName, placeType, photoAliases, shouldFetchPhotos])
 
   const loadMorePhotos = useCallback(async (): Promise<string[]> => {
-    if (resolvedPhotos.length > 1) return resolvedPhotos.slice(0, 5)
-    if (!fetchablePlaceId || fetchedMore || typeof fetch !== 'function') return resolvedPhotos.slice(0, 5)
+    if (resolvedPhotos.length >= MAX_PHOTOS) return resolvedPhotos.slice(0, MAX_PHOTOS)
+    if (!fetchablePlaceId || fetchedPhotos || typeof fetch !== 'function') return resolvedPhotos.slice(0, MAX_PHOTOS)
 
-    setFetchedMore(true)
+    setFetchedPhotos(true)
     const photoUrls = await fetchPhotoUrls(fetchablePlaceId, placeName, 'all', placeType, photoAliases)
     const nextPhotos = mergePhotos(resolvedPhotos, photoUrls)
     setResolvedPhotos(nextPhotos)
     return nextPhotos
-  }, [fetchablePlaceId, fetchedMore, placeName, placeType, photoAliases, resolvedPhotos])
+  }, [fetchablePlaceId, fetchedPhotos, placeName, placeType, photoAliases, resolvedPhotos])
 
-  if (!coverPhoto && fetchablePlaceId && !fetchedCover) {
+  if (!coverPhoto && fetchablePlaceId && !fetchedPhotos) {
     return (
       <div
         ref={slotRef}
@@ -189,31 +190,32 @@ export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFa
   return (
     <>
       <div className={`grid grid-cols-4 gap-1 overflow-hidden rounded-lg ${className}`}>
-        <button
-          type="button"
-          aria-label={`檢視 ${placeName} 照片 1`}
-          data-testid="photo-thumb-0"
-          onClick={(event) => {
-            event.stopPropagation()
-            setSelectedIndex(0)
-          }}
-          className="relative col-span-2 row-span-2 min-h-24"
-        >
-          {/* unoptimized: photos already come width-capped from /api/photo;
-              Vercel's metered optimizer would add quota cost, not savings */}
-          <Image
-            src={coverPhoto}
-            alt=""
-            aria-hidden="true"
-            fill
-            unoptimized
-            className="h-full w-full object-cover"
-          />
-        </button>
+        {displayPhotos.map((photo, index) => (
+          <button
+            key={`${photo}:${index}`}
+            type="button"
+            aria-label={`檢視 ${placeName} 照片 ${index + 1}`}
+            data-testid={`photo-thumb-${index}`}
+            onClick={(event) => {
+              event.stopPropagation()
+              setSelectedIndex(index)
+            }}
+            className={index === 0 ? 'relative col-span-2 row-span-2 min-h-24' : 'relative min-h-12'}
+          >
+            <Image
+              src={photo}
+              alt=""
+              aria-hidden="true"
+              fill
+              unoptimized
+              className="h-full w-full object-cover"
+            />
+          </button>
+        ))}
       </div>
       {selectedIndex !== null && (
         <PhotoLightbox
-          photos={[coverPhoto]}
+          photos={displayPhotos}
           placeName={placeName}
           initialIndex={selectedIndex}
           onClose={() => setSelectedIndex(null)}
