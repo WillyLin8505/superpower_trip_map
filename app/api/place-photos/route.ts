@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { googleMapsFetchOptions, googleMapsPhotoCacheControl } from '@/lib/googleMapsCost'
+import { googleMapsFetchOptions, googleMapsPhotoCacheControl, roundedCoordinate } from '@/lib/googleMapsCost'
 import { trackedApiFetch } from '@/lib/apiUsageEvents'
 import { tripIdFromReferer } from '@/lib/apiUsageContext'
 import { cachedGoogle, RETRYABLE_GOOGLE_STATUSES } from '@/lib/googleCache'
@@ -30,12 +30,28 @@ function isGooglePlaceId(placeId: string): boolean {
   return placeId.length >= 16 && !placeId.includes(':')
 }
 
-function googleFallbackQuery(placeName: string, aliases: string[]): string {
-  return Array.from(new Set([placeName, ...aliases].map((value) => value.trim()).filter(Boolean))).join(' ')
+function googleFallbackQueries(placeName: string, aliases: string[]): string[] {
+  const values = [...aliases, placeName, [placeName, ...aliases].join(' ')]
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)))
+}
+
+function parseCoordinate(value: string | null): number | null {
+  if (value === null) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function googleLocationBias(lat: number | null, lng: number | null): string | null {
+  if (lat === null || lng === null) return null
+  return `circle:5000@${lat},${lng}`
 }
 
 function mergePhotoUrls(primary: string[], fallback: string[], limit: number): string[] {
   return Array.from(new Set([...primary, ...fallback].filter(Boolean))).slice(0, limit)
+}
+
+function shouldPreferGooglePhotos(category: PlaceType): boolean {
+  return category === 'dessert' || category === 'restaurant' || category === 'accommodation'
 }
 
 async function googlePhotoUrlsForPlaceId(placeId: string, limit: number, tripId: string | null | undefined): Promise<string[]> {
@@ -65,19 +81,27 @@ async function googlePhotoUrlsForPlaceId(placeId: string, limit: number, tripId:
 }
 
 async function googlePlaceIdFromText({
-  placeName,
-  aliases,
+  query,
   category,
+  lat,
+  lng,
   tripId,
 }: {
-  placeName: string
-  aliases: string[]
+  query: string
   category: PlaceType
+  lat: number | null
+  lng: number | null
   tripId: string | null | undefined
 }): Promise<string | null> {
-  const query = googleFallbackQuery(placeName, aliases)
   if (!query) return null
-  return cachedGoogle(['photo-fallback-place-id', category, query], async () => {
+  const locationBias = googleLocationBias(lat, lng)
+  return cachedGoogle([
+    'photo-fallback-place-id',
+    category,
+    query,
+    locationBias ? String(roundedCoordinate(lat!)) : '',
+    locationBias ? String(roundedCoordinate(lng!)) : '',
+  ], async () => {
     const apiKey = process.env.GOOGLE_MAPS_API_KEY!
     const params = new URLSearchParams({
       input: query,
@@ -86,6 +110,7 @@ async function googlePlaceIdFromText({
       key: apiKey,
       language: 'zh-TW',
     })
+    if (locationBias) params.set('locationbias', locationBias)
     const upstream = await trackedApiFetch(`${BASE}/findplacefromtext/json?${params.toString()}`, googleMapsFetchOptions(), {
       provider: 'google_maps',
       endpoint: 'find_place_from_text_photo_fallback',
@@ -108,18 +133,26 @@ async function googlePhotoUrlsForTextFallback({
   placeName,
   aliases,
   category,
+  lat,
+  lng,
   limit,
   tripId,
 }: {
   placeName: string
   aliases: string[]
   category: PlaceType
+  lat: number | null
+  lng: number | null
   limit: number
   tripId: string | null | undefined
 }): Promise<string[]> {
-  const fallbackPlaceId = await googlePlaceIdFromText({ placeName, aliases, category, tripId })
-  if (!fallbackPlaceId) return []
-  return googlePhotoUrlsForPlaceId(fallbackPlaceId, limit, tripId)
+  for (const query of googleFallbackQueries(placeName, aliases)) {
+    const fallbackPlaceId = await googlePlaceIdFromText({ query, category, lat, lng, tripId })
+    if (!fallbackPlaceId) continue
+    const photoUrls = await googlePhotoUrlsForPlaceId(fallbackPlaceId, limit, tripId)
+    if (photoUrls.length > 0) return photoUrls
+  }
+  return []
 }
 
 export async function GET(req: NextRequest) {
@@ -129,6 +162,8 @@ export async function GET(req: NextRequest) {
   const placeName = req.nextUrl.searchParams.get('placeName')?.trim()
   const aliases = req.nextUrl.searchParams.getAll('alias').map((alias) => alias.trim()).filter(Boolean)
   const category = parsePlaceType(req.nextUrl.searchParams.get('placeType'))
+  const lat = parseCoordinate(req.nextUrl.searchParams.get('lat'))
+  const lng = parseCoordinate(req.nextUrl.searchParams.get('lng'))
   const googlePlaceId = isGooglePlaceId(placeId)
   let freePhotoUrls: string[] = []
   if (placeName) {
@@ -143,7 +178,7 @@ export async function GET(req: NextRequest) {
     freePhotoUrls = freeImage?.photoUrls.length && !freeImage.generic
       ? freeImage.photoUrls.slice(0, limit)
       : []
-    if (freePhotoUrls.length >= limit) {
+    if (freePhotoUrls.length >= limit && !shouldPreferGooglePhotos(category)) {
       return NextResponse.json(
         { photoUrls: freePhotoUrls, source: freeImage?.source },
         { headers: { 'cache-control': googleMapsPhotoCacheControl() } }
@@ -162,12 +197,17 @@ export async function GET(req: NextRequest) {
   const tripId = tripIdFromReferer(req.headers.get('referer'), req.nextUrl.origin)
 
   try {
-    const googlePhotoUrls = googlePlaceId
+    const googlePlaceIdPhotoUrls = googlePlaceId
       ? await googlePhotoUrlsForPlaceId(placeId, limit, tripId)
-      : placeName
-        ? await googlePhotoUrlsForTextFallback({ placeName, aliases, category, limit, tripId })
-        : []
-    const photoUrls = mergePhotoUrls(freePhotoUrls, googlePhotoUrls, limit)
+      : []
+    const shouldUseTextFallback = Boolean(placeName && (!googlePlaceId || googlePlaceIdPhotoUrls.length < limit))
+    const googleTextPhotoUrls = shouldUseTextFallback
+      ? await googlePhotoUrlsForTextFallback({ placeName: placeName!, aliases, category, lat, lng, limit, tripId })
+      : []
+    const googlePhotoUrls = mergePhotoUrls(googlePlaceIdPhotoUrls, googleTextPhotoUrls, limit)
+    const photoUrls = shouldPreferGooglePhotos(category)
+      ? mergePhotoUrls(googlePhotoUrls, freePhotoUrls, limit)
+      : mergePhotoUrls(freePhotoUrls, googlePhotoUrls, limit)
 
     return NextResponse.json(
       { photoUrls },

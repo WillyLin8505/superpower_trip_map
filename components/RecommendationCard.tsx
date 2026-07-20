@@ -30,6 +30,7 @@ interface Props {
     delete?: string
   }
   compact?: boolean
+  onPhotoUnavailable?: () => void
 }
 
 function compactExplanation(rec: DayRecommendation): string | null {
@@ -56,7 +57,7 @@ function uniqueText(values: Array<string | null | undefined>): string[] {
   return Array.from(new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value))))
 }
 
-export function RecommendationCard({ rec, dateIso, onAdd, onArchive, onDelete, actionLinks, actionTestIds, compact = false }: Props) {
+export function RecommendationCard({ rec, dateIso, onAdd, onArchive, onDelete, actionLinks, actionTestIds, compact = false, onPhotoUnavailable }: Props) {
   const meta = TYPE_META[rec.type]
   const todayHours = getHoursForDate(rec.openingHours, dateIso)
   const photos = rec.photoUrls?.length ? rec.photoUrls : rec.photoUrl ? [rec.photoUrl] : []
@@ -134,7 +135,7 @@ export function RecommendationCard({ rec, dateIso, onAdd, onArchive, onDelete, a
           {!compact && todayHours && <p className="text-xs text-gray-500 mt-0.5">營業 {todayHours}</p>}
           {!compact && rec.rating && <p className="text-xs text-gray-500 mt-0.5">評分：{rec.rating} ★</p>}
           {hasPhotoSource ? (
-            <PhotoStrip photos={photos} placeId={rec.placeId} placeName={displayName.primary} className="mt-2" emptyFallback={photoFallback} placeType={rec.type} aliases={photoAliases} />
+            <PhotoStrip photos={photos} placeId={rec.placeId} placeName={displayName.primary} className="mt-2" emptyFallback={photoFallback} placeType={rec.type} aliases={photoAliases} lat={rec.lat} lng={rec.lng} onPhotoUnavailable={onPhotoUnavailable} />
           ) : photoFallback}
           {compact && shortExplanation && <p className="text-xs text-gray-600 mt-1 break-words [overflow-wrap:anywhere]">{shortExplanation}</p>}
           {!compact && rec.description && <p className="text-xs text-gray-600 mt-1 italic break-words [overflow-wrap:anywhere]">{rec.description}</p>}

@@ -40,11 +40,16 @@ function place(
   return { ...base, ...overrides }
 }
 
-function placeWithPhoto(id: string, type: Place['type']): Place {
+function placeWithPhoto(
+  id: string,
+  type: Place['type'],
+  overrides: Partial<Place> & { reviewCount?: number | null; categoryTags?: string[] } = {}
+): Place {
+  const base = place(id, type, overrides)
   return {
-    ...place(id, type),
-    photoUrl: `https://img.example/${id}.jpg`,
-    photoUrls: [`https://img.example/${id}.jpg`],
+    ...base,
+    photoUrl: base.photoUrl ?? `https://img.example/${id}.jpg`,
+    photoUrls: base.photoUrls ?? [`https://img.example/${id}.jpg`],
   }
 }
 
@@ -93,9 +98,9 @@ it('fills each category to 5 with nearby results, excluding existing places', as
   r.mockResolvedValue('[]')                       // no sources configured
   // nearby returns 6 candidates per category; one collides with the existing place id
   ns.mockImplementation(async (_lat: number, _lng: number, type: string) =>
-    Array.from({ length: 6 }, (_, i) => place(`${type}-${i}`, type as Place['type']))
+    Array.from({ length: 6 }, (_, i) => placeWithPhoto(`${type}-${i}`, type as Place['type']))
   )
-  gd.mockImplementation(async (id: string) => place(id, 'attraction'))
+  gd.mockImplementation(async (id: string) => placeWithPhoto(id, 'attraction'))
 
   const result = await getDayRecommendations([oneDay('attraction-0')])
 
@@ -114,9 +119,9 @@ it('can fill Google recommendations from Nearby Search without per-card Place De
   process.env.GOOGLE_MAPS_RECOMMENDATION_DETAILS_MODE = 'nearby-only'
   r.mockResolvedValue('[]')
   ns.mockImplementation(async (_lat: number, _lng: number, type: string) =>
-    Array.from({ length: 5 }, (_, i) => place(`${type}-${i}`, type as Place['type']))
+    Array.from({ length: 5 }, (_, i) => placeWithPhoto(`${type}-${i}`, type as Place['type']))
   )
-  gd.mockImplementation(async (id: string) => place(id, 'attraction'))
+  gd.mockImplementation(async (id: string) => placeWithPhoto(id, 'attraction'))
 
   const result = await getDayRecommendations([oneDay('existing')])
 
@@ -130,12 +135,12 @@ it('orders fill candidates by rating quality, review confidence, and category fi
   ops.mockImplementation(async (_lat: number, _lng: number, type: string) => {
     if (type !== 'dessert') return []
     return [
-      place('high-stars-low-confidence', 'dessert', { rating: 4.9, reviewCount: 4, categoryTags: ['cafe'] }),
-      place('wrong-category-popular', 'restaurant', { rating: 4.9, reviewCount: 8000, categoryTags: ['lodging', 'restaurant'] }),
-      place('trusted-dessert', 'dessert', { rating: 4.6, reviewCount: 2500, categoryTags: ['bakery', 'cafe'] }),
-      place('good-dessert', 'dessert', { rating: 4.7, reviewCount: 500, categoryTags: ['dessert'] }),
-      place('thin-dessert', 'dessert', { rating: 4.1, reviewCount: 30, categoryTags: ['cafe'] }),
-      place('unrated-dessert', 'dessert', { rating: null, reviewCount: null, categoryTags: ['bakery'] }),
+      placeWithPhoto('high-stars-low-confidence', 'dessert', { rating: 4.9, reviewCount: 4, categoryTags: ['cafe'] }),
+      placeWithPhoto('wrong-category-popular', 'restaurant', { rating: 4.9, reviewCount: 8000, categoryTags: ['lodging', 'restaurant'] }),
+      placeWithPhoto('trusted-dessert', 'dessert', { rating: 4.6, reviewCount: 2500, categoryTags: ['bakery', 'cafe'] }),
+      placeWithPhoto('good-dessert', 'dessert', { rating: 4.7, reviewCount: 500, categoryTags: ['dessert'] }),
+      placeWithPhoto('thin-dessert', 'dessert', { rating: 4.1, reviewCount: 30, categoryTags: ['cafe'] }),
+      placeWithPhoto('unrated-dessert', 'dessert', { rating: null, reviewCount: null, categoryTags: ['bakery'] }),
     ]
   })
 
@@ -157,15 +162,15 @@ it('skips cafe-only dessert candidates without rating or review confidence', asy
     if (type !== 'dessert') return []
     return [
       place('orick-coffee', 'dessert', { rating: null, reviewCount: null, categoryTags: ['cafe', 'coffee_shop'] }),
-      place('trusted-bakery-1', 'dessert', { rating: 4.6, reviewCount: 500, categoryTags: ['bakery'] }),
-      place('trusted-bakery-2', 'dessert', { rating: 4.5, reviewCount: 300, categoryTags: ['dessert'] }),
-      place('trusted-bakery-3', 'dessert', { rating: 4.4, reviewCount: 250, categoryTags: ['cake_shop'] }),
-      place('trusted-bakery-4', 'dessert', { rating: 4.3, reviewCount: 200, categoryTags: ['ice_cream_shop'] }),
+      placeWithPhoto('trusted-bakery-1', 'dessert', { rating: 4.6, reviewCount: 500, categoryTags: ['bakery'] }),
+      placeWithPhoto('trusted-bakery-2', 'dessert', { rating: 4.5, reviewCount: 300, categoryTags: ['dessert'] }),
+      placeWithPhoto('trusted-bakery-3', 'dessert', { rating: 4.4, reviewCount: 250, categoryTags: ['cake_shop'] }),
+      placeWithPhoto('trusted-bakery-4', 'dessert', { rating: 4.3, reviewCount: 200, categoryTags: ['ice_cream_shop'] }),
     ]
   })
   ns.mockImplementation(async (_lat: number, _lng: number, type: string) =>
     type === 'dessert'
-      ? [place('google-dessert-topup', 'dessert', { rating: 4.7, reviewCount: 1000, categoryTags: ['bakery', 'food'] })]
+      ? [placeWithPhoto('google-dessert-topup', 'dessert', { rating: 4.7, reviewCount: 1000, categoryTags: ['bakery', 'food'] })]
       : []
   )
 
@@ -174,6 +179,105 @@ it('skips cafe-only dessert candidates without rating or review confidence', asy
   expect(result[0].dessert.shown).toHaveLength(5)
   expect(result[0].dessert.shown.map((candidate) => candidate.placeId)).not.toContain('orick-coffee')
   expect(result[0].dessert.shown.map((candidate) => candidate.placeId)).toContain('google-dessert-topup')
+})
+
+it('fills dessert recommendations from dessert-named cafes while excluding generic coffee shops', async () => {
+  process.env.GOOGLE_MAPS_RECOMMENDATION_PAID_FALLBACK_MODE = 'off'
+  r.mockResolvedValue('[]')
+  ops.mockImplementation(async (_lat: number, _lng: number, type: string) => {
+    if (type !== 'dessert') return []
+    return [
+      place('orick-coffee', 'dessert', { name: 'Orick Coffee', rating: null, reviewCount: null, categoryTags: ['cafe', 'coffee_shop'] }),
+      placeWithPhoto('mochi-sweets', 'dessert', { name: 'Mochi Sweets', rating: null, reviewCount: null, categoryTags: ['cafe', 'coffee_shop'] }),
+      placeWithPhoto('waffle-house', 'dessert', { name: 'Waffle House', rating: null, reviewCount: null, categoryTags: ['cafe'] }),
+      placeWithPhoto('cake-studio', 'dessert', { name: 'Cake Studio', rating: null, reviewCount: null, categoryTags: ['cafe'] }),
+      placeWithPhoto('ice-cream-bar', 'dessert', { name: 'Ice Cream Bar', rating: null, reviewCount: null, categoryTags: ['cafe'] }),
+      placeWithPhoto('tra-bat-bao', 'dessert', { name: 'Trà Bát Bảo Tuấn Béo', rating: null, reviewCount: null, categoryTags: ['cafe'] }),
+    ]
+  })
+  ns.mockResolvedValue([])
+
+  const result = await getDayRecommendations([oneDay('existing')])
+
+  expect(result[0].dessert.shown).toHaveLength(5)
+  expect(result[0].dessert.shown.map((candidate) => candidate.placeId)).toEqual([
+    'mochi-sweets',
+    'waffle-house',
+    'cake-studio',
+    'ice-cream-bar',
+    'tra-bat-bao',
+  ])
+  expect(ns).not.toHaveBeenCalled()
+})
+
+it('deduplicates same-place Open POI recommendations with different source ids', async () => {
+  process.env.GOOGLE_MAPS_RECOMMENDATION_PAID_FALLBACK_MODE = 'off'
+  r.mockResolvedValue('[]')
+  ops.mockImplementation(async (_lat: number, _lng: number, type: string) => {
+    if (type !== 'dessert') return []
+    return [
+      placeWithPhoto('osm:node/oh', 'dessert'),
+      placeWithPhoto('osm:way/oh', 'dessert'),
+      placeWithPhoto('osm:node/mochi', 'dessert'),
+      placeWithPhoto('osm:node/tart', 'dessert'),
+      placeWithPhoto('osm:node/roti', 'dessert'),
+      placeWithPhoto('osm:node/waffle', 'dessert'),
+    ].map((candidate) =>
+      candidate.placeId.endsWith('/oh')
+        ? {
+          ...candidate,
+          name: 'OH',
+          localizedName: { zhTw: null, original: 'OH' },
+          lat: candidate.placeId.includes('node') ? 25.0001 : 25.02,
+          lng: candidate.placeId.includes('node') ? 121.0001 : 121.02,
+        }
+        : candidate
+    )
+  })
+  ns.mockResolvedValue([])
+
+  const result = await getDayRecommendations([oneDay('existing')])
+  const dessertIds = result[0].dessert.shown.map((candidate) => candidate.placeId)
+
+  expect(result[0].dessert.shown).toHaveLength(5)
+  expect(dessertIds.filter((placeId) => placeId.endsWith('/oh'))).toHaveLength(1)
+  expect(new Set(dessertIds).size).toBe(dessertIds.length)
+})
+
+it('excludes existing itinerary places by name and nearby coordinates, not only placeId', async () => {
+  process.env.GOOGLE_MAPS_RECOMMENDATION_PAID_FALLBACK_MODE = 'off'
+  r.mockResolvedValue('[]')
+  const existingDay = oneDay('google-train-street')
+  existingDay.places[0] = {
+    ...existingDay.places[0],
+    name: 'Hanoi Train Street',
+    localizedName: { zhTw: '火車街', original: 'Ngõ 224 Lê Duẩn' },
+    lat: 21.0241,
+    lng: 105.8421,
+  }
+  ops.mockImplementation(async (_lat: number, _lng: number, type: string) => {
+    if (type !== 'attraction') return []
+    return [
+      placeWithPhoto('osm:way/train-street', 'attraction'),
+      ...Array.from({ length: 5 }, (_, i) => placeWithPhoto(`osm:way/attraction-${i}`, 'attraction')),
+    ].map((candidate) =>
+      candidate.placeId === 'osm:way/train-street'
+        ? {
+          ...candidate,
+          name: 'Hanoi Train Street',
+          localizedName: { zhTw: '火車街', original: 'Ngõ 224 Lê Duẩn' },
+          lat: 21.0242,
+          lng: 105.8422,
+        }
+        : candidate
+    )
+  })
+  ns.mockResolvedValue([])
+
+  const result = await getDayRecommendations([existingDay])
+
+  expect(result[0].attraction.shown).toHaveLength(5)
+  expect(result[0].attraction.shown.map((candidate) => candidate.placeId)).not.toContain('osm:way/train-street')
 })
 
 it('does not use paid Google Nearby fallback when recommendation paid fallback is disabled', async () => {
@@ -212,7 +316,7 @@ it('starts same-day category recommendation lookups in parallel to reduce initia
   )
 
   pending.forEach(({ type, resolve }) => {
-    resolve(Array.from({ length: 5 }, (_, i) => place(`open-${type}-${i}`, type)))
+    resolve(Array.from({ length: 5 }, (_, i) => placeWithPhoto(`open-${type}-${i}`, type)))
   })
 
   const result = await resultPromise
@@ -227,11 +331,11 @@ it('uses website extractions first, then fills the remainder', async () => {
   cc.mockResolvedValue(
     '[{"name":"某甜點店","type":"dessert","reason":"招牌必吃","sourceLabel":"部落格"}]'
   )
-  sp.mockResolvedValue(place('blog-dessert', 'attraction'))  // searchPlace returns Place; type overridden to dessert
+  sp.mockResolvedValue(placeWithPhoto('blog-dessert', 'attraction'))  // searchPlace returns Place; type overridden to dessert
   ns.mockImplementation(async (_lat: number, _lng: number, type: string) =>
-    Array.from({ length: 6 }, (_, i) => place(`${type}-${i}`, type as Place['type']))
+    Array.from({ length: 6 }, (_, i) => placeWithPhoto(`${type}-${i}`, type as Place['type']))
   )
-  gd.mockImplementation(async (id: string) => place(id, 'attraction'))
+  gd.mockImplementation(async (id: string) => placeWithPhoto(id, 'attraction'))
 
   const result = await getDayRecommendations([oneDay('attraction-0')])
 
@@ -264,11 +368,11 @@ it('deduplicates fill candidates across days so no placeId appears in more than 
   // Every nearbySearch call returns 'shared-1' as its first result, plus unique fillers
   ns.mockImplementation(async (_lat: number, _lng: number, type: string) =>
     [
-      place('shared-1', type as Place['type']),
-      ...Array.from({ length: 6 }, (_, i) => place(`${type}-d-${i}`, type as Place['type']))
+      placeWithPhoto('shared-1', type as Place['type']),
+      ...Array.from({ length: 6 }, (_, i) => placeWithPhoto(`${type}-d-${i}`, type as Place['type']))
     ]
   )
-  gd.mockImplementation(async (id: string) => place(id, 'attraction'))
+  gd.mockImplementation(async (id: string) => placeWithPhoto(id, 'attraction'))
 
   const result = await getDayRecommendations([day0, day1])
 
@@ -352,9 +456,9 @@ it('keeps website extractions beyond 5 in reserve', async () => {
     )
   )
   // each website name resolves to a distinct dessert place
-  sp.mockImplementation(async (name: string) => place(`blog-${name}`, 'dessert'))
+  sp.mockImplementation(async (name: string) => placeWithPhoto(`blog-${name}`, 'dessert'))
   ns.mockResolvedValue([])   // no Google needed
-  gd.mockImplementation(async (id: string) => place(id, 'attraction'))
+  gd.mockImplementation(async (id: string) => placeWithPhoto(id, 'attraction'))
 
   const result = await getDayRecommendations([oneDay('attraction-0')])
 
@@ -424,8 +528,8 @@ it('fills recommendations for an empty day when the user sets a manual center', 
 // --- TASK-010: refreshDayCategoryRecommendations (換一批) ---
 describe('refreshDayCategoryRecommendations', () => {
   it('returns up to 5 fresh candidates for one category, excluding given ids', async () => {
-    ns.mockResolvedValue(Array.from({ length: 6 }, (_, i) => place(`dessert-${i}`, 'dessert')))
-    gd.mockImplementation(async (id: string) => place(id, 'dessert'))
+    ns.mockResolvedValue(Array.from({ length: 6 }, (_, i) => placeWithPhoto(`dessert-${i}`, 'dessert')))
+    gd.mockImplementation(async (id: string) => placeWithPhoto(id, 'dessert'))
 
     const result = await refreshDayCategoryRecommendations({
       category: 'dessert',
@@ -439,8 +543,8 @@ describe('refreshDayCategoryRecommendations', () => {
   })
 
   it('returns fewer than 5 when Google has fewer available candidates', async () => {
-    ns.mockResolvedValue([place('only-1', 'dessert')])
-    gd.mockImplementation(async (id: string) => place(id, 'dessert'))
+    ns.mockResolvedValue([placeWithPhoto('only-1', 'dessert')])
+    gd.mockImplementation(async (id: string) => placeWithPhoto(id, 'dessert'))
 
     const result = await refreshDayCategoryRecommendations({
       category: 'dessert', center: { lat: 25, lng: 121 }, excludeIds: [],

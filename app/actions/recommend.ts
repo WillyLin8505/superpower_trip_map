@@ -5,7 +5,20 @@ import type { Source } from '@/lib/types'
 import { scrapeText } from './scrape'
 import { searchPlace, getPlaceDetails, nearbySearch } from './places'
 import { validateType } from '@/lib/placeType'
-import { REC_CATEGORIES, dayHasRecommendationAnchor, resolveDayCenter, centroidOf, dedupeAndExclude, assignToDays, bucketByCategory, splitShownReserve } from '@/lib/utils/dayRecommend'
+import {
+  REC_CATEGORIES,
+  addRecommendationIdentityKeys,
+  dayHasRecommendationAnchor,
+  deleteRecommendationIdentityKeys,
+  hasRecommendationIdentity,
+  recommendationIdentityKeys,
+  resolveDayCenter,
+  centroidOf,
+  dedupeAndExclude,
+  assignToDays,
+  bucketByCategory,
+  splitShownReserve,
+} from '@/lib/utils/dayRecommend'
 import type { DayItinerary, DayRecommendation, RecommendationsByDay, CategoryBuckets, Place } from '@/lib/types'
 import { callClaude } from '@/lib/claude'
 import { shouldEnrichRecommendationsWithDetails, shouldUsePaidRecommendationFallback } from '@/lib/googleMapsCost'
@@ -73,14 +86,15 @@ async function pushRecommendationCandidates(
 ): Promise<void> {
   for (const candidate of sortRecommendationCandidates(candidates, category)) {
     if (target.length >= REC_LIMIT) break
-    if (have.has(candidate.placeId)) continue
+    if (hasRecommendationIdentity(have, candidate)) continue
     if (!isRecommendationCandidateAcceptable(candidate, category)) continue
     const filled = sourceLabel === GOOGLE_SOURCE_LABEL
       ? await maybeEnrichRecommendationDetails(candidate, category)
       : { ...candidate, type: category }
     const displayReady = await normalizeRecommendationDisplayData(filled, category)
+    if (hasRecommendationIdentity(have, displayReady)) continue
     target.push({ ...displayReady, reason, sourceLabel })
-    have.add(candidate.placeId)
+    addRecommendationIdentityKeys(have, displayReady)
   }
 }
 
@@ -97,18 +111,19 @@ async function replacePhotoLessWithGoogleCandidates(
   let replacementIndex = target.findIndex((item) => !hasRecommendationPhoto(item))
   for (const candidate of sortRecommendationCandidates(candidates, category)) {
     if (replacementIndex === -1) break
-    if (have.has(candidate.placeId)) continue
+    if (hasRecommendationIdentity(have, candidate)) continue
     if (!isRecommendationCandidateAcceptable(candidate, category)) continue
     if (!hasRecommendationPhoto(candidate)) continue
 
     const filled = await maybeEnrichRecommendationDetails(candidate, category)
     const displayReady = await normalizeRecommendationDisplayData(filled, category)
+    if (hasRecommendationIdentity(have, displayReady)) continue
     if (!hasRecommendationPhoto(displayReady)) continue
 
     const replaced = target[replacementIndex]
     target[replacementIndex] = { ...displayReady, reason: GOOGLE_REASON, sourceLabel: GOOGLE_SOURCE_LABEL }
-    have.delete(replaced.placeId)
-    have.add(displayReady.placeId)
+    deleteRecommendationIdentityKeys(have, replaced)
+    addRecommendationIdentityKeys(have, displayReady)
     replacementIndex = target.findIndex((item, index) => index > replacementIndex && !hasRecommendationPhoto(item))
   }
 }
@@ -182,7 +197,8 @@ async function getDayRecommendationsImpl(
   const recommendationAnchors = days.map(dayHasRecommendationAnchor)
   if (!recommendationAnchors.some(Boolean)) return days.map(() => emptyCategoryBuckets())
 
-  const existingIds = new Set(days.flatMap((d) => d.places.map((p) => p.placeId)))
+  const existingKeys = new Set<string>()
+  days.forEach((day) => day.places.forEach((place) => addRecommendationIdentityKeys(existingKeys, place)))
 
   let extracted: DayRecommendation[] = []
   try {
@@ -227,9 +243,10 @@ async function getDayRecommendationsImpl(
     extracted = []
   }
 
-  const cleaned = dedupeAndExclude(extracted, existingIds)
+  const cleaned = dedupeAndExclude(extracted, existingKeys)
   const perDay = assignToDays(cleaned, days)
-  const recommendedIds = new Set<string>(cleaned.map((r) => r.placeId))
+  const recommendedKeys = new Set<string>()
+  cleaned.forEach((recommendation) => addRecommendationIdentityKeys(recommendedKeys, recommendation))
 
   const result: RecommendationsByDay = []
   for (let i = 0; i < days.length; i++) {
@@ -249,21 +266,21 @@ async function getDayRecommendationsImpl(
     if (centroid) {
       try {
         const missingCategories = REC_CATEGORIES.filter((category) => dayResult[category].shown.length < REC_LIMIT)
-        const originalShownIdsByCategory = new Map<
+        const originalShownKeysByCategory = new Map<
           'dessert' | 'attraction' | 'restaurant',
           Set<string>
         >()
         const filledCategories = await Promise.all(missingCategories.map(async (category) => {
-          originalShownIdsByCategory.set(
+          originalShownKeysByCategory.set(
             category,
-            new Set(dayResult[category].shown.map((item) => item.placeId))
+            new Set(dayResult[category].shown.flatMap((item) => recommendationIdentityKeys(item)))
           )
           const have = new Set<string>([
-            ...Array.from(existingIds),
-            ...Array.from(recommendedIds),
+            ...Array.from(existingKeys),
+            ...Array.from(recommendedKeys),
             ...REC_CATEGORIES.flatMap((c) => [
-              ...dayResult[c].shown.map((x) => x.placeId),
-              ...dayResult[c].reserve.map((x) => x.placeId),
+              ...dayResult[c].shown.flatMap((x) => recommendationIdentityKeys(x)),
+              ...dayResult[c].reserve.flatMap((x) => recommendationIdentityKeys(x)),
             ]),
           ])
           const shown = [...dayResult[category].shown]
@@ -271,23 +288,27 @@ async function getDayRecommendationsImpl(
           return { category, shown }
         }))
 
-        const acceptedIds = new Set<string>([...Array.from(existingIds), ...Array.from(recommendedIds)])
+        const acceptedKeys = new Set<string>([...Array.from(existingKeys), ...Array.from(recommendedKeys)])
         for (const { category, shown } of filledCategories) {
-          const originalShownIds = originalShownIdsByCategory.get(category) ?? new Set<string>()
+          const originalShownKeys = originalShownKeysByCategory.get(category) ?? new Set<string>()
           const deduped = shown.filter((item) => {
-            if (originalShownIds.has(item.placeId)) {
-              acceptedIds.add(item.placeId)
+            const keys = recommendationIdentityKeys(item)
+            if (keys.some((key) => originalShownKeys.has(key))) {
+              keys.forEach((key) => acceptedKeys.add(key))
               return true
             }
-            if (acceptedIds.has(item.placeId)) return false
-            acceptedIds.add(item.placeId)
+            if (keys.some((key) => acceptedKeys.has(key))) return false
+            keys.forEach((key) => acceptedKeys.add(key))
             return true
           })
           dayResult[category] = { ...dayResult[category], shown: deduped }
         }
-        REC_CATEGORIES.forEach((category) =>
-          dayResult[category].shown.forEach((item) => recommendedIds.add(item.placeId))
-        )
+        for (const category of REC_CATEGORIES) {
+          if (dayResult[category].shown.length < REC_LIMIT) {
+            await fillFromOpenPoiThenGoogle(dayResult[category].shown, centroid, category, acceptedKeys)
+          }
+          dayResult[category].shown.forEach((item) => addRecommendationIdentityKeys(recommendedKeys, item))
+        }
       } catch {
         // best-effort fill: leave this day's buckets as-is and continue
       }
@@ -341,27 +362,31 @@ async function fetchReplacementRecommendationImpl(
   const centroid = centroidOf(day.places)
   if (!centroid) return null
   const exclude = new Set(excludeIds)
+  day.places.forEach((place) => addRecommendationIdentityKeys(exclude, place))
   try {
     const openCandidates = await safeOpenPoiSearch(centroid.lat, centroid.lng, category, REC_CANDIDATE_POOL_LIMIT)
-    const openCandidate = openCandidates.find((candidate) => !exclude.has(candidate.placeId))
+    const openCandidate = openCandidates.find((candidate) => !hasRecommendationIdentity(exclude, candidate))
     if (openCandidate && hasRecommendationPhoto(openCandidate)) {
       const displayReady = await normalizeRecommendationDisplayData(openCandidate, category)
+      if (hasRecommendationIdentity(exclude, displayReady)) return null
       return { ...displayReady, reason: OPEN_POI_REASON, sourceLabel: OPEN_POI_SOURCE_LABEL }
     }
 
     if (!shouldUsePaidRecommendationFallback()) {
       if (!openCandidate) return null
       const displayReady = await normalizeRecommendationDisplayData(openCandidate, category)
+      if (hasRecommendationIdentity(exclude, displayReady)) return null
       return { ...displayReady, reason: OPEN_POI_REASON, sourceLabel: OPEN_POI_SOURCE_LABEL }
     }
 
     const candidates = await nearbySearch(centroid.lat, centroid.lng, category)
     let fallbackGoogle: DayRecommendation | null = null
     for (const candidate of sortRecommendationCandidates(candidates, category)) {
-      if (exclude.has(candidate.placeId)) continue
+      if (hasRecommendationIdentity(exclude, candidate)) continue
       if (!isRecommendationCandidateAcceptable(candidate, category)) continue
       const place = await maybeEnrichRecommendationDetails(candidate, category)
       const displayReady = await normalizeRecommendationDisplayData(place, category)
+      if (hasRecommendationIdentity(exclude, displayReady)) continue
       const recommendation = { ...displayReady, reason: GOOGLE_REASON, sourceLabel: GOOGLE_SOURCE_LABEL }
       if (hasRecommendationPhoto(displayReady)) return recommendation
       fallbackGoogle ??= recommendation

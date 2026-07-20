@@ -1,4 +1,4 @@
-import type { CategoryArrays, CategoryList, DayItinerary, DayRecommendation, RecommendationsByDay } from '@/lib/types'
+import type { CategoryArrays, CategoryList, DayItinerary, DayRecommendation, LocalizedText, RecommendationsByDay } from '@/lib/types'
 import { findClosestDay } from './geo'
 
 // DEC-304 fallback order: manual center -> same-day centroid -> previous day
@@ -51,15 +51,93 @@ export function centroidOf(
   return { lat, lng }
 }
 
+type PlaceIdentityInput = {
+  id?: string | null
+  placeId?: string | null
+  name?: string | null
+  localizedName?: LocalizedText | null
+  lat?: number | null
+  lng?: number | null
+}
+
+function cleanIdentityText(value: string | null | undefined): string | null {
+  const cleaned = (value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[’']/g, '')
+    .replace(/&/g, ' and ')
+    .toLowerCase()
+    .replace(/[^0-9a-z\u00c0-\u024f\u1e00-\u1eff\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff\uac00-\ud7af]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ')
+  return cleaned || null
+}
+
+function coordinateBucket(value: number | null | undefined): string | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null
+  return value.toFixed(3)
+}
+
+function uniqueIdentityNames(place: PlaceIdentityInput): string[] {
+  const original = cleanIdentityText(place.localizedName?.original)
+  const english = cleanIdentityText(place.localizedName?.en)
+  const primary = cleanIdentityText(place.name)
+  const translatedChinese = cleanIdentityText(place.localizedName?.zhTw)
+  const values: Array<string | null> = [original, english]
+  if (primary && primary !== translatedChinese) values.push(primary)
+  const hasStableName = values.some((value) => value !== null)
+  if (!hasStableName) {
+    if (primary) values.push(primary)
+    if (translatedChinese) values.push(translatedChinese)
+  }
+  return Array.from(new Set(values.map(cleanIdentityText).filter((value): value is string => value !== null)))
+}
+
+export function recommendationIdentityKeys(place: PlaceIdentityInput): string[] {
+  const keys: string[] = []
+  if (place.placeId) {
+    keys.push(place.placeId)
+    keys.push(`place:${place.placeId}`)
+  } else if (place.id) {
+    keys.push(`local:${place.id}`)
+  }
+
+  const lat = coordinateBucket(place.lat)
+  const lng = coordinateBucket(place.lng)
+  for (const name of uniqueIdentityNames(place)) {
+    if (lat && lng) {
+      keys.push(`namegeo:${name}:${lat}:${lng}`)
+    }
+    if (name.length >= 2) {
+      keys.push(`name:${name}`)
+    }
+  }
+
+  return Array.from(new Set(keys))
+}
+
+export function addRecommendationIdentityKeys(target: Set<string>, place: PlaceIdentityInput): void {
+  recommendationIdentityKeys(place).forEach((key) => target.add(key))
+}
+
+export function hasRecommendationIdentity(target: Set<string>, place: PlaceIdentityInput): boolean {
+  return recommendationIdentityKeys(place).some((key) => target.has(key))
+}
+
+export function deleteRecommendationIdentityKeys(target: Set<string>, place: PlaceIdentityInput): void {
+  recommendationIdentityKeys(place).forEach((key) => target.delete(key))
+}
+
 export function dedupeAndExclude(
   recs: DayRecommendation[],
-  excludePlaceIds: Set<string>
+  excludeKeys: Set<string>
 ): DayRecommendation[] {
   const seen = new Set<string>()
   const out: DayRecommendation[] = []
   for (const r of recs) {
-    if (!r.placeId || excludePlaceIds.has(r.placeId) || seen.has(r.placeId)) continue
-    seen.add(r.placeId)
+    const keys = recommendationIdentityKeys(r)
+    if (keys.length === 0 || keys.some((key) => excludeKeys.has(key) || seen.has(key))) continue
+    keys.forEach((key) => seen.add(key))
     out.push(r)
   }
   return out

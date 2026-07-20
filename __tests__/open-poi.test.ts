@@ -1,11 +1,21 @@
-import { mapOpenPoiRowToPlace, mapOpenPoiRowToPlaceWithFreeImages } from '@/lib/openPoi'
+﻿import { mapOpenPoiRowToPlace, mapOpenPoiRowToPlaceWithFreeImages, openPoiSearch } from '@/lib/openPoi'
+import type { OpenPoiRow } from '@/lib/openPoi'
 
 const mockUpdateBuilder: { error: null; eq: jest.Mock } = {
   error: null,
   eq: jest.fn(),
 }
 const mockUpdate = jest.fn(() => mockUpdateBuilder)
-const mockFrom = jest.fn(() => ({ update: mockUpdate }))
+let mockSelectRows: OpenPoiRow[] = []
+let mockSelectError: unknown = null
+const mockSelectBuilder = {
+  eq: jest.fn(() => mockSelectBuilder),
+  gte: jest.fn(() => mockSelectBuilder),
+  lte: jest.fn(() => mockSelectBuilder),
+  limit: jest.fn(async () => ({ data: mockSelectRows, error: mockSelectError })),
+}
+const mockSelect = jest.fn(() => mockSelectBuilder)
+const mockFrom = jest.fn(() => ({ update: mockUpdate, select: mockSelect }))
 
 jest.mock('@/lib/supabase/admin', () => ({
   createAdminClient: () => ({ from: mockFrom }),
@@ -15,7 +25,13 @@ const originalEnv = { ...process.env }
 
 beforeEach(() => {
   jest.clearAllMocks()
+  mockSelectRows = []
+  mockSelectError = null
   mockUpdateBuilder.eq.mockImplementation(() => mockUpdateBuilder)
+  mockSelectBuilder.eq.mockImplementation(() => mockSelectBuilder)
+  mockSelectBuilder.gte.mockImplementation(() => mockSelectBuilder)
+  mockSelectBuilder.lte.mockImplementation(() => mockSelectBuilder)
+  mockSelectBuilder.limit.mockImplementation(async () => ({ data: mockSelectRows, error: mockSelectError }))
   process.env = { ...originalEnv }
   delete process.env.NEXT_PUBLIC_SUPABASE_URL
   delete process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -31,8 +47,8 @@ it('maps an open-data POI row to a recommendation-safe Place without Google enri
     source: 'overture',
     source_place_id: 'ov-1',
     name_primary: 'Bui Vien Walking Street',
-    name_zh: '范五老街',
-    name_local: 'Bùi Viện',
+    name_zh: '????',
+    name_local: 'B羅i Vi廙',
     lat: 10.768,
     lng: 106.693,
     category: 'attraction',
@@ -40,7 +56,7 @@ it('maps an open-data POI row to a recommendation-safe Place without Google enri
     metadata: { description: 'Nightlife street' },
   })).toMatchObject({
     placeId: 'overture:ov-1',
-    name: '范五老街',
+    name: '????',
     type: 'attraction',
     lat: 10.768,
     lng: 106.693,
@@ -94,6 +110,49 @@ it('maps open-data quality metadata used by recommendation ranking', () => {
   })
 })
 
+it('prioritizes dessert-specific Open POI rows before nearby generic cafes', async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role'
+  const recentMiss = { status: 'not_found', version: 4, fetchedAt: new Date().toISOString() }
+  const row = (
+    source_place_id: string,
+    name_primary: string,
+    metadata: OpenPoiRow['metadata'],
+    offset: number,
+  ): OpenPoiRow => ({
+    source: 'osm',
+    source_place_id,
+    name_primary,
+    name_zh: null,
+    name_local: name_primary,
+    lat: 21 + offset,
+    lng: 105,
+    category: 'dessert',
+    confidence: null,
+    metadata: { ...metadata, free_image: recentMiss },
+  })
+  mockSelectRows = [
+    ...Array.from({ length: 8 }, (_, index) =>
+      row(`node/generic-${index}`, `Generic Coffee ${index}`, { osm: { amenity: 'cafe' } }, index * 0.0001)
+    ),
+    row('node/raw-juicery', 'Raw Juicery', { osm: { amenity: 'cafe' } }, 0.004),
+    row('node/mochi', 'Mochi Sweets', { osm: { shop: 'confectionery' } }, 0.005),
+    row('node/tart', 'C? Ph礙 Apple Tart', { osm: { amenity: 'cafe' } }, 0.006),
+    row('node/roti', 'King Roti', { osm: { shop: 'bakery' } }, 0.007),
+    row('node/waffle', 'Wanna Waffle?', { osm: { amenity: 'cafe' } }, 0.008),
+  ]
+
+  const result = await openPoiSearch(21, 105, 'dessert', 5, 2000)
+
+  expect(result.map((place) => place.name)).toEqual([
+    'Raw Juicery',
+    'Mochi Sweets',
+    'C? Ph礙 Apple Tart',
+    'King Roti',
+    'Wanna Waffle?',
+  ])
+})
+
 it('resolves a free Wikidata image when direct OSM image metadata is missing', async () => {
   const realFetch = global.fetch
   global.fetch = jest.fn(async () => ({
@@ -123,15 +182,15 @@ it('resolves a free Wikidata image when direct OSM image metadata is missing', a
       source_place_id: 'node/1141980',
       name_primary: 'Universal Studios Japan',
       name_zh: null,
-      name_local: 'ユニバーサル・スタジオ・ジャパン',
+      name_local: '?艾???萸?颯?踴?芥?詻?',
       lat: 34.665,
       lng: 135.432,
       category: 'attraction',
       confidence: null,
       metadata: { wikidata: 'Q1141980' },
     })).resolves.toMatchObject({
-      photoUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Universal%20Studios%20Japan.jpg',
-      photoUrls: ['https://commons.wikimedia.org/wiki/Special:FilePath/Universal%20Studios%20Japan.jpg'],
+      photoUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Universal%20Studios%20Japan.jpg?width=900',
+      photoUrls: ['https://commons.wikimedia.org/wiki/Special:FilePath/Universal%20Studios%20Japan.jpg?width=900'],
     })
   } finally {
     global.fetch = realFetch
@@ -167,21 +226,21 @@ it('persists resolved free image metadata back to poi_places', async () => {
     source_place_id: 'way/34619038',
     name_primary: 'Osaka Castle',
     name_zh: '大阪城',
-    name_local: '大阪城',
+    name_local: 'Osaka Castle',
     lat: 34.687,
     lng: 135.526,
     category: 'attraction',
     confidence: null,
     metadata: { wikidata: 'Q321242' },
   })).resolves.toMatchObject({
-    photoUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Osaka%20Castle%2002bs3200.jpg',
+    photoUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Osaka%20Castle%2002bs3200.jpg?width=900',
   })
 
   expect(mockFrom).toHaveBeenCalledWith('poi_places')
   expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({
     metadata: expect.objectContaining({
-      photoUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Osaka%20Castle%2002bs3200.jpg',
-      photoUrls: ['https://commons.wikimedia.org/wiki/Special:FilePath/Osaka%20Castle%2002bs3200.jpg'],
+      photoUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Osaka%20Castle%2002bs3200.jpg?width=900',
+      photoUrls: ['https://commons.wikimedia.org/wiki/Special:FilePath/Osaka%20Castle%2002bs3200.jpg?width=900'],
       free_image: expect.objectContaining({
         status: 'found',
         source: 'wikidata',
@@ -219,7 +278,7 @@ it('resolves Wikimedia Commons category metadata to a free image', async () => {
     source_place_id: 'way/34619038',
     name_primary: 'Osaka Castle',
     name_zh: '大阪城',
-    name_local: '大阪城',
+    name_local: 'Osaka Castle',
     lat: 34.687,
     lng: 135.526,
     category: 'attraction',
@@ -239,7 +298,7 @@ it('uses Openverse exact search when metadata has no direct Wikimedia image', as
     json: async () => ({
       results: [
         {
-          title: 'Ozakajō Osaka castle',
+          title: 'Ozakaj? Osaka castle',
           thumbnail: 'https://api.openverse.org/v1/images/osaka-castle/thumb/',
           foreign_landing_url: 'https://www.flickr.com/photos/example/osaka-castle',
           license: 'by',
@@ -325,6 +384,109 @@ it('uses alternate names to resolve free images for localized landmark names', a
   )
 })
 
+it('tops up a one-photo Wikimedia result with Openverse matches for Train Street', async () => {
+  const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url.includes('commons.wikimedia.org/w/api.php')) {
+      return {
+        ok: true,
+        json: async () => ({
+          query: {
+            pages: {
+              '1': {
+                title: 'File:Hanoi Train Street 1.jpg',
+                imageinfo: [
+                  {
+                    thumburl: 'https://images.example/train-street-wikimedia.jpg',
+                    mime: 'image/jpeg',
+                  },
+                ],
+              },
+            },
+          },
+        }),
+      }
+    }
+    if (url.includes('wikidata.org')) {
+      return {
+        ok: true,
+        json: async () => ({ entities: { Q85788921: { claims: {} } } }),
+      }
+    }
+    if (url.includes('wikipedia.org')) {
+      return {
+        ok: true,
+        json: async () => ({}),
+      }
+    }
+    if (url.includes('api.openverse.org')) {
+      return {
+        ok: true,
+        json: async () => ({
+          results: [
+            {
+              title: 'Hanoi Train Street cafe',
+              thumbnail: 'https://images.example/train-street-openverse-1.jpg',
+              foreign_landing_url: 'https://www.flickr.com/photos/example/hanoi-train-street-1',
+              license: 'by',
+              creator: 'Example creator',
+            },
+            {
+              title: 'Hanoi Train Street railway',
+              thumbnail: 'https://images.example/train-street-openverse-2.jpg',
+              foreign_landing_url: 'https://www.flickr.com/photos/example/hanoi-train-street-2',
+              license: 'by',
+              creator: 'Example creator',
+            },
+            {
+              title: 'Hanoi Train Street view',
+              thumbnail: 'https://images.example/train-street-openverse-3.jpg',
+              foreign_landing_url: 'https://www.flickr.com/photos/example/hanoi-train-street-3',
+              license: 'by',
+              creator: 'Example creator',
+            },
+            {
+              title: 'Hanoi Train Street crossing',
+              thumbnail: 'https://images.example/train-street-openverse-4.jpg',
+              foreign_landing_url: 'https://www.flickr.com/photos/example/hanoi-train-street-4',
+              license: 'by',
+              creator: 'Example creator',
+            },
+          ],
+        }),
+      }
+    }
+
+    return {
+      ok: true,
+      json: async () => ({}),
+    }
+  })
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  await expect(mapOpenPoiRowToPlaceWithFreeImages({
+    source: 'osm',
+    source_place_id: 'way/train-street',
+    name_primary: 'Hanoi Train Street',
+    name_zh: '火車街',
+    name_local: 'Ngõ 224 Lê Duẩn',
+    lat: 21.024,
+    lng: 105.842,
+    category: 'attraction',
+    confidence: null,
+    metadata: { wikimedia_commons: 'Category:Hanoi Train Street' },
+  })).resolves.toMatchObject({
+    photoUrl: 'https://images.example/train-street-wikimedia.jpg',
+    photoUrls: [
+      'https://images.example/train-street-wikimedia.jpg',
+      'https://images.example/train-street-openverse-1.jpg',
+      'https://images.example/train-street-openverse-2.jpg',
+      'https://images.example/train-street-openverse-3.jpg',
+      'https://images.example/train-street-openverse-4.jpg',
+    ],
+  })
+})
+
 it('does not use a generic category image when a small local POI has no exact image metadata', async () => {
   const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
     const url = String(input)
@@ -356,9 +518,9 @@ it('does not use a generic category image when a small local POI has no exact im
   await expect(mapOpenPoiRowToPlaceWithFreeImages({
     source: 'osm',
     source_place_id: 'node/1308439468',
-    name_primary: 'MVTTS 咖啡',
-    name_zh: 'MVTTS 咖啡',
-    name_local: 'Cà Phê MVTTS',
+    name_primary: 'MVTTS ?',
+    name_zh: 'MVTTS ?',
+    name_local: 'C? Ph礙 MVTTS',
     lat: 21.0284992,
     lng: 105.8484194,
     category: 'dessert',
@@ -391,7 +553,7 @@ it('ignores previously persisted generic free image metadata', () => {
       photoUrls: ['https://images.example/generic-cafe-dessert.jpg'],
       free_image: {
         status: 'found',
-        version: 1,
+        version: 4,
         source: 'openverse',
         generic: true,
         url: 'https://images.example/generic-cafe-dessert.jpg',
@@ -401,6 +563,54 @@ it('ignores previously persisted generic free image metadata', () => {
   })).toMatchObject({
     photoUrl: null,
     photoUrls: [],
+  })
+})
+
+it('ignores stale persisted free image URLs after the resolver version changes', () => {
+  expect(mapOpenPoiRowToPlace({
+    source: 'osm',
+    source_place_id: 'node/stale-openverse',
+    name_primary: 'King Roti',
+    name_zh: null,
+    name_local: 'King Roti',
+    lat: 21.028,
+    lng: 105.848,
+    category: 'dessert',
+    confidence: null,
+    metadata: {
+      photoUrl: 'https://api.openverse.org/v1/images/broken/thumb/',
+      photoUrls: ['https://api.openverse.org/v1/images/broken/thumb/'],
+      free_image: {
+        status: 'found',
+        version: 3,
+        source: 'openverse',
+        url: 'https://api.openverse.org/v1/images/broken/thumb/',
+        urls: ['https://api.openverse.org/v1/images/broken/thumb/'],
+      },
+    },
+  })).toMatchObject({
+    photoUrl: null,
+    photoUrls: [],
+  })
+})
+
+it('normalizes direct Wikimedia original image URLs to embeddable thumbnails', () => {
+  expect(mapOpenPoiRowToPlace({
+    source: 'osm',
+    source_place_id: 'way/hanoi-train-street',
+    name_primary: 'Hanoi Train Street',
+    name_zh: '火車街',
+    name_local: 'Ngõ 224 Lê Duẩn',
+    lat: 21.017,
+    lng: 105.84,
+    category: 'attraction',
+    confidence: null,
+    metadata: {
+      photoUrl: 'https://upload.wikimedia.org/wikipedia/commons/c/c8/Hanoi_-_Bahngleis_0002.JPG',
+    },
+  })).toMatchObject({
+    photoUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Hanoi_-_Bahngleis_0002.JPG?width=900',
+    photoUrls: ['https://commons.wikimedia.org/wiki/Special:FilePath/Hanoi_-_Bahngleis_0002.JPG?width=900'],
   })
 })
 
@@ -421,7 +631,7 @@ it('skips external image lookups for recent not-found cache entries', async () =
       wikidata: 'Q999999',
       free_image: {
         status: 'not_found',
-        version: 1,
+        version: 4,
         fetchedAt: new Date().toISOString(),
       },
     },
@@ -461,7 +671,7 @@ it('persists not-found image lookups so future reloads skip external searches', 
     metadata: expect.objectContaining({
       free_image: expect.objectContaining({
         status: 'not_found',
-        version: 1,
+        version: 4,
       }),
     }),
   }))

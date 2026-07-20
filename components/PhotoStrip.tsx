@@ -12,11 +12,14 @@ interface Props {
   emptyFallback?: ReactNode
   placeType?: PlaceType
   aliases?: string[]
+  lat?: number
+  lng?: number
+  onPhotoUnavailable?: () => void
 }
 
 const MAX_PHOTOS = 5
 const photoRequestCache = new Map<string, Promise<string[]>>()
-const PHOTO_LOOKUP_VERSION = '2'
+const PHOTO_LOOKUP_VERSION = '5'
 const PHOTO_CACHE_PREFIX = `photo-strip:v${PHOTO_LOOKUP_VERSION}`
 
 function mergePhotos(primary: string[], fetched: string[]): string[] {
@@ -57,11 +60,21 @@ function writeCachedPhotos(placeId: string, kind: 'cover' | 'all', photoUrls: st
   }
 }
 
-function placePhotosUrl(placeId: string, placeName: string, kind: 'cover' | 'all', placeType?: PlaceType, aliases: string[] = []): string {
+function placePhotosUrl(
+  placeId: string,
+  placeName: string,
+  kind: 'cover' | 'all',
+  placeType?: PlaceType,
+  aliases: string[] = [],
+  lat?: number,
+  lng?: number
+): string {
   const params = new URLSearchParams({ placeId })
   if (placeName.trim()) params.set('placeName', placeName.trim())
   params.set('v', PHOTO_LOOKUP_VERSION)
   if (placeType) params.set('placeType', placeType)
+  if (typeof lat === 'number' && Number.isFinite(lat)) params.set('lat', String(lat))
+  if (typeof lng === 'number' && Number.isFinite(lng)) params.set('lng', String(lng))
   aliases.forEach((alias) => {
     if (alias.trim() && alias.trim() !== placeName.trim()) params.append('alias', alias.trim())
   })
@@ -69,18 +82,28 @@ function placePhotosUrl(placeId: string, placeName: string, kind: 'cover' | 'all
   return `/api/place-photos?${params.toString()}`
 }
 
-async function fetchPhotoUrls(placeId: string, placeName: string, kind: 'cover' | 'all', placeType?: PlaceType, aliases: string[] = []): Promise<string[]> {
+async function fetchPhotoUrls(
+  placeId: string,
+  placeName: string,
+  kind: 'cover' | 'all',
+  placeType?: PlaceType,
+  aliases: string[] = [],
+  lat?: number,
+  lng?: number
+): Promise<string[]> {
   const allCached = readCachedPhotos(placeId, 'all')
   if (kind === 'cover' && allCached?.length) return allCached.slice(0, 1)
 
   const cached = readCachedPhotos(placeId, kind)
-  if (cached?.length) return kind === 'cover' ? cached.slice(0, 1) : cached.slice(0, MAX_PHOTOS)
+  if (cached?.length && (kind === 'cover' || cached.length >= MAX_PHOTOS)) {
+    return kind === 'cover' ? cached.slice(0, 1) : cached.slice(0, MAX_PHOTOS)
+  }
 
   const requestKey = `${kind}:${placeId}`
   const existingRequest = photoRequestCache.get(requestKey)
   if (existingRequest) return existingRequest
 
-  const request = fetch(placePhotosUrl(placeId, placeName, kind, placeType, aliases))
+  const request = fetch(placePhotosUrl(placeId, placeName, kind, placeType, aliases, lat, lng))
     .then(async (response) => {
       if (!response.ok) return []
       const data = await response.json() as { photoUrls?: string[] }
@@ -100,7 +123,7 @@ async function fetchPhotoUrls(placeId: string, placeName: string, kind: 'cover' 
   return request
 }
 
-export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFallback = null, placeType, aliases = [] }: Props) {
+export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFallback = null, placeType, aliases = [], lat, lng, onPhotoUnavailable }: Props) {
   const photoKey = photos.join('\u0000')
   const aliasKey = aliases.join('\u0000')
   const incomingPhotos = useMemo(() => (photoKey ? photoKey.split('\u0000').slice(0, MAX_PHOTOS) : []), [photoKey])
@@ -110,6 +133,7 @@ export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFa
   const slotRef = useRef<HTMLDivElement | null>(null)
   const [photosEligible, setPhotosEligible] = useState(() => typeof IntersectionObserver === 'undefined')
   const [fetchedPhotos, setFetchedPhotos] = useState(false)
+  const notifiedUnavailableRef = useRef(false)
   const fetchablePlaceId = isGooglePlaceId(placeId) || isOpenDataPlaceId(placeId) ? placeId : null
   const coverPhoto = resolvedPhotos[0]
   const displayPhotos = resolvedPhotos.slice(0, MAX_PHOTOS)
@@ -120,6 +144,7 @@ export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFa
     setResolvedPhotos(incomingPhotos)
     setPhotosEligible(typeof IntersectionObserver === 'undefined')
     setFetchedPhotos(false)
+    notifiedUnavailableRef.current = false
   }, [incomingPhotos, placeId, placeName, placeType, aliasKey])
 
   useEffect(() => {
@@ -146,9 +171,16 @@ export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFa
     if (!fetchablePlaceId || !shouldFetchPhotos || fetchedPhotos || !photosEligible || typeof fetch !== 'function') return
 
     let cancelled = false
-    fetchPhotoUrls(fetchablePlaceId, placeName, 'all', placeType, photoAliases)
+    fetchPhotoUrls(fetchablePlaceId, placeName, 'all', placeType, photoAliases, lat, lng)
       .then((photoUrls) => {
-        if (cancelled || !photoUrls.length) return
+        if (cancelled) return
+        if (!photoUrls.length) {
+          if (!resolvedPhotos.length && !notifiedUnavailableRef.current) {
+            notifiedUnavailableRef.current = true
+            onPhotoUnavailable?.()
+          }
+          return
+        }
         setResolvedPhotos((current) => mergePhotos(current, photoUrls))
       })
       .finally(() => {
@@ -159,18 +191,18 @@ export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFa
     return () => {
       cancelled = true
     }
-  }, [fetchablePlaceId, fetchedPhotos, photosEligible, placeName, placeType, photoAliases, shouldFetchPhotos])
+  }, [fetchablePlaceId, fetchedPhotos, onPhotoUnavailable, photosEligible, lat, lng, placeName, placeType, photoAliases, resolvedPhotos.length, shouldFetchPhotos])
 
   const loadMorePhotos = useCallback(async (): Promise<string[]> => {
     if (resolvedPhotos.length >= MAX_PHOTOS) return resolvedPhotos.slice(0, MAX_PHOTOS)
     if (!fetchablePlaceId || fetchedPhotos || typeof fetch !== 'function') return resolvedPhotos.slice(0, MAX_PHOTOS)
 
     setFetchedPhotos(true)
-    const photoUrls = await fetchPhotoUrls(fetchablePlaceId, placeName, 'all', placeType, photoAliases)
+    const photoUrls = await fetchPhotoUrls(fetchablePlaceId, placeName, 'all', placeType, photoAliases, lat, lng)
     const nextPhotos = mergePhotos(resolvedPhotos, photoUrls)
     setResolvedPhotos(nextPhotos)
     return nextPhotos
-  }, [fetchablePlaceId, fetchedPhotos, placeName, placeType, photoAliases, resolvedPhotos])
+  }, [fetchablePlaceId, fetchedPhotos, lat, lng, placeName, placeType, photoAliases, resolvedPhotos])
 
   if (!coverPhoto && fetchablePlaceId && !fetchedPhotos) {
     return (
@@ -189,7 +221,7 @@ export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFa
 
   return (
     <>
-      <div className={`grid grid-cols-4 gap-1 overflow-hidden rounded-lg ${className}`}>
+      <div ref={slotRef} className={`grid grid-cols-4 gap-1 overflow-hidden rounded-lg ${className}`}>
         {displayPhotos.map((photo, index) => (
           <button
             key={`${photo}:${index}`}

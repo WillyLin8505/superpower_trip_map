@@ -23,6 +23,14 @@ function place(id: string, type: Place['type']): Place {
   }
 }
 
+function placeWithPhoto(id: string, type: Place['type']): Place {
+  return {
+    ...place(id, type),
+    photoUrl: `https://img.example/${id}.jpg`,
+    photoUrls: [`https://img.example/${id}.jpg`],
+  }
+}
+
 function dayWith(placeId: string): DayItinerary {
   return {
     day: 1, aiSummary: null, dayStart: '09:00', dayEnd: '21:00',
@@ -40,8 +48,8 @@ beforeEach(() => {
 })
 
 it('returns the first non-excluded enriched candidate', async () => {
-  ns.mockResolvedValue([place('a', 'dessert'), place('b', 'dessert')])
-  gd.mockImplementation(async (id: string) => place(id, 'attraction'))
+  ns.mockResolvedValue([placeWithPhoto('a', 'dessert'), placeWithPhoto('b', 'dessert')])
+  gd.mockImplementation(async (id: string) => placeWithPhoto(id, 'attraction'))
   const out = await fetchReplacementRecommendation(dayWith('x'), 'dessert', ['a'])
   expect(out?.placeId).toBe('b')
   expect(out?.type).toBe('dessert')

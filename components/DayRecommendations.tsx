@@ -22,11 +22,12 @@ interface Props {
   error?: string | null
   onArchive?: (rec: DayRecommendation) => void
   onDelete?: (rec: DayRecommendation) => void
+  onPhotoUnavailable?: (rec: DayRecommendation) => void
 }
 
 export function DayRecommendations({
   recommendations, dateIso, onAdd, backfilling, hasCenter, center, onSetCenter, onClearCenter,
-  onRefreshCategory, refreshing, error, onArchive, onDelete,
+  onRefreshCategory, refreshing, error, onArchive, onDelete, onPhotoUnavailable,
 }: Props) {
   const [tab, setTab] = useState<Category>(REC_CATEGORIES[0])
 
@@ -109,6 +110,7 @@ export function DayRecommendations({
                     onAdd={() => onAdd(rec)}
                     onArchive={onArchive}
                     onDelete={onDelete ? () => onDelete(rec) : undefined}
+                    onPhotoUnavailable={onPhotoUnavailable ? () => onPhotoUnavailable(rec) : undefined}
                     actionTestIds={{ delete: `rec-delete-${rec.placeId}` }}
                     compact
                   />

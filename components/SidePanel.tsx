@@ -25,6 +25,7 @@ interface Props {
   recsError?: string | null
   onArchiveRecommendation?: (rec: DayRecommendation) => void
   onDeleteRecommendation?: (rec: DayRecommendation) => void
+  onRecommendationPhotoUnavailable?: (rec: DayRecommendation) => void
   candidates: Candidate[]
   archived: Candidate[]
   onAddReservePlace: (place: Place) => void
@@ -100,6 +101,7 @@ export function SidePanel(props: Props) {
             error={props.recsError}
             onArchive={props.onArchiveRecommendation}
             onDelete={props.onDeleteRecommendation}
+            onPhotoUnavailable={props.onRecommendationPhotoUnavailable}
           />
         )}
         {tab === 'line' && (

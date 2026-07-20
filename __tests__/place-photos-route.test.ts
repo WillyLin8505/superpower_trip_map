@@ -74,6 +74,42 @@ describe('GET /api/place-photos', () => {
     expect(body.photoUrls).toEqual(['/api/photo?ref=ref1'])
   })
 
+  it('falls back to a location-biased text lookup when a Google place id has no photos', async () => {
+    resolveFreeImageForPlaceMock.mockResolvedValueOnce(null)
+    ;(fetch as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: 'OK',
+          result: { photos: [] },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: 'OK',
+          candidates: [{ place_id: 'ChIJtrainStreetText' }],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: 'OK',
+          result: { photos: [{ photo_reference: 'train-text-photo' }] },
+        }),
+      })
+
+    const req = new NextRequest(`http://localhost/api/place-photos?placeId=${googlePlaceId}&placeName=Train+Street&alias=Hanoi+Train+Street&lat=21.0177&lng=105.8408&limit=1`)
+    const res = await GET(req)
+    const body = await res.json()
+
+    expect(fetch).toHaveBeenNthCalledWith(1, expect.stringContaining(`place_id=${googlePlaceId}`), expect.any(Object))
+    expect(fetch).toHaveBeenNthCalledWith(2, expect.stringContaining('input=Hanoi+Train+Street'), expect.any(Object))
+    expect(fetch).toHaveBeenNthCalledWith(2, expect.stringContaining('locationbias=circle%3A5000%4021.0177%2C105.8408'), expect.any(Object))
+    expect(fetch).toHaveBeenNthCalledWith(3, expect.stringContaining('place_id=ChIJtrainStreetText'), expect.any(Object))
+    expect(body.photoUrls).toEqual(['/api/photo?ref=train-text-photo'])
+  })
+
   it('returns no photos without calling Google when the API key is missing', async () => {
     delete process.env.GOOGLE_MAPS_API_KEY
 
@@ -140,9 +176,71 @@ describe('GET /api/place-photos', () => {
       limit: 1,
     })
     expect(fetch).toHaveBeenNthCalledWith(1, expect.stringContaining('/findplacefromtext/json?'), expect.any(Object))
-    expect(fetch).toHaveBeenNthCalledWith(1, expect.stringContaining('input=MVTTS+%E5%92%96%E5%95%A1+C%C3%A0+Ph%C3%AA+MVTTS'), expect.any(Object))
+    expect(fetch).toHaveBeenNthCalledWith(1, expect.stringContaining('input=C%C3%A0+Ph%C3%AA+MVTTS'), expect.any(Object))
     expect(fetch).toHaveBeenNthCalledWith(2, expect.stringContaining('place_id=ChIJmvtGooglePlace'), expect.any(Object))
     expect(body.photoUrls).toEqual(['/api/photo?ref=mvt-google-photo'])
+  })
+
+  it('adds location bias to Google text fallback when coordinates are available', async () => {
+    resolveFreeImageForPlaceMock.mockResolvedValueOnce(null)
+    ;(fetch as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: 'OK',
+          candidates: [{ place_id: 'ChIJappleTart' }],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: 'OK',
+          result: { photos: [{ photo_reference: 'apple-photo' }] },
+        }),
+      })
+
+    const req = new NextRequest('http://localhost/api/place-photos?placeId=osm%3Anode%2F4240313697&placeName=Apple+Tart+%E5%92%96%E5%95%A1&placeType=dessert&alias=C%C3%A0+Ph%C3%AA+Apple+Tart&lat=21.028&lng=105.848&limit=1')
+    const res = await GET(req)
+    const body = await res.json()
+
+    expect(fetch).toHaveBeenNthCalledWith(1, expect.stringContaining('input=C%C3%A0+Ph%C3%AA+Apple+Tart'), expect.any(Object))
+    expect(fetch).toHaveBeenNthCalledWith(1, expect.stringContaining('locationbias=circle%3A5000%4021.028%2C105.848'), expect.any(Object))
+    expect(body.photoUrls).toEqual(['/api/photo?ref=apple-photo'])
+  })
+
+  it('tries the next text query when the first alias has no photos', async () => {
+    resolveFreeImageForPlaceMock.mockResolvedValueOnce(null)
+    ;(fetch as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: 'ZERO_RESULTS',
+          candidates: [],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: 'OK',
+          candidates: [{ place_id: 'ChIJbonBon' }],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: 'OK',
+          result: { photos: [{ photo_reference: 'bon-bon-photo' }] },
+        }),
+      })
+
+    const req = new NextRequest('http://localhost/api/place-photos?placeId=osm%3Anode%2F4358175599&placeName=C%E1%BB%ADa+H%C3%A0ng+B%C3%A1nh+M%C3%AC+Bon+Bon&placeType=dessert&alias=Bon+Bon+Bakery&limit=1')
+    const res = await GET(req)
+    const body = await res.json()
+
+    expect(fetch).toHaveBeenNthCalledWith(1, expect.stringContaining('input=Bon+Bon+Bakery'), expect.any(Object))
+    expect(fetch).toHaveBeenNthCalledWith(2, expect.stringContaining('input=C%E1%BB%ADa+H%C3%A0ng+B%C3%A1nh+M%C3%AC+Bon+Bon'), expect.any(Object))
+    expect(fetch).toHaveBeenNthCalledWith(3, expect.stringContaining('place_id=ChIJbonBon'), expect.any(Object))
+    expect(body.photoUrls).toEqual(['/api/photo?ref=bon-bon-photo'])
   })
 
   it('tops up a single exact free image with Google photos when the card asks for all five', async () => {
@@ -185,6 +283,53 @@ describe('GET /api/place-photos', () => {
       '/api/photo?ref=train-google-2',
       '/api/photo?ref=train-google-3',
       '/api/photo?ref=train-google-4',
+    ])
+  })
+
+  it('prefers Google photo results over free-image matches for local businesses', async () => {
+    resolveFreeImageForPlaceMock.mockResolvedValueOnce({
+      photoUrls: [
+        'https://images.example/free-king-roti-1.jpg',
+        'https://images.example/free-king-roti-2.jpg',
+        'https://images.example/free-king-roti-3.jpg',
+        'https://images.example/free-king-roti-4.jpg',
+        'https://images.example/free-king-roti-5.jpg',
+      ],
+      source: 'openverse',
+    })
+    ;(fetch as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: 'OK',
+          candidates: [{ place_id: 'ChIJkingRotiGoogle' }],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: 'OK',
+          result: {
+            photos: [
+              { photo_reference: 'king-google-1' },
+              { photo_reference: 'king-google-2' },
+            ],
+          },
+        }),
+      })
+
+    const req = new NextRequest('http://localhost/api/place-photos?placeId=osm%3Anode%2F4427721996&placeName=King+Roti&placeType=dessert&alias=Cua+Hang+Banh+Mi+King+Roti&lat=21.0324&lng=105.8507')
+    const res = await GET(req)
+    const body = await res.json()
+
+    expect(fetch).toHaveBeenNthCalledWith(1, expect.stringContaining('input=Cua+Hang+Banh+Mi+King+Roti'), expect.any(Object))
+    expect(fetch).toHaveBeenNthCalledWith(2, expect.stringContaining('place_id=ChIJkingRotiGoogle'), expect.any(Object))
+    expect(body.photoUrls).toEqual([
+      '/api/photo?ref=king-google-1',
+      '/api/photo?ref=king-google-2',
+      'https://images.example/free-king-roti-1.jpg',
+      'https://images.example/free-king-roti-2.jpg',
+      'https://images.example/free-king-roti-3.jpg',
     ])
   })
 

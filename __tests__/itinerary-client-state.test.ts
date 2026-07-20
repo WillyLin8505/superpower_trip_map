@@ -46,7 +46,7 @@ describe('itinerary client state helpers', () => {
   it('dedupes archived candidates by previous id and place identity', () => {
     const archivedPlace = place({ id: 'old-local', placeId: 'google-1' })
     const duplicate = candidate('old-candidate', archivedPlace)
-    const unrelated = candidate('keep-candidate', place({ id: 'local-2', placeId: 'google-2' }))
+    const unrelated = candidate('keep-candidate', place({ id: 'local-2', placeId: 'google-2', name: 'Other Place', lat: 25.1, lng: 121.1 }))
     const replacement = candidate('new-candidate', place({ id: 'new-local', placeId: 'google-1' }))
 
     expect(upsertArchived([duplicate, unrelated], replacement, 'old-candidate')).toEqual([
@@ -66,10 +66,15 @@ describe('itinerary client state helpers', () => {
       [candidate('archived', archivedPlace)]
     )
 
-    expect(keys).toEqual(new Set([
+    expect(Array.from(keys)).toEqual(expect.arrayContaining([
       archivePlaceKey(itineraryPlace),
       archivePlaceKey(linePlace),
       archivePlaceKey(archivedPlace),
+      'google-itinerary',
+      'place:google-itinerary',
+      'google-archived',
+      'place:google-archived',
+      'local:line-local',
     ]))
   })
 
@@ -86,6 +91,49 @@ describe('itinerary client state helpers', () => {
       dessert: { shown: [keep], reserve: [] },
       attraction: { shown: [], reserve: [keep] },
       restaurant: { shown: [keep], reserve: [keep] },
+    }])
+  })
+
+  it('filters semantically duplicate recommendations with different place ids', () => {
+    const unavailable = place({
+      id: 'itinerary-local',
+      placeId: 'google-train-street',
+      name: 'Hanoi Train Street',
+      localizedName: { zhTw: '火車街', original: 'Ngõ 224 Lê Duẩn' },
+      lat: 21.0241,
+      lng: 105.8421,
+    })
+    const duplicate = recommendation({
+      id: 'rec-local',
+      placeId: 'osm:way/train-street',
+      name: 'Hanoi Train Street',
+      localizedName: { zhTw: '火車街', original: 'Ngõ 224 Lê Duẩn' },
+      lat: 21.0242,
+      lng: 105.8422,
+    })
+    const keep = recommendation({
+      id: 'keep-local',
+      placeId: 'osm:way/temple',
+      name: 'Temple',
+      lat: 21.03,
+      lng: 105.84,
+    })
+    const recommendations: RecommendationsByDay = [{
+      dessert: { shown: [], reserve: [] },
+      attraction: { shown: [duplicate, keep], reserve: [duplicate] },
+      restaurant: { shown: [], reserve: [] },
+    }]
+
+    const keys = unavailableRecommendationKeys(
+      [{ day: 1, dayStart: '09:00', dayEnd: '21:00', aiSummary: null, places: [unavailable as never] }],
+      [],
+      []
+    )
+
+    expect(filterRecommendationsByUnavailable(recommendations, keys)).toEqual([{
+      dessert: { shown: [], reserve: [] },
+      attraction: { shown: [keep], reserve: [] },
+      restaurant: { shown: [], reserve: [] },
     }])
   })
 

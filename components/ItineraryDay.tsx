@@ -36,6 +36,7 @@ interface Props {
   onAddRecommendation?: (rec: DayRecommendation) => void
   onArchiveRecommendation?: (rec: DayRecommendation) => void
   onDeleteRecommendation?: (rec: DayRecommendation) => void
+  onRecommendationPhotoUnavailable?: (rec: DayRecommendation) => void
   backfilling?: Partial<Record<'dessert' | 'attraction' | 'restaurant', boolean>>
   recsHasCenter?: boolean
   onSetRecommendationCenter?: (center: RecommendationCenter) => void
@@ -69,7 +70,7 @@ interface Props {
   onArchivePlace?: (place: ScheduledPlace) => void
 }
 
-export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, onArchiveRecommendation, onDeleteRecommendation, candidates, archived, onAddReservePlace, onAddReservePlaces, onAddArchivedToDay, onDeleteArchived, onAddCandidateToDay, onArchiveCandidate, onDeleteCandidate, sidePanelTab, onSidePanelTabChange, collectionBuckets, onAddCollectionPlace, onArchiveCollection, onDismissCollection, onCollectionImported, backfilling, recsHasCenter, onSetRecommendationCenter, onClearRecommendationCenter, onRefreshRecommendationCategory, recsRefreshing, recsError, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId, onDeletePlace, onArchivePlace }: Props) {
+export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, onAddRecommendation, onArchiveRecommendation, onDeleteRecommendation, onRecommendationPhotoUnavailable, candidates, archived, onAddReservePlace, onAddReservePlaces, onAddArchivedToDay, onDeleteArchived, onAddCandidateToDay, onArchiveCandidate, onDeleteCandidate, sidePanelTab, onSidePanelTabChange, collectionBuckets, onAddCollectionPlace, onArchiveCollection, onDismissCollection, onCollectionImported, backfilling, recsHasCenter, onSetRecommendationCenter, onClearRecommendationCenter, onRefreshRecommendationCategory, recsRefreshing, recsError, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId, onDeletePlace, onArchivePlace }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
 
@@ -230,6 +231,7 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
               onAddRecommendation={onAddRecommendation}
               onArchiveRecommendation={onArchiveRecommendation}
               onDeleteRecommendation={onDeleteRecommendation}
+              onRecommendationPhotoUnavailable={onRecommendationPhotoUnavailable}
               backfilling={backfilling}
               recsHasCenter={recsHasCenter}
               recsCenter={day.recommendationCenter}

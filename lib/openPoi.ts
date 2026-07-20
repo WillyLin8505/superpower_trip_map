@@ -4,13 +4,14 @@ import type { Place, PlaceType } from '@/lib/types'
 import { haversineMeters } from '@/lib/haversine'
 import { placeShortDescription } from '@/lib/utils/placeShortDescription'
 import { trackedApiFetch } from '@/lib/apiUsageEvents'
-import { compareRecommendationCandidates } from '@/lib/utils/recommendationRank'
+import { compareRecommendationCandidates, isRecommendationCandidateAcceptable } from '@/lib/utils/recommendationRank'
 
 type OpenPoiSource = 'overture' | 'osm' | 'wikidata' | 'user'
 type FreeImageSource = 'metadata' | 'wikimedia_commons' | 'wikidata' | 'wikipedia' | 'openverse'
 const FREE_IMAGE_TTL_SECONDS = 60 * 60 * 24 * 30
-const FREE_IMAGE_LOOKUP_VERSION = 1
+const FREE_IMAGE_LOOKUP_VERSION = 4
 const FREE_IMAGE_FETCH_TIMEOUT_MS = 4000
+const MAX_FREE_IMAGE_URLS = 5
 
 export interface OpenPoiRow {
   source: OpenPoiSource
@@ -123,12 +124,31 @@ function categoryTagsFromOpenPoiRow(row: OpenPoiRow): string[] {
 function commonsFileUrl(value: string): string | null {
   const withoutPrefix = value.replace(/^File:/i, '').trim()
   if (!withoutPrefix || /^Category:/i.test(withoutPrefix)) return null
-  return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(withoutPrefix)}`
+  return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(withoutPrefix)}?width=900`
+}
+
+function commonsFileUrlFromWikimediaUpload(value: string): string | null {
+  try {
+    const url = new URL(value)
+    if (url.hostname.toLowerCase() !== 'upload.wikimedia.org') return null
+    if (url.pathname.includes('/thumb/')) return value
+    const match = url.pathname.match(/^\/wikipedia\/commons\/([^/]+)\/([^/]+)\/(.+)$/)
+    if (!match) return null
+    const [, , , filePath] = match
+    const fileName = filePath.split('/').pop()
+    if (!fileName) return null
+    return commonsFileUrl(decodeURIComponent(fileName))
+  } catch {
+    return null
+  }
 }
 
 function normalizeImageUrl(value: string | null): string | null {
   if (!value) return null
-  if (/^https?:\/\//i.test(value)) return isKnownNonEmbeddableImageUrl(value) ? null : value
+  if (/^https?:\/\//i.test(value)) {
+    if (isKnownNonEmbeddableImageUrl(value)) return null
+    return commonsFileUrlFromWikimediaUpload(value) ?? value
+  }
   if (/^File:/i.test(value)) return commonsFileUrl(value)
   if (/\.(?:avif|gif|jpe?g|png|webp)$/i.test(value)) return commonsFileUrl(value)
   return null
@@ -145,12 +165,14 @@ function isKnownNonEmbeddableImageUrl(value: string): boolean {
 
 function imageUrlsFromMetadata(metadata: Record<string, unknown> | null | undefined): string[] {
   const genericImageUrls = genericFreeImageUrlSet(metadata)
+  const cache = freeImageCache(metadata)
+  const useCachedFreeImageUrls = !cache || cache.version === FREE_IMAGE_LOOKUP_VERSION
   const candidates = [
-    ...metadataStrings(metadata, 'photoUrls'),
-    ...metadataStrings(metadata, 'photo_urls'),
+    ...(useCachedFreeImageUrls ? metadataStrings(metadata, 'photoUrls') : []),
+    ...(useCachedFreeImageUrls ? metadataStrings(metadata, 'photo_urls') : []),
     ...metadataStrings(metadata, 'images'),
-    metadataString(metadata, 'photoUrl'),
-    metadataString(metadata, 'photo_url'),
+    ...(useCachedFreeImageUrls ? [metadataString(metadata, 'photoUrl')] : []),
+    ...(useCachedFreeImageUrls ? [metadataString(metadata, 'photo_url')] : []),
     metadataString(metadata, 'imageUrl'),
     metadataString(metadata, 'image_url'),
     metadataString(metadata, 'thumbnailUrl'),
@@ -180,6 +202,22 @@ function directImageResultFromMetadata(metadata: Record<string, unknown> | null 
   return photoUrls.length > 0 ? { photoUrls, source: 'metadata' } : null
 }
 
+function mergeFreeImageResults(current: FreeImageResult | null, next: FreeImageResult | null): FreeImageResult | null {
+  if (!next?.photoUrls.length) return current
+  if (!current?.photoUrls.length) {
+    return {
+      ...next,
+      photoUrls: next.photoUrls.slice(0, MAX_FREE_IMAGE_URLS),
+    }
+  }
+
+  return {
+    ...current,
+    photoUrls: Array.from(new Set([...current.photoUrls, ...next.photoUrls])).slice(0, MAX_FREE_IMAGE_URLS),
+    generic: current.generic === true && next.generic === true,
+  }
+}
+
 async function fetchJsonWithTimeout(
   url: string,
   usage: { provider: string; endpoint: string; skuHint: string; metadata?: Record<string, unknown> }
@@ -207,7 +245,7 @@ async function fetchJsonWithTimeout(
 }
 
 function cachedFreeImage<T>(keyParts: string[], fetcher: () => Promise<T>): Promise<T> {
-  return unstable_cache(fetcher, ['free-poi-image', ...keyParts], { revalidate: FREE_IMAGE_TTL_SECONDS })()
+  return unstable_cache(fetcher, ['free-poi-image', String(FREE_IMAGE_LOOKUP_VERSION), ...keyParts], { revalidate: FREE_IMAGE_TTL_SECONDS })()
 }
 
 function freeImageCache(metadata: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
@@ -283,7 +321,7 @@ async function wikipediaImageResult(lang: string, title: string): Promise<FreeIm
         metadata: { lang, title },
       },
     ) as WikipediaSummaryResponse
-    const url = normalizeImageUrl(cleanText(data.originalimage?.source) ?? cleanText(data.thumbnail?.source))
+    const url = normalizeImageUrl(cleanText(data.thumbnail?.source) ?? cleanText(data.originalimage?.source))
     return url ? { photoUrls: [url], source: 'wikipedia', pageUrl: `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}` } : null
   })
 }
@@ -338,6 +376,11 @@ async function wikimediaCommonsCategoryImageResult(category: string): Promise<Fr
       metadata: { category },
     }) as CommonsQueryResponse
     const pages = Object.values(data.query?.pages ?? {})
+    const photoUrls: string[] = []
+    let firstPageUrl: string | null = null
+    let firstLicense: string | null = null
+    let firstAttribution: string | null = null
+
     for (const page of pages) {
       const imageInfo = page.imageinfo?.find((info) =>
         typeof info.mime === 'string' && info.mime.startsWith('image/')
@@ -345,15 +388,21 @@ async function wikimediaCommonsCategoryImageResult(category: string): Promise<Fr
       const url = normalizeImageUrl(cleanText(imageInfo?.thumburl) ?? cleanText(imageInfo?.url))
       if (!url) continue
       const title = cleanText(page.title)
-      return {
-        photoUrls: [url],
-        source: 'wikimedia_commons',
-        pageUrl: title ? `https://commons.wikimedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}` : null,
-        license: commonsMetadataText(imageInfo?.extmetadata, 'LicenseShortName'),
-        attribution: commonsMetadataText(imageInfo?.extmetadata, 'Artist'),
-      }
+      if (!photoUrls.includes(url)) photoUrls.push(url)
+      firstPageUrl ??= title ? `https://commons.wikimedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}` : null
+      firstLicense ??= commonsMetadataText(imageInfo?.extmetadata, 'LicenseShortName')
+      firstAttribution ??= commonsMetadataText(imageInfo?.extmetadata, 'Artist')
+      if (photoUrls.length >= MAX_FREE_IMAGE_URLS) break
     }
-    return null
+    return photoUrls.length > 0
+      ? {
+        photoUrls,
+        source: 'wikimedia_commons',
+        pageUrl: firstPageUrl,
+        license: firstLicense,
+        attribution: firstAttribution,
+      }
+      : null
   })
 }
 
@@ -494,6 +543,18 @@ function openverseResultMatches(query: string, item: OpenverseImageResult): bool
   return requiredTokens.every((token) => haystack.includes(token))
 }
 
+function openverseEmbeddableUrl(item: OpenverseImageResult): string | null {
+  const directUrl = normalizeImageUrl(cleanText(item.url))
+  if (directUrl) {
+    try {
+      const pathname = new URL(directUrl).pathname
+      if (/\.(?:avif|gif|jpe?g|png|webp)$/i.test(pathname)) return directUrl
+    } catch {
+    }
+  }
+  return normalizeImageUrl(cleanText(item.thumbnail))
+}
+
 async function openverseImageResultForQuery(query: string, category: PlaceType): Promise<FreeImageResult | null> {
   if (!query) return null
   return cachedFreeImage(['openverse', query], async () => {
@@ -508,13 +569,18 @@ async function openverseImageResultForQuery(query: string, category: PlaceType):
       skuHint: 'openverse_free',
       metadata: { query, category },
     }) as OpenverseImageResponse
-    const result = (data.results ?? []).find((item) =>
-      openverseResultMatches(query, item) && normalizeImageUrl(cleanText(item.thumbnail) ?? cleanText(item.url))
-    )
-    const url = normalizeImageUrl(cleanText(result?.thumbnail) ?? cleanText(result?.url))
-    if (!result || !url) return null
+    const matches = (data.results ?? [])
+      .filter((item) => openverseResultMatches(query, item))
+      .map((item) => ({
+        item,
+        url: openverseEmbeddableUrl(item),
+      }))
+      .filter((match): match is { item: OpenverseImageResult; url: string } => match.url !== null)
+    const result = matches[0]?.item
+    const photoUrls = Array.from(new Set(matches.map((match) => match.url))).slice(0, MAX_FREE_IMAGE_URLS)
+    if (!result || photoUrls.length === 0) return null
     return {
-      photoUrls: [url],
+      photoUrls,
       source: 'openverse',
       pageUrl: cleanText(result.foreign_landing_url),
       license: cleanText(result.license),
@@ -524,11 +590,13 @@ async function openverseImageResultForQuery(query: string, category: PlaceType):
 }
 
 async function openverseImageResult(row: OpenPoiRow): Promise<FreeImageResult | null> {
+  let merged: FreeImageResult | null = null
   for (const query of imageSearchAliasesForRow(row)) {
     const result = await openverseImageResultForQuery(query, row.category)
-    if (result?.photoUrls.length) return result
+    merged = mergeFreeImageResults(merged, result)
+    if ((merged?.photoUrls.length ?? 0) >= MAX_FREE_IMAGE_URLS) return merged
   }
-  return null
+  return merged
 }
 
 async function openverseCategoryImageResult(category: PlaceType): Promise<FreeImageResult | null> {
@@ -576,8 +644,8 @@ async function runImageResolver(resolver: () => Promise<FreeImageResult | null>)
 }
 
 async function freeImageResultForRow(row: OpenPoiRow, allowGenericFallback = false): Promise<FreeImageLookupOutcome> {
-  const direct = directImageResultFromMetadata(row.metadata)
-  if (direct) return { result: direct, cacheableMiss: true }
+  let merged = directImageResultFromMetadata(row.metadata)
+  if ((merged?.photoUrls.length ?? 0) >= MAX_FREE_IMAGE_URLS) return { result: merged, cacheableMiss: true }
 
   const resolvers: Array<() => Promise<FreeImageResult | null>> = []
   const knownEntity = knownFreeImageEntityForAliases(imageSearchAliasesForRow(row))
@@ -594,10 +662,13 @@ async function freeImageResultForRow(row: OpenPoiRow, allowGenericFallback = fal
   for (const resolver of resolvers) {
     const { result, failed } = await runImageResolver(resolver)
     hadFailure = hadFailure || failed
-    if (result?.photoUrls.length) return { result, cacheableMiss: true }
+    merged = mergeFreeImageResults(merged, result)
+    if ((merged?.photoUrls.length ?? 0) >= MAX_FREE_IMAGE_URLS) {
+      return { result: merged, cacheableMiss: true }
+    }
   }
 
-  return { result: null, cacheableMiss: !hadFailure }
+  return { result: merged, cacheableMiss: !hadFailure }
 }
 
 export async function resolveFreeImageForPlace({
@@ -803,6 +874,9 @@ export async function openPoiSearch(
     }))
     .filter(({ distance }) => distance <= radiusMeters)
     .sort((a, b) => {
+      const acceptableA = isRecommendationCandidateAcceptable(a.rankingPlace, category)
+      const acceptableB = isRecommendationCandidateAcceptable(b.rankingPlace, category)
+      if (acceptableA !== acceptableB) return acceptableB ? 1 : -1
       const confidenceA = a.row.confidence ?? 0
       const confidenceB = b.row.confidence ?? 0
       return (

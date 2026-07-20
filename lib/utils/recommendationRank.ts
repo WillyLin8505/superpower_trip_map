@@ -3,6 +3,7 @@ import type { Place, PlaceType } from '@/lib/types'
 export type RecommendationCategory = Extract<PlaceType, 'dessert' | 'attraction' | 'restaurant'>
 
 type RankablePlace = Pick<Place, 'type' | 'rating'> & {
+  name?: string | null
   reviewCount?: number | null
   categoryTags?: string[] | null
 }
@@ -56,6 +57,9 @@ const DESSERT_BEVERAGE_OR_GENERIC_TAGS = new Set([
   'food', 'store', 'point_of_interest', 'establishment',
 ])
 
+const DESSERT_NAME_CUE_RE =
+  /\b(bakery|boba|bubble tea|cake|cacao|cocoa|chocolate|cookie|crepe|dessert|donut|doughnut|dorayaki|gelato|ice cream|juice|juicery|macaron|milk tea|mochi|pancake|pastry|patisserie|pudding|roti|smoothie|sweets?|taiyaki|tart|tea|tra|waffle|yogurt)\b|banh|bánh|che|chè|kem|甜|點|蛋糕|糕|冰淇淋|麻糬|餅|菓子|糖|巧克力|布丁|鬆餅|紅豆/i
+
 function clamp01(value: number): number {
   if (!Number.isFinite(value)) return 0
   return Math.max(0, Math.min(1, value))
@@ -73,6 +77,18 @@ function normalizedTags(place: RankablePlace): string[] {
   return (place.categoryTags ?? [])
     .map(normalizeTag)
     .filter(Boolean)
+}
+
+function normalizedSearchText(value: string | null | undefined): string {
+  return (value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
+function hasDessertNameCue(place: RankablePlace): boolean {
+  const text = normalizedSearchText(place.name)
+  return DESSERT_NAME_CUE_RE.test(text)
 }
 
 export function recommendationScore(
@@ -122,9 +138,10 @@ export function isRecommendationCandidateAcceptable(
   const tags = normalizedTags(place).filter((tag) => tag !== category)
   const hasQualitySignal = numericOrNull(place.rating) !== null || (numericOrNull(place.reviewCount) ?? 0) > 0
   const hasSpecificDessertSignal = tags.some((tag) => DESSERT_SPECIFIC_TAGS.has(tag))
+  const hasNameDessertSignal = hasDessertNameCue(place)
   const isBeverageOnly = tags.length > 0 && tags.every((tag) => DESSERT_BEVERAGE_OR_GENERIC_TAGS.has(tag))
 
-  return hasQualitySignal || hasSpecificDessertSignal || !isBeverageOnly
+  return hasQualitySignal || hasSpecificDessertSignal || hasNameDessertSignal || !isBeverageOnly
 }
 
 export function compareRecommendationCandidates<T extends RankablePlace>(

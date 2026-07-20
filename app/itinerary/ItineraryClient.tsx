@@ -28,7 +28,7 @@ import { getTripCostUsd } from '@/app/actions/cost'
 import { TripCostBadge } from '@/components/TripCostBadge'
 import { applyDragResult, findContainer } from '@/lib/utils/dragContainers'
 import { findClosestDay } from '@/lib/utils/geo'
-import { dayHasRecommendationAnchor, removeRecsDay, resolveDayCenter } from '@/lib/utils/dayRecommend'
+import { dayHasRecommendationAnchor, recommendationIdentityKeys, removeRecsDay, resolveDayCenter } from '@/lib/utils/dayRecommend'
 import { CombinedInput } from '@/components/CombinedInput'
 import { DWELL } from '@/lib/placeType'
 import { fetchDayArrangeInputs } from '@/app/actions/arrange'
@@ -157,6 +157,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   const [targetDays, setTargetDays] = useState<number | null>(null)
   const [recsByDay, setRecsByDay] = useState<RecommendationsByDay | null>(null)
   const recsRef = useRef<RecommendationsByDay | null>(null)
+  const photoUnavailableKeysRef = useRef<Set<string>>(new Set())
   const [recsError, setRecsError] = useState<string | null>(null)
   const [backfillKeys, setBackfillKeys] = useState<Set<string>>(new Set())
   const [refreshingKeys, setRefreshingKeys] = useState<Set<string>>(new Set())
@@ -213,9 +214,11 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   }, [])
 
   const commitRecs = useCallback((next: RecommendationsByDay | null) => {
+    const unavailableKeys = unavailableRecommendationKeys(planRef.current.days, candidatesRef.current, archivedRef.current)
+    photoUnavailableKeysRef.current.forEach((key) => unavailableKeys.add(key))
     const filtered = filterRecommendationsByUnavailable(
       next,
-      unavailableRecommendationKeys(planRef.current.days, candidatesRef.current, archivedRef.current)
+      unavailableKeys
     )
     recsRef.current = filtered
     setRecsByDay(filtered)
@@ -717,22 +720,22 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
 
   const buildExcludeIds = useCallback((): string[] => {
     const ids = new Set<string>()
-    planRef.current.days.forEach((d) => d.places.forEach((p) => ids.add(p.placeId)))
-    candidatesRef.current.forEach((candidate) => {
-      if (candidate.place.placeId) ids.add(candidate.place.placeId)
-    })
-    archivedRef.current.forEach((candidate) => {
-      if (candidate.place.placeId) ids.add(candidate.place.placeId)
-    })
+    const addPlace = (place: Place) => {
+      recommendationIdentityKeys(place).forEach((key) => ids.add(key))
+    }
+    planRef.current.days.forEach((d) => d.places.forEach(addPlace))
+    candidatesRef.current.forEach((candidate) => addPlace(candidate.place))
+    archivedRef.current.forEach((candidate) => addPlace(candidate.place))
     const cur = recsRef.current
     if (cur) {
       cur.forEach((b) =>
         (['dessert', 'attraction', 'restaurant'] as const).forEach((c) => {
-          b[c].shown.forEach((r) => ids.add(r.placeId))
-          b[c].reserve.forEach((r) => ids.add(r.placeId))
+          b[c].shown.forEach(addPlace)
+          b[c].reserve.forEach(addPlace)
         })
       )
     }
+    photoUnavailableKeysRef.current.forEach((key) => ids.add(key))
     return Array.from(ids)
   }, [])
 
@@ -767,9 +770,14 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       const cat = rec.type as RecommendationCategory
       const prev = recsRef.current
       if (!prev || !prev[dayIdx]) return
+      const removedKeys = new Set(recommendationIdentityKeys(rec))
       const bucket = prev[dayIdx][cat]
-      const shownAfter = bucket.shown.filter((r) => r.placeId !== rec.placeId)
-      const reserve = [...bucket.reserve]
+      const shownAfter = bucket.shown.filter((r) =>
+        !recommendationIdentityKeys(r).some((key) => removedKeys.has(key))
+      )
+      const reserve = bucket.reserve.filter((r) =>
+        !recommendationIdentityKeys(r).some((key) => removedKeys.has(key))
+      )
       while (shownAfter.length < 5 && reserve.length > 0) {
         const nextReserve = reserve.shift()
         if (nextReserve) shownAfter.push(nextReserve)
@@ -791,7 +799,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
             const cur = recsRef.current
             if (!cur || !cur[dayIdx]) break
             const currentExcludeIds = new Set([...buildExcludeIds(), ...extraExcludeIds])
-            if (currentExcludeIds.has(repl.placeId)) break
+            if (recommendationIdentityKeys(repl).some((key) => currentExcludeIds.has(key))) break
             const b = cur[dayIdx][cat]
             if (b.shown.length >= 5) break
             const next2: RecommendationsByDay = cur.map((x, idx) =>
@@ -809,6 +817,16 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     },
     [buildExcludeIds, commitRecs, refreshCost],
   )
+
+  const handleRecommendationPhotoUnavailable = useCallback((dayIdx: number, rec: DayRecommendation) => {
+    const keys = recommendationIdentityKeys(rec)
+    if (keys.length === 0) return
+    const unavailableKeys = photoUnavailableKeysRef.current
+    const hasNewKey = keys.some((key) => !unavailableKeys.has(key))
+    if (!hasNewKey) return
+    keys.forEach((key) => unavailableKeys.add(key))
+    removeRecommendationFromShown(dayIdx, rec, keys)
+  }, [removeRecommendationFromShown])
 
   const handleAddRecommendation = useCallback(async (dayIdx: number, rec: DayRecommendation) => {
     const needsDetails = !rec.rating || !rec.openingHours?.length
@@ -1168,6 +1186,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
                 onAddRecommendation={(rec) => handleAddRecommendation(dayIdx, rec)}
                 onArchiveRecommendation={(rec) => handleArchiveRecommendation(dayIdx, rec)}
                 onDeleteRecommendation={(rec) => handleDeleteRecommendation(dayIdx, rec)}
+                onRecommendationPhotoUnavailable={(rec) => handleRecommendationPhotoUnavailable(dayIdx, rec)}
                 candidates={candidates}
                 archived={archived}
                 onAddReservePlace={handleAddReservePlace}
