@@ -132,7 +132,11 @@ export interface TripSummary {
   id: string
   title: string
   updatedAt: string   // ISO
+  role?: TripAccessRole
 }
+
+export type TripAccessRole = 'owner' | 'editor' | 'viewer'
+export type TripLinkAccess = 'restricted' | 'view' | 'edit'
 
 export interface TripMember {
   userId: string

@@ -37,7 +37,7 @@ it('calls notFound when trip is missing', async () => {
 })
 
 it('renders ItineraryClient with tripId + plan when found', async () => {
-  getTrip.mockResolvedValue({ plan, title: '東京', ownerId: 'o1' })
+  getTrip.mockResolvedValue({ plan, title: '東京', ownerId: 'o1', role: 'editor' })
   listMembers.mockResolvedValue([])
   getUser.mockResolvedValue({ data: { user: { id: 'u1' } } })
   const TripPage = require('@/app/itinerary/[tripId]/page').default
@@ -45,4 +45,5 @@ it('renders ItineraryClient with tripId + plan when found', async () => {
   const [, itineraryEl] = el.props.children
   expect(itineraryEl.props.tripId).toBe('t1')
   expect(itineraryEl.props.initial).toEqual(plan)
+  expect(itineraryEl.props.canEdit).toBe(true)
 })

@@ -11,7 +11,7 @@ import { translateTextToZhTw } from '@/lib/aiTranslate'
 // Read chain shape: .from().select().eq().single() → { data, error }
 //                  .from().select().order() → { data, error }
 function makeSupabase(overrides: {
-  user?: { id: string } | null
+  user?: { id: string; email?: string | null } | null
   single?: { data: unknown; error: unknown }
   list?: { data: unknown; error: unknown }
   mutate?: { data?: unknown; error: unknown }
@@ -120,7 +120,7 @@ it('getTrip returns null on error', async () => {
 it('getTrip maps plan + title + ownerId on success through the admin client', async () => {
   mockAdminTripRead({ plan, title: 'Trip', owner_id: 'u1' })
   const { getTrip } = require('@/app/actions/trips')
-  expect(await getTrip('t1')).toEqual({ plan, title: 'Trip', ownerId: 'u1' })
+  expect(await getTrip('t1')).toEqual({ plan, title: 'Trip', ownerId: 'u1', role: 'owner' })
   expect(currentAdmin.client.from).toHaveBeenCalledWith('trips')
 })
 
@@ -176,9 +176,9 @@ it('getTrip translates saved place names that are missing Traditional Chinese', 
 })
 
 it('listTrips maps rows to TripSummary', async () => {
-  current = makeSupabase({ list: { data: [{ id: 'a', title: 'A', updated_at: '2026-07-01T00:00:00Z' }], error: null } })
+  current = makeSupabase({ list: { data: [{ id: 'a', title: 'A', updated_at: '2026-07-01T00:00:00Z', owner_id: 'u1' }], error: null } })
   const { listTrips } = require('@/app/actions/trips')
-  expect(await listTrips()).toEqual([{ id: 'a', title: 'A', updatedAt: '2026-07-01T00:00:00Z' }])
+  expect(await listTrips()).toEqual([{ id: 'a', title: 'A', updatedAt: '2026-07-01T00:00:00Z', role: 'owner' }])
 })
 
 it('saveTrip throws a zh error when update fails', async () => {
@@ -229,6 +229,34 @@ it('saveTripSafe rejects users who are not owners or members', async () => {
     ok: false,
     error: '你沒有權限編輯這個行程',
   })
+})
+
+it('saveTripSafe rejects email viewers', async () => {
+  current = makeSupabase({ user: { id: 'u2', email: 'viewer@example.com' } })
+  currentAdmin = makeSupabase({
+    single: { data: { owner_id: 'u1' }, error: null },
+  })
+  currentAdmin.spies.maybeSingle
+    .mockResolvedValueOnce({ data: null, error: null })
+    .mockResolvedValueOnce({ data: { role: 'viewer' }, error: null })
+  const { saveTripSafe } = require('@/app/actions/trips')
+  await expect(saveTripSafe('t1', plan)).resolves.toEqual({
+    ok: false,
+    error: '你只有觀看權限，不能編輯這個行程',
+  })
+})
+
+it('saveTripSafe allows email editors', async () => {
+  current = makeSupabase({ user: { id: 'u2', email: 'editor@example.com' } })
+  currentAdmin = makeSupabase({
+    single: { data: { owner_id: 'u1' }, error: null },
+    mutate: { data: [{ id: 't1' }], error: null },
+  })
+  currentAdmin.spies.maybeSingle
+    .mockResolvedValueOnce({ data: null, error: null })
+    .mockResolvedValueOnce({ data: { role: 'editor' }, error: null })
+  const { saveTripSafe } = require('@/app/actions/trips')
+  await expect(saveTripSafe('t1', plan)).resolves.toEqual({ ok: true })
 })
 
 it('saveTripSafe explains when RLS updates zero rows', async () => {

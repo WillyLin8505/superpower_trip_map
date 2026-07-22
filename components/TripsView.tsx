@@ -58,9 +58,14 @@ export function TripsView({ trips }: { trips: TripSummary[] }) {
           <li key={t.id} className="border rounded-md px-4 py-3 flex items-center justify-between">
             <Link href={`/itinerary/${t.id}`} className="font-medium hover:underline">{t.title}</Link>
             <div className="flex items-center gap-3 text-sm">
+              {t.role === 'viewer' && <span className="text-gray-400">只可觀看</span>}
               <span className="text-gray-400">{t.updatedAt.slice(0, 10)}</span>
-              <button onClick={() => onRename(t.id, t.title)} disabled={busy === t.id} className="hover:underline">改名</button>
-              <button onClick={() => onDelete(t.id)} disabled={busy === t.id} className="text-red-600 hover:underline">刪除</button>
+              {t.role !== 'viewer' && (
+                <button onClick={() => onRename(t.id, t.title)} disabled={busy === t.id} className="hover:underline">改名</button>
+              )}
+              {(!t.role || t.role === 'owner') && (
+                <button onClick={() => onDelete(t.id)} disabled={busy === t.id} className="text-red-600 hover:underline">刪除</button>
+              )}
             </div>
           </li>
         ))}

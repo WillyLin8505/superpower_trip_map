@@ -34,7 +34,7 @@ beforeEach(() => {
 })
 
 it('passes isOwner=true when user.id matches trip ownerId', async () => {
-  getTrip.mockResolvedValue({ plan, title: '東京', ownerId: 'owner-1' })
+  getTrip.mockResolvedValue({ plan, title: '東京', ownerId: 'owner-1', role: 'owner' })
   listMembers.mockResolvedValue(members)
   getUser.mockResolvedValue({ data: { user: { id: 'owner-1' } } })
   const TripPage = require('@/app/itinerary/[tripId]/page').default
@@ -44,7 +44,7 @@ it('passes isOwner=true when user.id matches trip ownerId', async () => {
 })
 
 it('passes isOwner=false when user.id differs from trip ownerId', async () => {
-  getTrip.mockResolvedValue({ plan, title: '東京', ownerId: 'owner-1' })
+  getTrip.mockResolvedValue({ plan, title: '東京', ownerId: 'owner-1', role: 'editor' })
   listMembers.mockResolvedValue(members)
   getUser.mockResolvedValue({ data: { user: { id: 'other-user' } } })
   const TripPage = require('@/app/itinerary/[tripId]/page').default
@@ -54,7 +54,7 @@ it('passes isOwner=false when user.id differs from trip ownerId', async () => {
 })
 
 it('calls listMembers with the tripId', async () => {
-  getTrip.mockResolvedValue({ plan, title: '東京', ownerId: 'owner-1' })
+  getTrip.mockResolvedValue({ plan, title: '東京', ownerId: 'owner-1', role: 'owner' })
   listMembers.mockResolvedValue(members)
   getUser.mockResolvedValue({ data: { user: { id: 'owner-1' } } })
   const TripPage = require('@/app/itinerary/[tripId]/page').default

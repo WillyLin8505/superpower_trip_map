@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import type { PlanResult, TripSummary } from '@/lib/types'
 import { ensurePlanChineseNames } from '@/lib/utils/bilingualNames'
 import { runWithTripId } from '@/lib/apiUsageContext'
+import { canEditTripRole, resolveTripAccess } from '@/lib/tripAccess'
 
 export type CreateTripResult =
   | { ok: true; tripId: string }
@@ -44,33 +45,14 @@ function formatUnknownError(fallback: string, error: unknown): { error: string }
   return { error: fallback }
 }
 
-async function requireTripAccess(tripId: string, userId: string): Promise<SaveTripResult> {
-  const admin = createAdminClient()
-  const { data: trip, error: tripError } = await admin
-    .from('trips')
-    .select('owner_id')
-    .eq('id', tripId)
-    .single()
-
-  if (tripError || !trip) {
-    return { ok: false, ...formatSupabaseError('找不到行程或無法讀取行程', tripError) }
-  }
-
-  if ((trip as { owner_id: string }).owner_id === userId) return { ok: true }
-
-  const { data: membership, error: membershipError } = await admin
-    .from('trip_members')
-    .select('user_id')
-    .eq('trip_id', tripId)
-    .eq('user_id', userId)
-    .maybeSingle()
-
-  if (membershipError) {
-    return { ok: false, ...formatSupabaseError('無法確認行程成員權限', membershipError) }
-  }
-
-  if (!membership) return { ok: false, error: '你沒有權限編輯這個行程' }
-
+async function requireTripEditor(
+  tripId: string,
+  user: { id: string; email?: string | null },
+): Promise<SaveTripResult> {
+  const access = await resolveTripAccess(tripId, user)
+  if (!access.ownerId) return { ok: false, error: '找不到行程或無法讀取行程' }
+  if (!access.role) return { ok: false, error: '你沒有權限編輯這個行程' }
+  if (!canEditTripRole(access.role)) return { ok: false, error: '你只有觀看權限，不能編輯這個行程' }
   return { ok: true }
 }
 
@@ -125,13 +107,13 @@ export async function createTripSafe(plan: PlanResult, title: string): Promise<C
   }
 }
 
-export async function getTrip(tripId: string): Promise<{ plan: PlanResult; title: string; ownerId: string } | null> {
+export async function getTrip(tripId: string): Promise<{ plan: PlanResult; title: string; ownerId: string; role: 'owner' | 'editor' | 'viewer' } | null> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const access = await requireTripAccess(tripId, user.id)
-  if (!access.ok) return null
+  const access = await resolveTripAccess(tripId, user)
+  if (!access.role || !access.ownerId) return null
 
   const admin = createAdminClient()
   const { data, error } = await admin
@@ -141,7 +123,15 @@ export async function getTrip(tripId: string): Promise<{ plan: PlanResult; title
     .single()
   if (error || !data) return null
   const row = data as { plan: PlanResult; title: string; owner_id: string }
-  return { plan: await runWithTripId(tripId, () => ensurePlanChineseNames(row.plan)), title: row.title, ownerId: row.owner_id }
+  const plan = canEditTripRole(access.role)
+    ? await runWithTripId(tripId, () => ensurePlanChineseNames(row.plan))
+    : row.plan
+  return {
+    plan,
+    title: row.title,
+    ownerId: row.owner_id,
+    role: access.role,
+  }
 }
 
 export async function saveTrip(tripId: string, plan: PlanResult): Promise<void> {
@@ -170,7 +160,7 @@ export async function saveTripSafe(tripId: string, plan: PlanResult): Promise<Sa
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { ok: false, error: 'NOT_AUTHENTICATED' }
 
-    const access = await requireTripAccess(tripId, user.id)
+    const access = await requireTripEditor(tripId, user)
     if (!access.ok) return access
 
     const admin = createAdminClient()
@@ -208,14 +198,20 @@ export async function saveTripSafe(tripId: string, plan: PlanResult): Promise<Sa
 
 export async function listTrips(): Promise<TripSummary[]> {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
   const { data, error } = await supabase
     .from('trips')
-    .select('id, title, updated_at')
+    .select('id, title, updated_at, owner_id')
     .order('updated_at', { ascending: false })
   if (error || !data) return []
-  return (data as { id: string; title: string; updated_at: string }[]).map((r) => ({
-    id: r.id, title: r.title, updatedAt: r.updated_at,
-  }))
+  const rows = data as { id: string; title: string; updated_at: string; owner_id?: string | null }[]
+  const summaries: TripSummary[] = []
+  for (const row of rows) {
+    const role = row.owner_id === user.id ? 'owner' : (await resolveTripAccess(row.id, user)).role ?? undefined
+    summaries.push({ id: row.id, title: row.title, updatedAt: row.updated_at, role })
+  }
+  return summaries
 }
 
 export async function renameTrip(tripId: string, title: string): Promise<void> {

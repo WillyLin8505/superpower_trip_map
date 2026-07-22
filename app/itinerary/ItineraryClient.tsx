@@ -35,6 +35,7 @@ import { fetchDayArrangeInputs } from '@/app/actions/arrange'
 import { arrangeDayOrder } from '@/lib/utils/arrangeDay'
 import { AiRearrangeInput } from '@/components/AiRearrangeInput'
 import { createTripSafe, saveTripSafe } from '@/app/actions/trips'
+import { saveSharedTripSafe } from '@/app/actions/share'
 import { archiveCandidate, archivePlace, removeCandidate, unarchivePlace } from '@/app/actions/candidates'
 import { listSavedPlaces } from '@/app/actions/savedPlaces'
 import { selectCollectionBuckets } from '@/lib/savedPlaces/select'
@@ -133,10 +134,25 @@ interface Props {
   initialCandidates?: Candidate[]
   initialArchived?: Candidate[]
   initialCostUsd?: number
+  canEdit?: boolean
+  shareToken?: string
+  showCost?: boolean
+  personalPanelsEnabled?: boolean
 }
 
-export function ItineraryClient({ initial, tripId, initialCandidates = [], initialArchived = [], initialCostUsd = 0 }: Props) {
+export function ItineraryClient({
+  initial,
+  tripId,
+  initialCandidates = [],
+  initialArchived = [],
+  initialCostUsd = 0,
+  canEdit = true,
+  shareToken,
+  showCost = true,
+  personalPanelsEnabled = true,
+}: Props) {
   const router = useRouter()
+  const canUseSidePanel = canEdit && personalPanelsEnabled
   const [currentTripId, setCurrentTripId] = useState<string | undefined>(tripId)
   // Latest tripId for action callbacks (many use [] deps, so reading the state
   // directly would capture a stale value after the trip is saved mid-session).
@@ -179,10 +195,11 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   // this is a soft, session-only hide (KNOWN P2, deferred).
   const [collectionExcluded, setCollectionExcluded] = useState<Record<number, string[]>>({})
   useEffect(() => {
+    if (!canUseSidePanel) return
     // Graceful: an anonymous session or a load failure just leaves the collection empty —
     // never surface an unhandled rejection from this background load.
     listSavedPlaces().then(setCollectionRows).catch(() => setCollectionRows([]))
-  }, [])
+  }, [canUseSidePanel])
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const autosaveRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // planRef always tracks the latest committed plan (avoids stale closures in dnd-kit callbacks)
@@ -230,6 +247,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   }, [])
 
   useEffect(() => {
+    if (!canUseSidePanel) return
     let active = true
     getDayRecommendations(planRef.current.days, tripIdRef.current)
       .then((r) => { if (active) { commitRecs(r); setRecsError(null) } })
@@ -242,6 +260,11 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
 
   // 匿名：建立 trip
   const ensureTripSaved = useCallback(async (): Promise<string | null> => {
+    if (!canEdit) {
+      setSaveError('你只有觀看權限，不能編輯這個行程')
+      setSaveState('error')
+      return null
+    }
     if (currentTripId) return currentTripId
     try {
       setSaveError(null)
@@ -274,13 +297,20 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       setSaveState('error')
     }
     return null
-  }, [currentTripId, router])
+  }, [canEdit, currentTripId, router])
+
+  const saveExistingTrip = useCallback(async () => {
+    if (shareToken) return saveSharedTripSafe(shareToken, planRef.current)
+    if (!currentTripId) return { ok: false as const, error: 'NO_TRIP_ID' }
+    return saveTripSafe(currentTripId, planRef.current)
+  }, [currentTripId, shareToken])
 
   const onSave = useCallback(async () => {
     await ensureTripSaved()
   }, [ensureTripSaved])
 
   useEffect(() => {
+    if (!canEdit) return
     if (!currentTripId) return
     if (plan === savedPlanRef.current) return
     setSaveState('saving')
@@ -288,7 +318,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
     if (autosaveRef.current) clearTimeout(autosaveRef.current)
     autosaveRef.current = setTimeout(async () => {
       try {
-        const result = await saveTripSafe(currentTripId, planRef.current)
+        const result = await saveExistingTrip()
         if (result.ok) {
           savedPlanRef.current = planRef.current
           setSaveState('saved')
@@ -302,15 +332,16 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       }
     }, 1500)
     return () => { if (autosaveRef.current) clearTimeout(autosaveRef.current) }
-  }, [plan, currentTripId])
+  }, [canEdit, plan, currentTripId, saveExistingTrip])
 
   // 持久化：重試按鈕直接呼叫 saveTrip（ref sentinel 方式無法重新觸發 effect）
   const onRetry = useCallback(async () => {
+    if (!canEdit) return
     if (!currentTripId) return
     setSaveState('saving')
     setSaveError(null)
     try {
-      const result = await saveTripSafe(currentTripId, planRef.current)
+      const result = await saveExistingTrip()
       if (result.ok) {
         savedPlanRef.current = planRef.current
         setSaveState('saved')
@@ -322,7 +353,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       setSaveError(e instanceof Error ? e.message : '儲存失敗，請稍後再試')
       setSaveState('error')
     }
-  }, [currentTripId])
+  }, [canEdit, currentTripId, saveExistingTrip])
 
   const commitPlan = useCallback((nextPlan: PlanResult) => {
     planRef.current = nextPlan
@@ -1058,8 +1089,8 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       <div className="flex items-center justify-between mb-6">
         {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a href="/" className="text-clay text-sm inline-block">&#x2190; 重新規劃</a>
-        {currentTripId && <TripCostBadge usd={costUsd} />}
-        {currentTripId ? (
+        {showCost && currentTripId && <TripCostBadge usd={costUsd} />}
+        {currentTripId && canEdit ? (
           <span className="text-sm text-muted">
             {saveState === 'saving' && '儲存中…'}
             {saveState === 'saved' && '已儲存'}
@@ -1072,6 +1103,8 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
               </button>
             )}
           </span>
+        ) : !canEdit ? (
+          <span className="text-sm text-muted">唯讀</span>
         ) : (
           <span className="flex flex-col items-end gap-1">
             <button onClick={onSave} className="text-sm border border-clay text-clay-deep rounded-md px-3 py-1 hover:bg-clay-tint">
@@ -1090,54 +1123,62 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
           {actionError}
         </p>
       )}
-      <section className="mb-6 flex flex-wrap items-end gap-4">
-        <label className="flex flex-col gap-1">
-          <span className="text-xs text-muted">開始日期</span>
-          <input type="date" data-testid="trip-start-date" value={plan.startDate}
-            onChange={(e) => handleChangeStartDate(e.target.value)}
-            className="border border-border rounded-lg px-3 py-1.5 text-sm" />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-xs text-muted">結束日期</span>
-          <input type="date" data-testid="trip-end-date" min={plan.startDate}
-            value={dayDate(plan.startDate, plan.days.length)}
-            onChange={(e) => handleChangeEndDate(e.target.value)}
-            className="border border-border rounded-lg px-3 py-1.5 text-sm" />
-        </label>
-        <div className="flex items-center gap-1 pb-1.5">
-          <span className="text-sm text-muted">共 {plan.days.length} 天</span>
-          <div className="flex flex-col" data-testid="day-count-stepper">
-            <button
-              type="button"
-              aria-label="增加一天"
-              data-testid="day-count-stepper-up"
-              onClick={() => handleChangeEndDate(addDays(dayDate(plan.startDate, N), 1))}
-              className="text-xs px-2 py-1 rounded-full border border-border hover:bg-paper disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              ▲
-            </button>
-            <button
-              type="button"
-              aria-label="減少一天"
-              data-testid="day-count-stepper-down"
-              disabled={N <= 1}
-              onClick={() => handleChangeEndDate(addDays(dayDate(plan.startDate, N), -1))}
-              className="text-xs px-2 py-1 rounded-full border border-border hover:bg-paper disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              ▼
-            </button>
+      {canEdit ? (
+        <section className="mb-6 flex flex-wrap items-end gap-4">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-muted">開始日期</span>
+            <input type="date" data-testid="trip-start-date" value={plan.startDate}
+              onChange={(e) => handleChangeStartDate(e.target.value)}
+              className="border border-border rounded-lg px-3 py-1.5 text-sm" />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-muted">結束日期</span>
+            <input type="date" data-testid="trip-end-date" min={plan.startDate}
+              value={dayDate(plan.startDate, plan.days.length)}
+              onChange={(e) => handleChangeEndDate(e.target.value)}
+              className="border border-border rounded-lg px-3 py-1.5 text-sm" />
+          </label>
+          <div className="flex items-center gap-1 pb-1.5">
+            <span className="text-sm text-muted">共 {plan.days.length} 天</span>
+            <div className="flex flex-col" data-testid="day-count-stepper">
+              <button
+                type="button"
+                aria-label="增加一天"
+                data-testid="day-count-stepper-up"
+                onClick={() => handleChangeEndDate(addDays(dayDate(plan.startDate, N), 1))}
+                className="text-xs px-2 py-1 rounded-full border border-border hover:bg-paper disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                ▲
+              </button>
+              <button
+                type="button"
+                aria-label="減少一天"
+                data-testid="day-count-stepper-down"
+                disabled={N <= 1}
+                onClick={() => handleChangeEndDate(addDays(dayDate(plan.startDate, N), -1))}
+                className="text-xs px-2 py-1 rounded-full border border-border hover:bg-paper disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                ▼
+              </button>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      ) : (
+        <p className="mb-6 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-muted">
+          這是唯讀行程；可查看地圖、時間與地點，但不能調整或儲存。
+        </p>
+      )}
       {overCount > 0 && (
         <div className="mb-4 px-4 py-2 rounded-lg bg-orange-50 border border-orange-200 text-sm text-orange-700">
           行程天數（{plan.days.length}）大於設定天數（{N}），請處理超出的天。
         </div>
       )}
-      <section className="mb-6 space-y-3">
-        <h2 className="text-sm font-semibold text-ink">新增行程</h2>
-        <CombinedInput onAdd={handleAddPlace} onAddPlaces={handleAddPlaces} />
-      </section>
+      {canEdit && (
+        <section className="mb-6 space-y-3">
+          <h2 className="text-sm font-semibold text-ink">新增行程</h2>
+          <CombinedInput onAdd={handleAddPlace} onAddPlaces={handleAddPlaces} />
+        </section>
+      )}
       <DndContext
         sensors={sensors}
         collisionDetection={multiContainerCollision}
@@ -1146,7 +1187,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <AiRearrangeInput plan={plan} onApply={handleAiApply} />
+        {canEdit && <AiRearrangeInput plan={plan} onApply={handleAiApply} />}
         {arrangeError && (
           <p className="text-sm text-red-600 mb-4" role="alert">{arrangeError}</p>
         )}
@@ -1164,73 +1205,73 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
                 mode={plan.transportMode}
                 startDate={plan.startDate}
                 isDragging={activeId !== null}
-                onTimeChange={(placeId, field, value) =>
+                onTimeChange={canEdit ? ((placeId, field, value) =>
                   handleTimeChange(dayIdx, placeId, field, value)
-                }
-                onToggleStartLock={(placeId) => handleToggleStartLock(dayIdx, placeId)}
-                onToggleDurationLock={(placeId) => handleToggleDurationLock(dayIdx, placeId)}
-                onToggleEndLock={(placeId) => handleToggleEndLock(dayIdx, placeId)}
-                onChangeType={(placeId, type) => handleChangeType(dayIdx, placeId, type)}
-                onSetDayStartLock={(locked) => handleSetDayStartLock(dayIdx, locked)}
-                onSetDayDurationLock={(locked) => handleSetDayDurationLock(dayIdx, locked)}
-                onChangeWindow={(field, value) => handleChangeDayWindow(dayIdx, field, value)}
+                ) : undefined}
+                onToggleStartLock={canEdit ? ((placeId) => handleToggleStartLock(dayIdx, placeId)) : undefined}
+                onToggleDurationLock={canEdit ? ((placeId) => handleToggleDurationLock(dayIdx, placeId)) : undefined}
+                onToggleEndLock={canEdit ? ((placeId) => handleToggleEndLock(dayIdx, placeId)) : undefined}
+                onChangeType={canEdit ? ((placeId, type) => handleChangeType(dayIdx, placeId, type)) : undefined}
+                onSetDayStartLock={canEdit ? ((locked) => handleSetDayStartLock(dayIdx, locked)) : undefined}
+                onSetDayDurationLock={canEdit ? ((locked) => handleSetDayDurationLock(dayIdx, locked)) : undefined}
+                onChangeWindow={canEdit ? ((field, value) => handleChangeDayWindow(dayIdx, field, value)) : undefined}
                 isOverflow={dayIdx >= N}
                 isLastDay={dayIdx === plan.days.length - 1}
-                onScatter={() => handleScatterDay(dayIdx)}
-                onDelete={() => handleDeleteDay(dayIdx)}
-                onSmartArrange={() => handleSmartArrange(dayIdx)}
-                onSetAvoid={(field, value) => handleSetAvoid(dayIdx, field, value)}
+                onScatter={canEdit ? (() => handleScatterDay(dayIdx)) : undefined}
+                onDelete={canEdit ? (() => handleDeleteDay(dayIdx)) : undefined}
+                onSmartArrange={canEdit ? (() => handleSmartArrange(dayIdx)) : undefined}
+                onSetAvoid={canEdit ? ((field, value) => handleSetAvoid(dayIdx, field, value)) : undefined}
                 arranging={arrangingDay === dayIdx}
-                draggable
-                recommendations={recsByDay?.[dayIdx]}
-                onAddRecommendation={(rec) => handleAddRecommendation(dayIdx, rec)}
-                onArchiveRecommendation={(rec) => handleArchiveRecommendation(dayIdx, rec)}
-                onDeleteRecommendation={(rec) => handleDeleteRecommendation(dayIdx, rec)}
-                onRecommendationPhotoUnavailable={(rec) => handleRecommendationPhotoUnavailable(dayIdx, rec)}
-                candidates={candidates}
-                archived={archived}
-                onAddReservePlace={handleAddReservePlace}
-                onAddReservePlaces={handleAddReservePlaces}
-                onAddArchivedToDay={(candidateId, place) => handleAddArchivedToDay(candidateId, place, dayIdx)}
-                onDeleteArchived={handleDeleteArchived}
-                onAddCandidateToDay={(candidateId, place) => handleAddCandidateToDay(candidateId, place, dayIdx)}
-                onArchiveCandidate={handleArchiveCandidate}
-                onDeleteCandidate={handleDeleteCandidate}
-                onArchivePlace={(place) => handleArchivePlace(dayIdx, place)}
+                draggable={canEdit}
+                recommendations={canUseSidePanel ? recsByDay?.[dayIdx] : undefined}
+                onAddRecommendation={canUseSidePanel ? ((rec) => handleAddRecommendation(dayIdx, rec)) : undefined}
+                onArchiveRecommendation={canUseSidePanel ? ((rec) => handleArchiveRecommendation(dayIdx, rec)) : undefined}
+                onDeleteRecommendation={canUseSidePanel ? ((rec) => handleDeleteRecommendation(dayIdx, rec)) : undefined}
+                onRecommendationPhotoUnavailable={canUseSidePanel ? ((rec) => handleRecommendationPhotoUnavailable(dayIdx, rec)) : undefined}
+                candidates={canUseSidePanel ? candidates : []}
+                archived={canUseSidePanel ? archived : []}
+                onAddReservePlace={canUseSidePanel ? handleAddReservePlace : undefined}
+                onAddReservePlaces={canUseSidePanel ? handleAddReservePlaces : undefined}
+                onAddArchivedToDay={canUseSidePanel ? ((candidateId, place) => handleAddArchivedToDay(candidateId, place, dayIdx)) : undefined}
+                onDeleteArchived={canUseSidePanel ? handleDeleteArchived : undefined}
+                onAddCandidateToDay={canUseSidePanel ? ((candidateId, place) => handleAddCandidateToDay(candidateId, place, dayIdx)) : undefined}
+                onArchiveCandidate={canUseSidePanel ? handleArchiveCandidate : undefined}
+                onDeleteCandidate={canUseSidePanel ? handleDeleteCandidate : undefined}
+                onArchivePlace={canUseSidePanel ? ((place) => handleArchivePlace(dayIdx, place)) : undefined}
                 sidePanelTab={sidePanelTabs[dayIdx]}
-                onSidePanelTabChange={(tab) => handleSidePanelTabChange(dayIdx, tab)}
-                collectionBuckets={selectCollectionBuckets(
+                onSidePanelTabChange={canUseSidePanel ? ((tab) => handleSidePanelTabChange(dayIdx, tab)) : undefined}
+                collectionBuckets={canUseSidePanel ? selectCollectionBuckets(
                   collectionRows,
                   resolveDayCenter(plan.days, dayIdx),
                   new Set([...(collectionExcluded[dayIdx] ?? []), ...day.places.map((p) => p.placeId)]),
-                )}
-                onAddCollectionPlace={(rec) => handleAddCollectionPlace(dayIdx, rec)}
-                onArchiveCollection={(rec) => handleArchiveCollection(dayIdx, rec)}
-                onDismissCollection={(rec) => handleDismissCollection(dayIdx, rec)}
-                onCollectionImported={handleCollectionImported}
+                ) : undefined}
+                onAddCollectionPlace={canUseSidePanel ? ((rec) => handleAddCollectionPlace(dayIdx, rec)) : undefined}
+                onArchiveCollection={canUseSidePanel ? ((rec) => handleArchiveCollection(dayIdx, rec)) : undefined}
+                onDismissCollection={canUseSidePanel ? ((rec) => handleDismissCollection(dayIdx, rec)) : undefined}
+                onCollectionImported={canUseSidePanel ? handleCollectionImported : undefined}
                 backfilling={{
                   dessert: backfillKeys.has(`${dayIdx}:dessert`),
                   attraction: backfillKeys.has(`${dayIdx}:attraction`),
                   restaurant: backfillKeys.has(`${dayIdx}:restaurant`),
                 }}
                 recsHasCenter={dayHasRecommendationAnchor(day)}
-                onSetRecommendationCenter={(center) => handleSetRecommendationCenter(dayIdx, center)}
-                onClearRecommendationCenter={() => handleClearRecommendationCenter(dayIdx)}
-                onRefreshRecommendationCategory={(category) => handleRefreshCategory(dayIdx, category)}
+                onSetRecommendationCenter={canUseSidePanel ? ((center) => handleSetRecommendationCenter(dayIdx, center)) : undefined}
+                onClearRecommendationCenter={canUseSidePanel ? (() => handleClearRecommendationCenter(dayIdx)) : undefined}
+                onRefreshRecommendationCategory={canUseSidePanel ? ((category) => handleRefreshCategory(dayIdx, category)) : undefined}
                 recsRefreshing={{
                   dessert: refreshingKeys.has(`${dayIdx}:dessert`),
                   attraction: refreshingKeys.has(`${dayIdx}:attraction`),
                   restaurant: refreshingKeys.has(`${dayIdx}:restaurant`),
                 }}
                 recsError={recsError}
-                onChangeLegMode={(placeId, mode) => handleChangeLegMode(dayIdx, placeId, mode)}
+                onChangeLegMode={canEdit ? ((placeId, mode) => handleChangeLegMode(dayIdx, placeId, mode)) : undefined}
                 legBusyPlaceId={legBusy?.dayIdx === dayIdx ? legBusy.placeId : null}
-                onDeletePlace={(placeId) => handleDeletePlace(dayIdx, placeId)}
+                onDeletePlace={canEdit ? ((placeId) => handleDeletePlace(dayIdx, placeId)) : undefined}
               />
             </SortableContext>
           ))}
         </div>
-        <div className="flex gap-3 mt-6">
+        {canEdit && <div className="flex gap-3 mt-6">
           <button
             type="button"
             aria-label="增加一天"
@@ -1249,7 +1290,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
           >
             ↑ 回到頂部
           </button>
-        </div>
+        </div>}
         <DragOverlay>
           {activePlace ? (
             <div className="shadow-2xl rotate-1 opacity-95">

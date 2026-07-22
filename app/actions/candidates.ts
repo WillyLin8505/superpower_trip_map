@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import type { Candidate, CandidateSource, Place } from '@/lib/types'
 import { ensureCandidateChineseNames } from '@/lib/utils/bilingualNames'
 import { runWithTripId } from '@/lib/apiUsageContext'
+import { canEditTripRole, resolveTripAccess } from '@/lib/tripAccess'
 
 function isDuplicateKeyError(error: unknown): boolean {
   return (error as { code?: string } | null)?.code === '23505'
@@ -18,23 +19,9 @@ function missingArchiveMigrationError(): Error {
   return new Error('備用行程資料庫尚未更新，請套用 migration 0007_archive_list.sql')
 }
 
-async function canAccessTrip(tripId: string, userId: string): Promise<boolean> {
-  const admin = createAdminClient()
-  const { data: trip, error: tripError } = await admin
-    .from('trips')
-    .select('owner_id')
-    .eq('id', tripId)
-    .single()
-  if (tripError || !trip) return false
-  if ((trip as { owner_id: string }).owner_id === userId) return true
-
-  const { data: membership, error: membershipError } = await admin
-    .from('trip_members')
-    .select('user_id')
-    .eq('trip_id', tripId)
-    .eq('user_id', userId)
-    .maybeSingle()
-  return !membershipError && !!membership
+async function canEditTrip(tripId: string, user: { id: string; email?: string | null }): Promise<boolean> {
+  const access = await resolveTripAccess(tripId, user)
+  return canEditTripRole(access.role)
 }
 
 async function requireCandidateAccess(
@@ -49,7 +36,8 @@ async function requireCandidateAccess(
     .single()
   if (error || !data) throw new Error('NOT_FOUND')
   const row = data as { id: string; trip_id: string; place: Place; added_by: string; source?: CandidateSource | null }
-  if (!(await canAccessTrip(row.trip_id, userId))) throw new Error('NOT_AUTHORIZED')
+  const { data: userData } = await admin.auth.admin.getUserById(userId)
+  if (!(await canEditTrip(row.trip_id, { id: userId, email: userData.user?.email ?? null }))) throw new Error('NOT_AUTHORIZED')
   return row
 }
 
@@ -154,7 +142,7 @@ export async function archivePlace(tripId: string, place: Place): Promise<{ id: 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('NOT_AUTHENTICATED')
-  if (!(await canAccessTrip(tripId, user.id))) throw new Error('NOT_AUTHORIZED')
+  if (!(await canEditTrip(tripId, user))) throw new Error('NOT_AUTHORIZED')
 
   const admin = createAdminClient()
   const { data, error } = await admin
@@ -186,7 +174,7 @@ export async function listArchived(tripId: string): Promise<Candidate[]> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
-  if (!(await canAccessTrip(tripId, user.id))) return []
+  if (!(await canEditTrip(tripId, user))) return []
 
   const admin = createAdminClient()
   const { data, error } = await admin

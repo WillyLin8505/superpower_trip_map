@@ -71,6 +71,12 @@ export function MembersPanel({ tripId, members, isOwner }: MembersPanelProps) {
 
         {isOwner ? (
           <div className="flex flex-col gap-2">
+            <a
+              href={`/itinerary/${tripId}/share`}
+              className="self-start rounded-md border border-clay px-3 py-1 text-sm text-clay-deep hover:bg-clay-tint"
+            >
+              分享權限設定
+            </a>
             {invite ? (
               <div className="flex flex-col gap-3">
                 <div className="rounded-lg border border-clay/30 bg-clay-tint/40 p-3">
