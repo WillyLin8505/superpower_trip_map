@@ -26,6 +26,14 @@ jest.mock('@/components/MembersPanel', () => ({
 const plan = { days: [], transportMode: 'driving', startDate: '2026-07-04' }
 const members = [{ userId: 'u1', name: 'Alice', avatarUrl: null, role: 'owner', isSelf: true }]
 
+function childrenOf(el: { props: { children: unknown } }) {
+  return (Array.isArray(el.props.children) ? el.props.children : [el.props.children]).filter(Boolean) as Array<{ props: Record<string, unknown> }>
+}
+
+function findMembersPanel(el: { props: { children: unknown } }) {
+  return childrenOf(el).find((child) => 'isOwner' in child.props)
+}
+
 beforeEach(() => {
   getTrip.mockReset()
   listMembers.mockReset()
@@ -39,7 +47,7 @@ it('passes isOwner=true when user.id matches trip ownerId', async () => {
   getUser.mockResolvedValue({ data: { user: { id: 'owner-1' } } })
   const TripPage = require('@/app/itinerary/[tripId]/page').default
   const el = await TripPage({ params: { tripId: 'trip-1' } })
-  const [membersPanelEl] = el.props.children
+  const membersPanelEl = findMembersPanel(el)
   expect(membersPanelEl.props.isOwner).toBe(true)
 })
 
@@ -49,7 +57,7 @@ it('passes isOwner=false when user.id differs from trip ownerId', async () => {
   getUser.mockResolvedValue({ data: { user: { id: 'other-user' } } })
   const TripPage = require('@/app/itinerary/[tripId]/page').default
   const el = await TripPage({ params: { tripId: 'trip-1' } })
-  const [membersPanelEl] = el.props.children
+  const membersPanelEl = findMembersPanel(el)
   expect(membersPanelEl.props.isOwner).toBe(false)
 })
 

@@ -23,6 +23,10 @@ jest.mock('@/components/MembersPanel', () => ({
 
 const plan = { days: [], transportMode: 'driving', startDate: '2026-07-04' }
 
+function childrenOf(el: { props: { children: unknown } }) {
+  return (Array.isArray(el.props.children) ? el.props.children : [el.props.children]).filter(Boolean) as Array<{ props: Record<string, unknown> }>
+}
+
 beforeEach(() => {
   getTrip.mockReset()
   listMembers.mockReset()
@@ -42,7 +46,7 @@ it('renders ItineraryClient with tripId + plan when found', async () => {
   getUser.mockResolvedValue({ data: { user: { id: 'u1' } } })
   const TripPage = require('@/app/itinerary/[tripId]/page').default
   const el = await TripPage({ params: { tripId: 't1' } })
-  const [, itineraryEl] = el.props.children
+  const itineraryEl = childrenOf(el).find((child) => child.props.initial)
   expect(itineraryEl.props.tripId).toBe('t1')
   expect(itineraryEl.props.initial).toEqual(plan)
   expect(itineraryEl.props.canEdit).toBe(true)

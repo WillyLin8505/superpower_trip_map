@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import Link from 'next/link'
 import { getTrip } from '@/app/actions/trips'
 import { listMembers } from '@/app/actions/members'
 import { listCandidates, listArchived } from '@/app/actions/candidates'
@@ -21,6 +22,16 @@ export default async function TripPage({ params }: { params: Promise<{ tripId: s
   const initialCostUsd = canEdit ? await getTripEstimatedCostUsd(tripId) : 0
   return (
     <>
+      {isOwner && (
+        <section className="mx-auto mt-4 max-w-5xl px-4">
+          <Link
+            href={`/itinerary/${tripId}/share`}
+            className="inline-flex items-center rounded-md border border-clay bg-clay px-3 py-2 text-sm font-medium text-white hover:bg-clay-deep"
+          >
+            分享 / 權限設定
+          </Link>
+        </section>
+      )}
       <MembersPanel tripId={tripId} members={members} isOwner={isOwner} />
       <ItineraryClient
         initial={trip.plan}
