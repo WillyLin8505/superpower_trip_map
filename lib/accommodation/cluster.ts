@@ -48,23 +48,34 @@ export function clusterAttractionsToDays(
     home[bestDay].push(idx)
   })
 
+  // Even-spread target so a single-hotel (or geographically clustered) trip doesn't
+  // collapse every attraction onto the hotel's day(s). ceil(total / days) guarantees
+  // the whole set fits across the trip while keeping each day well within the map's
+  // waypoint limit. Overflow cascades forward through ALL remaining days, re-checked
+  // against both this target and the time budget — previously spillover was dumped
+  // onto the very next day unconditionally, which crammed a 6-day trip into two days
+  // and blew past the embed map's waypoint cap.
+  const perDayTarget = Math.max(1, Math.ceil(attractions.length / N))
   const received: number[][] = Array.from({ length: N }, () => [])
   for (let d = 0; d < N; d++) {
-    received[d].forEach((idx) => buckets[d].push(attractions[idx]))
     const hotel = dayHotels[d]
-    const queue = home[d].slice()
+    const homeQueue = home[d].slice()
     if (hotel) {
-      queue.sort((x, y) => {
+      homeQueue.sort((x, y) => {
         const dx = haversineSeconds(attractions[x], hotel)
         const dy = haversineSeconds(attractions[y], hotel)
         return dx - dy || attractions[x].placeId.localeCompare(attractions[y].placeId)
       })
     }
-    let load = received[d].reduce((s, idx) => s + dwellOf(attractions[idx]), 0)
+    // Cascaded overflow (received) keeps its route order and is placed before this
+    // day's own home attractions, then the combined queue is budget/target-checked.
+    const queue = [...received[d], ...homeQueue]
+    let load = 0
     const isLast = d === N - 1
     for (const idx of queue) {
       const dwell = dwellOf(attractions[idx])
-      if (!isLast && load + dwell > budgetMin) {
+      const full = buckets[d].length >= perDayTarget || load + dwell > budgetMin
+      if (!isLast && full) {
         received[d + 1].push(idx)
       } else {
         buckets[d].push(attractions[idx]); load += dwell

@@ -6,6 +6,8 @@ import { daysBetween } from '@/lib/utils/date'
 import { ItineraryPasteInput } from '@/components/ItineraryPasteInput'
 import { PlaceList } from '@/components/PlaceList'
 
+const MAX_PLACES = 50
+
 export default function InputPage() {
   const router = useRouter()
   const [places, setPlaces] = useState<Place[]>([])
@@ -22,7 +24,7 @@ export default function InputPage() {
     setPlaces((prev) => {
       const existingIds = new Set(prev.map((p) => p.placeId))
       const deduped = newPlaces.filter((p) => !existingIds.has(p.placeId))
-      return [...prev, ...deduped].slice(0, 25)
+      return [...prev, ...deduped].slice(0, MAX_PLACES)
     })
   }, [])
 
@@ -48,8 +50,8 @@ export default function InputPage() {
 
       <section className="mb-6">
         <ItineraryPasteInput onPlacesFound={handlePlacesFound} />
-        {places.length >= 25 && (
-          <p className="text-red-500 text-sm mt-2">已達最多 25 個地點</p>
+        {places.length >= MAX_PLACES && (
+          <p className="text-red-500 text-sm mt-2">已達最多 {MAX_PLACES} 個地點</p>
         )}
       </section>
 
