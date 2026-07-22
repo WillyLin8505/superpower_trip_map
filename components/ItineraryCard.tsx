@@ -59,7 +59,7 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
   }
 
   const todayHours = getHoursForDate(place.openingHours, dateIso)
-  const descriptionText = place.description || place.aiDescription
+  const descriptionText = place.description
   const meta = TYPE_META[place.type]
   const pin = effectivePinned(place)
   const displayName = resolveLocalizedText(place.localizedName, place.name)
@@ -215,10 +215,7 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
           {todayHours && (
             <p className="text-sm text-muted mt-0.5">營業 {todayHours}</p>
           )}
-          {place.rating && (
-            <p className="text-sm text-muted mt-0.5">評分：{place.rating} &#x2605;</p>
-          )}
-          <PhotoStrip photos={photos} placeId={place.placeId} placeName={displayName.primary} className="mt-2" placeType={place.type} aliases={photoAliases} lat={place.lat} lng={place.lng} autoFetch={false} previewCount={1} autoFetchKind="cover" deferGooglePhotoMedia />
+          <PhotoStrip photos={photos} placeId={place.placeId} placeName={displayName.primary} className="mt-2" placeType={place.type} aliases={photoAliases} lat={place.lat} lng={place.lng} />
           {descriptionText && (
             <p className="text-sm text-gray-600 mt-2 italic">{descriptionText}</p>
           )}

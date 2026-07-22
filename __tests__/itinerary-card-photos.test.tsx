@@ -73,9 +73,10 @@ it('shows available thumbnails and previews photos from the lightbox', async () 
     />
   )
 
-  fireEvent.click(screen.getByRole('button', { name: '載入照片' }))
+  // Photos auto-load with no '載入照片' gate and preview up to 5 thumbnails.
+  expect(screen.queryByRole('button', { name: '載入照片' })).not.toBeInTheDocument()
   expect(screen.getByTestId('photo-thumb-0')).toBeInTheDocument()
-  expect(screen.queryByTestId('photo-thumb-1')).not.toBeInTheDocument()
+  expect(screen.getByTestId('photo-thumb-1')).toBeInTheDocument()
   fireEvent.click(screen.getByTestId('photo-thumb-0'))
   expect(screen.getByRole('dialog')).toBeInTheDocument()
 
@@ -99,7 +100,8 @@ it('falls back to legacy single photoUrl when photoUrls is absent', () => {
     />
   )
 
-  fireEvent.click(screen.getByRole('button', { name: '載入照片' }))
+  // Legacy single photoUrl also renders immediately without a load gate.
+  expect(screen.queryByRole('button', { name: '載入照片' })).not.toBeInTheDocument()
   expect(screen.getByTestId('photo-thumb-0')).toBeInTheDocument()
 })
 
