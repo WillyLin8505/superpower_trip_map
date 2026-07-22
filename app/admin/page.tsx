@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { SourceList } from '@/components/admin/SourceList'
 import { SourceForm } from '@/components/admin/SourceForm'
 import { SaveDiagnosticsPanel } from '@/components/admin/SaveDiagnosticsPanel'
+import Link from 'next/link'
 
 export default async function AdminPage() {
   try {
@@ -24,8 +25,16 @@ export default async function AdminPage() {
           <p>目前 email 是否在 allowlist：{emailAllowed ? '是' : '否'}</p>
         </div>
         <p className="mt-4 text-sm text-gray-500">
-          請在 Vercel Environment Variables 設定 `ADMIN_EMAILS` 為你的登入 email，部署後重新整理。
+          請使用管理員 email 登入，或在 Vercel Environment Variables 設定 `ADMIN_EMAILS` 後重新整理。
         </p>
+        {!email && (
+          <Link
+            href="/login?next=/admin"
+            className="mt-4 inline-flex rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            登入後台
+          </Link>
+        )}
       </main>
     )
   }

@@ -135,7 +135,7 @@ export function RecommendationCard({ rec, dateIso, onAdd, onArchive, onDelete, a
           {!compact && todayHours && <p className="text-xs text-gray-500 mt-0.5">營業 {todayHours}</p>}
           {!compact && rec.rating && <p className="text-xs text-gray-500 mt-0.5">評分：{rec.rating} ★</p>}
           {hasPhotoSource ? (
-            <PhotoStrip photos={photos} placeId={rec.placeId} placeName={displayName.primary} className="mt-2" emptyFallback={photoFallback} placeType={rec.type} aliases={photoAliases} lat={rec.lat} lng={rec.lng} onPhotoUnavailable={onPhotoUnavailable} />
+            <PhotoStrip photos={photos} placeId={rec.placeId} placeName={displayName.primary} className="mt-2" emptyFallback={photoFallback} placeType={rec.type} aliases={photoAliases} lat={rec.lat} lng={rec.lng} onPhotoUnavailable={onPhotoUnavailable} previewCount={1} autoFetchKind="cover" deferGooglePhotoMedia />
           ) : photoFallback}
           {compact && shortExplanation && <p className="text-xs text-gray-600 mt-1 break-words [overflow-wrap:anywhere]">{shortExplanation}</p>}
           {!compact && rec.description && <p className="text-xs text-gray-600 mt-1 italic break-words [overflow-wrap:anywhere]">{rec.description}</p>}

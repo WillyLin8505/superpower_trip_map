@@ -14,6 +14,7 @@ const DETAILS_FIELDS = [
   'place_id', 'name', 'geometry', 'formatted_address',
   'opening_hours', 'rating', 'photos', 'editorial_summary',
 ].join(',')
+const ESSENTIALS_FIELDS = ['place_id', 'name', 'geometry', 'formatted_address', 'type'].join(',')
 
 function mapPhotoUrls(photos?: Array<{ photo_reference: string }>): string[] {
   return (photos ?? [])
@@ -82,6 +83,27 @@ async function fetchPlaceDetails(placeId: string, language?: 'zh-TW' | 'en') {
   // Throw on transient failures so the cached result never persists one.
   if (data.status && RETRYABLE_GOOGLE_STATUSES.has(data.status)) {
     throw new Error(`place_details_${data.status}`)
+  }
+  return data.status === 'OK' ? data.result : null
+}
+
+async function fetchPlaceEssentials(placeId: string) {
+  const params = new URLSearchParams({
+    place_id: placeId,
+    fields: ESSENTIALS_FIELDS,
+    key: KEY,
+    language: 'zh-TW',
+  })
+  const url = `${BASE}/details/json?${params.toString()}`
+  const res = await trackedApiFetch(url, googleMapsFetchOptions(), {
+    provider: 'google_maps',
+    endpoint: 'place_details',
+    skuHint: 'place_details_essentials',
+    metadata: { mode: 'import_essentials' },
+  })
+  const data = await res.json()
+  if (data.status && RETRYABLE_GOOGLE_STATUSES.has(data.status)) {
+    throw new Error(`place_essentials_${data.status}`)
   }
   return data.status === 'OK' ? data.result : null
 }
@@ -175,6 +197,67 @@ export async function searchPlace(query: string, countryName?: string): Promise<
   const place = await getPlaceDetails(placeId, originalNameHintFromQuery(query))
   if (place) await writeCachedPlaceId(query, countryName, placeId)
   return place
+}
+
+export async function searchPlaceEssentials(query: string, countryName?: string): Promise<Place | null> {
+  const cachedPlaceId = await readCachedPlaceId(query, countryName)
+  let placeId = cachedPlaceId
+
+  if (!placeId) {
+    const input = countryName ? `${query}, ${countryName}` : query
+    const url =
+      `${BASE}/findplacefromtext/json` +
+      `?input=${encodeURIComponent(input)}&inputtype=textquery` +
+      `&fields=place_id&key=${KEY}`
+    const res = await trackedApiFetch(url, googleMapsFetchOptions(), {
+      provider: 'google_maps',
+      endpoint: 'find_place_from_text',
+      skuHint: 'find_place_from_text_id_only',
+      metadata: { mode: 'import_essentials' },
+    })
+    const data = await res.json()
+    placeId = data.candidates?.[0]?.place_id ?? null
+  }
+
+  if (!placeId) return null
+
+  try {
+    const result = await cachedGoogle(['essentials', placeId], () => fetchPlaceEssentials(placeId))
+    if (!result?.geometry?.location) return null
+    if (!cachedPlaceId) await writeCachedPlaceId(query, countryName, placeId)
+
+    const name = cleanText(result.name) ?? cleanText(query) ?? placeId
+    const originalName = originalNameHintFromQuery(query) ?? name
+    const zhName = hasHanText(name) ? name : null
+    const address = cleanText(result.formatted_address) ?? ''
+    const zhAddress = hasHanText(address) ? address : null
+
+    return {
+      id: randomUUID(),
+      placeId,
+      source: 'google',
+      name: zhName ?? name,
+      localizedName: {
+        zhTw: zhName,
+        original: originalName,
+      },
+      type: 'attraction',
+      lat: result.geometry.location.lat,
+      lng: result.geometry.location.lng,
+      address,
+      localizedAddress: {
+        zhTw: zhAddress,
+        original: address,
+      },
+      openingHours: null,
+      rating: null,
+      photoUrl: null,
+      photoUrls: [],
+      description: null,
+    }
+  } catch {
+    return null
+  }
 }
 
 export async function verifyPlace(

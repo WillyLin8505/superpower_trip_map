@@ -6,15 +6,15 @@ jest.mock('@/app/actions/ai', () => ({
   extractItinerary: jest.fn(),
 }))
 jest.mock('@/app/actions/places', () => ({
-  searchPlace: jest.fn(),
+  searchPlaceEssentials: jest.fn(),
 }))
 
 import { ItineraryPasteInput } from '@/components/ItineraryPasteInput'
 import { extractItinerary } from '@/app/actions/ai'
-import { searchPlace } from '@/app/actions/places'
+import { searchPlaceEssentials } from '@/app/actions/places'
 
 const mockExtract = extractItinerary as jest.Mock
-const mockSearch = searchPlace as jest.Mock
+const mockSearch = searchPlaceEssentials as jest.Mock
 
 const MOCK_PLACE: Place = {
   id: 'uuid-1',

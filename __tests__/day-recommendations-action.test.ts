@@ -1,4 +1,4 @@
-jest.mock('fs/promises', () => ({ readFile: jest.fn() }))
+jest.mock('@/lib/recommendationSources', () => ({ getRecommendationSources: jest.fn() }))
 jest.mock('@/app/actions/scrape', () => ({ scrapeText: jest.fn() }))
 jest.mock('@/lib/claude', () => ({ callClaude: jest.fn() }))
 jest.mock('@/app/actions/places', () => ({
@@ -11,14 +11,14 @@ jest.mock('@/lib/openPoi', () => ({
 }))
 
 import { getDayRecommendations, refreshDayCategoryRecommendations } from '@/app/actions/recommend'
-import { readFile } from 'fs/promises'
+import { getRecommendationSources } from '@/lib/recommendationSources'
 import { scrapeText } from '@/app/actions/scrape'
 import { callClaude } from '@/lib/claude'
 import { searchPlace, getPlaceDetails, nearbySearch } from '@/app/actions/places'
 import { openPoiSearch } from '@/lib/openPoi'
 import type { DayItinerary, Place } from '@/lib/types'
 
-const r = readFile as jest.Mock
+const grs = getRecommendationSources as jest.Mock
 const st = scrapeText as jest.Mock
 const cc = callClaude as jest.Mock
 const sp = searchPlace as jest.Mock
@@ -73,6 +73,7 @@ function emptyDay(day = 1): DayItinerary {
 
 beforeEach(() => {
   jest.clearAllMocks()
+  grs.mockResolvedValue([])
   ops.mockResolvedValue([])
   if (origRecommendationDetailsMode === undefined) delete process.env.GOOGLE_MAPS_RECOMMENDATION_DETAILS_MODE
   else process.env.GOOGLE_MAPS_RECOMMENDATION_DETAILS_MODE = origRecommendationDetailsMode
@@ -81,7 +82,7 @@ beforeEach(() => {
 })
 
 it('fills recommendations from open POI before calling Google Nearby Search', async () => {
-  r.mockResolvedValue('[]')
+  grs.mockResolvedValue([])
   ops.mockImplementation(async (_lat: number, _lng: number, type: string) =>
     Array.from({ length: 5 }, (_, i) => placeWithPhoto(`open-${type}-${i}`, type as Place['type']))
   )
@@ -95,7 +96,7 @@ it('fills recommendations from open POI before calling Google Nearby Search', as
 })
 
 it('fills each category to 5 with nearby results, excluding existing places', async () => {
-  r.mockResolvedValue('[]')                       // no sources configured
+  grs.mockResolvedValue([])                       // no sources configured
   // nearby returns 6 candidates per category; one collides with the existing place id
   ns.mockImplementation(async (_lat: number, _lng: number, type: string) =>
     Array.from({ length: 6 }, (_, i) => placeWithPhoto(`${type}-${i}`, type as Place['type']))
@@ -117,7 +118,7 @@ it('fills each category to 5 with nearby results, excluding existing places', as
 
 it('can fill Google recommendations from Nearby Search without per-card Place Details', async () => {
   process.env.GOOGLE_MAPS_RECOMMENDATION_DETAILS_MODE = 'nearby-only'
-  r.mockResolvedValue('[]')
+  grs.mockResolvedValue([])
   ns.mockImplementation(async (_lat: number, _lng: number, type: string) =>
     Array.from({ length: 5 }, (_, i) => placeWithPhoto(`${type}-${i}`, type as Place['type']))
   )
@@ -130,7 +131,7 @@ it('can fill Google recommendations from Nearby Search without per-card Place De
 })
 
 it('orders fill candidates by rating quality, review confidence, and category fit', async () => {
-  r.mockResolvedValue('[]')
+  grs.mockResolvedValue([])
   ns.mockResolvedValue([])
   ops.mockImplementation(async (_lat: number, _lng: number, type: string) => {
     if (type !== 'dessert') return []
@@ -157,7 +158,7 @@ it('orders fill candidates by rating quality, review confidence, and category fi
 
 it('skips cafe-only dessert candidates without rating or review confidence', async () => {
   process.env.GOOGLE_MAPS_RECOMMENDATION_PAID_FALLBACK_MODE = 'on'
-  r.mockResolvedValue('[]')
+  grs.mockResolvedValue([])
   ops.mockImplementation(async (_lat: number, _lng: number, type: string) => {
     if (type !== 'dessert') return []
     return [
@@ -183,7 +184,7 @@ it('skips cafe-only dessert candidates without rating or review confidence', asy
 
 it('fills dessert recommendations from dessert-named cafes while excluding generic coffee shops', async () => {
   process.env.GOOGLE_MAPS_RECOMMENDATION_PAID_FALLBACK_MODE = 'off'
-  r.mockResolvedValue('[]')
+  grs.mockResolvedValue([])
   ops.mockImplementation(async (_lat: number, _lng: number, type: string) => {
     if (type !== 'dessert') return []
     return [
@@ -212,7 +213,7 @@ it('fills dessert recommendations from dessert-named cafes while excluding gener
 
 it('deduplicates same-place Open POI recommendations with different source ids', async () => {
   process.env.GOOGLE_MAPS_RECOMMENDATION_PAID_FALLBACK_MODE = 'off'
-  r.mockResolvedValue('[]')
+  grs.mockResolvedValue([])
   ops.mockImplementation(async (_lat: number, _lng: number, type: string) => {
     if (type !== 'dessert') return []
     return [
@@ -246,7 +247,7 @@ it('deduplicates same-place Open POI recommendations with different source ids',
 
 it('excludes existing itinerary places by name and nearby coordinates, not only placeId', async () => {
   process.env.GOOGLE_MAPS_RECOMMENDATION_PAID_FALLBACK_MODE = 'off'
-  r.mockResolvedValue('[]')
+  grs.mockResolvedValue([])
   const existingDay = oneDay('google-train-street')
   existingDay.places[0] = {
     ...existingDay.places[0],
@@ -286,7 +287,7 @@ it('does not use paid Google Nearby fallback when recommendation paid fallback i
   // a 2-day trip (2 days × 3 categories × $0.032).
   // Found by /qa on 2026-07-18.
   process.env.GOOGLE_MAPS_RECOMMENDATION_PAID_FALLBACK_MODE = 'off'
-  r.mockResolvedValue('[]')
+  grs.mockResolvedValue([])
   ops.mockResolvedValue([])
   ns.mockResolvedValue(Array.from({ length: 5 }, (_, i) => place(`paid-${i}`, 'dessert')))
 
@@ -299,7 +300,7 @@ it('does not use paid Google Nearby fallback when recommendation paid fallback i
 })
 
 it('starts same-day category recommendation lookups in parallel to reduce initial wait time', async () => {
-  r.mockResolvedValue('[]')
+  grs.mockResolvedValue([])
   ns.mockResolvedValue([])
   const pending: Array<{ type: Place['type']; resolve: (places: Place[]) => void }> = []
   ops.mockImplementation((_lat: number, _lng: number, type: Place['type']) =>
@@ -326,7 +327,7 @@ it('starts same-day category recommendation lookups in parallel to reduce initia
 })
 
 it('uses website extractions first, then fills the remainder', async () => {
-  r.mockResolvedValue(JSON.stringify([{ id: 's1', url: 'http://x', label: '部落格', lastFetchedAt: null, lastFetchStatus: null }]))
+  grs.mockResolvedValue([{ id: 's1', url: 'http://x', label: '部落格', lastFetchedAt: null, lastFetchStatus: null }])
   st.mockResolvedValue('某甜點店 很好吃')
   cc.mockResolvedValue(
     '[{"name":"某甜點店","type":"dessert","reason":"招牌必吃","sourceLabel":"部落格"}]'
@@ -364,7 +365,7 @@ it('deduplicates fill candidates across days so no placeId appears in more than 
     places: [scheduledPlace('existing-1', 'attraction')],
   }
 
-  r.mockResolvedValue('[]')   // no sources → no extractions
+  grs.mockResolvedValue([])   // no sources → no extractions
   // Every nearbySearch call returns 'shared-1' as its first result, plus unique fillers
   ns.mockImplementation(async (_lat: number, _lng: number, type: string) =>
     [
@@ -421,7 +422,7 @@ it('uses deeper Open POI candidate pools so later days do not go empty after tri
     day: 2, aiSummary: null, dayStart: '09:00', dayEnd: '21:00',
     places: [scheduledPlace('existing-1')],
   }
-  r.mockResolvedValue('[]')
+  grs.mockResolvedValue([])
   ns.mockResolvedValue([])
   ops.mockImplementation(async (_lat: number, _lng: number, type: string, limit: number) => {
     if (type !== 'attraction') return []
@@ -446,7 +447,7 @@ it('uses deeper Open POI candidate pools so later days do not go empty after tri
 })
 
 it('keeps website extractions beyond 5 in reserve', async () => {
-  r.mockResolvedValue(JSON.stringify([{ id: 's1', url: 'http://x', label: '部落格', lastFetchedAt: null, lastFetchStatus: null }]))
+  grs.mockResolvedValue([{ id: 's1', url: 'http://x', label: '部落格', lastFetchedAt: null, lastFetchStatus: null }])
   const { scrapeText } = await import('@/app/actions/scrape')
   ;(scrapeText as jest.Mock).mockResolvedValue('a b c d e f g')
   const { callClaude } = await import('@/lib/claude')
@@ -480,7 +481,7 @@ it('does not fill recommendations for an empty day without a manual center', asy
   const day0: DayItinerary = { day: 1, aiSummary: null, dayStart: '09:00', dayEnd: '21:00', places: [scheduledPlace('p0', 10, 10)] }
   const day1 = emptyDay(2)
 
-  r.mockResolvedValue('[]')
+  grs.mockResolvedValue([])
   ops.mockImplementation(async (_lat: number, _lng: number, type: string) =>
     Array.from({ length: 5 }, (_, i) => placeWithPhoto(`open-${type}-${i}`, type as Place['type']))
   )
@@ -500,7 +501,7 @@ it('does not read recommendation sources when every day lacks an itinerary and m
   expect(result).toHaveLength(2)
   expect(result[0].dessert.shown).toEqual([])
   expect(result[1].restaurant.shown).toEqual([])
-  expect(r).not.toHaveBeenCalled()
+  expect(grs).not.toHaveBeenCalled()
   expect(st).not.toHaveBeenCalled()
   expect(cc).not.toHaveBeenCalled()
   expect(ops).not.toHaveBeenCalled()
@@ -513,7 +514,7 @@ it('fills recommendations for an empty day when the user sets a manual center', 
     recommendationCenter: { placeId: 'center-1', name: 'Manual Center', lat: 25, lng: 121, address: null, source: 'manual' as const },
   }
 
-  r.mockResolvedValue('[]')
+  grs.mockResolvedValue([])
   ops.mockImplementation(async (_lat: number, _lng: number, type: string) =>
     Array.from({ length: 5 }, (_, i) => placeWithPhoto(`open-${type}-${i}`, type as Place['type']))
   )

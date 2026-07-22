@@ -24,6 +24,7 @@ it('opens photo lightbox without triggering add', async () => {
   const onAdd = jest.fn()
   render(<RecommendationCard rec={rec} dateIso="2026-07-12" onAdd={onAdd} />)
 
+  fireEvent.click(screen.getByRole('button', { name: '載入照片' }))
   fireEvent.click(screen.getByTestId('photo-thumb-0'))
 
   expect(onAdd).not.toHaveBeenCalled()

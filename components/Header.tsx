@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
+import { isAdminEmail } from '@/lib/admin'
 import { HeaderView } from './HeaderView'
 
 export async function Header() {
@@ -16,6 +17,7 @@ export async function Header() {
           user.email ??
           '使用者',
         avatarUrl: (user.user_metadata?.avatar_url as string | undefined) ?? null,
+        isAdmin: isAdminEmail(user.email),
       }
     : null
   return <HeaderView user={view} />

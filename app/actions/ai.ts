@@ -1,6 +1,7 @@
 'use server'
 import type { DayItinerary, PlaceType } from '@/lib/types'
 import { callClaude } from '@/lib/claude'
+import { inferType } from '@/lib/placeType'
 
 export interface ExtractedItinerary {
   country: string | null
@@ -12,7 +13,37 @@ export interface ExtractedItinerary {
   error?: 'ai_failed'
 }
 
+function normalizeListLine(line: string): string | null {
+  const cleaned = line
+    .replace(/^\s*(?:[-*•]|[0-9０-９]+[.)、．]|第[一二三四五六七八九十]+站[:：、．]?)\s*/, '')
+    .replace(/\s+(?:https?:\/\/\S+|www\.\S+)$/i, '')
+    .trim()
+  if (!cleaned || cleaned.length > 80) return null
+  if (/[。！？!?]/.test(cleaned)) return null
+  return cleaned
+}
+
+function parseSimplePlaceList(text: string): Array<{ name: string; type: PlaceType }> | null {
+  const lines = text
+    .split(/\r?\n/)
+    .map(normalizeListLine)
+    .filter((line): line is string => line !== null)
+
+  if (lines.length < 5) return null
+
+  const unique = Array.from(new Set(lines))
+  const shortLineRatio = unique.filter((line) => line.length <= 40).length / unique.length
+  if (shortLineRatio < 0.8) return null
+
+  return unique.map((name) => ({ name, type: inferType(name) }))
+}
+
 export async function extractItinerary(text: string): Promise<ExtractedItinerary> {
+  const simplePlaces = parseSimplePlaceList(text)
+  if (simplePlaces) {
+    return { country: null, countryCode: null, places: simplePlaces }
+  }
+
   const prompt = `你是旅遊助理。以下是一段旅遊行程文字。請：
 1. 找出所有景點、餐廳、甜點和住宿名稱
 2. 判斷每個地點的類型：景點(attraction)、餐廳(restaurant)、甜點(dessert)、住宿(accommodation，例如飯店、旅館、民宿)

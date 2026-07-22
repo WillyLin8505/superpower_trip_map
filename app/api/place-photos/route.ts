@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { googleMapsFetchOptions, googleMapsPhotoCacheControl, roundedCoordinate } from '@/lib/googleMapsCost'
+import { googleMapsFetchOptions, googleMapsPhotoCacheControl, roundedCoordinate, shouldUseGooglePhotoFallback } from '@/lib/googleMapsCost'
 import { trackedApiFetch } from '@/lib/apiUsageEvents'
 import { tripIdFromReferer } from '@/lib/apiUsageContext'
 import { cachedGoogle, RETRYABLE_GOOGLE_STATUSES } from '@/lib/googleCache'
@@ -188,6 +188,13 @@ export async function GET(req: NextRequest) {
 
   const apiKey = process.env.GOOGLE_MAPS_API_KEY
   if (!apiKey) {
+    return NextResponse.json(
+      { photoUrls: freePhotoUrls },
+      { headers: { 'cache-control': googleMapsPhotoCacheControl() } }
+    )
+  }
+
+  if (!shouldUseGooglePhotoFallback()) {
     return NextResponse.json(
       { photoUrls: freePhotoUrls },
       { headers: { 'cache-control': googleMapsPhotoCacheControl() } }

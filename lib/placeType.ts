@@ -46,10 +46,10 @@ export function inferType(query: string): PlaceType {
   ) return 'accommodation'
   if (
     q.includes('甜點') || q.includes('dessert') || q.includes('咖啡') || q.includes('cafe') ||
-    q.includes('ice cream') || q.includes('蛋糕')
+    q.includes('café') || q.includes('coffee') || q.includes('ice cream') || q.includes('蛋糕')
   ) return 'dessert'
   if (
-    q.includes('餐') || q.includes('restaurant') || q.includes('食堂') || q.includes('bistro')
+    q.includes('餐') || q.includes('拉麵') || q.includes('ramen') || q.includes('restaurant') || q.includes('食堂') || q.includes('bistro')
   ) return 'restaurant'
   return 'attraction'
 }

@@ -73,9 +73,9 @@ it('shows available thumbnails and previews photos from the lightbox', async () 
     />
   )
 
+  fireEvent.click(screen.getByRole('button', { name: '載入照片' }))
   expect(screen.getByTestId('photo-thumb-0')).toBeInTheDocument()
-  expect(screen.getByTestId('photo-thumb-1')).toBeInTheDocument()
-  expect(screen.getByTestId('photo-thumb-3')).toBeInTheDocument()
+  expect(screen.queryByTestId('photo-thumb-1')).not.toBeInTheDocument()
   fireEvent.click(screen.getByTestId('photo-thumb-0'))
   expect(screen.getByRole('dialog')).toBeInTheDocument()
 
@@ -99,6 +99,7 @@ it('falls back to legacy single photoUrl when photoUrls is absent', () => {
     />
   )
 
+  fireEvent.click(screen.getByRole('button', { name: '載入照片' }))
   expect(screen.getByTestId('photo-thumb-0')).toBeInTheDocument()
 })
 

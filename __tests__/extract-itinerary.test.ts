@@ -7,6 +7,26 @@ const mockCallClaude = callClaude as jest.Mock
 describe('extractItinerary', () => {
   beforeEach(() => jest.clearAllMocks())
 
+  it('parses simple newline place lists locally without calling AI', async () => {
+    const result = await extractItinerary([
+      '1. 淺草寺',
+      '2. 一蘭拉麵',
+      '3. Blue Bottle Coffee',
+      '4. 東京塔',
+      '5. Hotel Metropolitan Tokyo',
+    ].join('\n'))
+
+    expect(mockCallClaude).not.toHaveBeenCalled()
+    expect(result.country).toBeNull()
+    expect(result.places).toEqual([
+      { name: '淺草寺', type: 'attraction' },
+      { name: '一蘭拉麵', type: 'restaurant' },
+      { name: 'Blue Bottle Coffee', type: 'dessert' },
+      { name: '東京塔', type: 'attraction' },
+      { name: 'Hotel Metropolitan Tokyo', type: 'accommodation' },
+    ])
+  })
+
   it('returns parsed places and country from valid JSON response', async () => {
     mockCallClaude.mockResolvedValue(JSON.stringify({
       country: 'Japan',

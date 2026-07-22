@@ -1,4 +1,4 @@
-import { getPlaceDetails } from '@/app/actions/places'
+import { getPlaceDetails, searchPlaceEssentials } from '@/app/actions/places'
 
 describe('getPlaceDetails', () => {
   const realFetch = global.fetch
@@ -41,5 +41,42 @@ describe('getPlaceDetails', () => {
       '/api/photo?ref=detail-ref-4',
       '/api/photo?ref=detail-ref-5',
     ])
+  })
+
+  it('searchPlaceEssentials resolves coordinates without requesting Pro fields', async () => {
+    global.fetch = jest.fn()
+      .mockResolvedValueOnce({
+        json: async () => ({ candidates: [{ place_id: 'place-1' }] }),
+      })
+      .mockResolvedValueOnce({
+        json: async () => ({
+          status: 'OK',
+          result: {
+            place_id: 'place-1',
+            name: '大阪城',
+            geometry: { location: { lat: 34.6873, lng: 135.5262 } },
+            formatted_address: '日本、大阪府大阪市',
+            types: ['tourist_attraction'],
+          },
+        }),
+      }) as unknown as typeof fetch
+
+    const place = await searchPlaceEssentials('大阪城', 'Japan')
+
+    expect(place).toEqual(expect.objectContaining({
+      placeId: 'place-1',
+      name: '大阪城',
+      lat: 34.6873,
+      lng: 135.5262,
+      openingHours: null,
+      rating: null,
+      photoUrl: null,
+      photoUrls: [],
+    }))
+    const detailsUrl = (global.fetch as jest.Mock).mock.calls[1][0] as string
+    expect(detailsUrl).toContain('fields=place_id%2Cname%2Cgeometry%2Cformatted_address%2Ctype')
+    expect(detailsUrl).not.toContain('opening_hours')
+    expect(detailsUrl).not.toContain('rating')
+    expect(detailsUrl).not.toContain('photos')
   })
 })

@@ -3,16 +3,17 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { Place } from '@/lib/types'
 
 jest.mock('@/app/actions/ai', () => ({ extractItinerary: jest.fn() }))
-jest.mock('@/app/actions/places', () => ({ searchPlace: jest.fn() }))
+jest.mock('@/app/actions/places', () => ({ searchPlace: jest.fn(), searchPlaceEssentials: jest.fn() }))
 jest.mock('@/app/actions/scrape', () => ({ scrapeText: jest.fn() }))
 
 import { CombinedInput } from '@/components/CombinedInput'
 import { extractItinerary } from '@/app/actions/ai'
-import { searchPlace } from '@/app/actions/places'
+import { searchPlace, searchPlaceEssentials } from '@/app/actions/places'
 import { scrapeText } from '@/app/actions/scrape'
 
 const mockExtract = extractItinerary as jest.Mock
 const mockSearch = searchPlace as jest.Mock
+const mockSearchEssentials = searchPlaceEssentials as jest.Mock
 const mockScrape = scrapeText as jest.Mock
 
 const MOCK_PLACE: Place = {
@@ -89,7 +90,7 @@ describe('CombinedInput', () => {
       country: 'Japan', countryCode: 'jp',
       places: [{ name: '淺草寺', type: 'attraction' }],
     })
-    mockSearch.mockResolvedValue(MOCK_PLACE)
+    mockSearchEssentials.mockResolvedValue(MOCK_PLACE)
     const onAddPlaces = jest.fn()
     const longText = '我去日本玩，' + '行程文字'.repeat(50)
     render(<CombinedInput onAdd={jest.fn()} onAddPlaces={onAddPlaces} />)
@@ -99,7 +100,8 @@ describe('CombinedInput', () => {
       expect(onAddPlaces).toHaveBeenCalledWith([expect.objectContaining({ name: '淺草寺' })])
     )
     expect(mockExtract).toHaveBeenCalledWith(longText)
-    expect(mockSearch).toHaveBeenCalledWith('淺草寺', 'Japan')
+    expect(mockSearchEssentials).toHaveBeenCalledWith('淺草寺', 'Japan')
+    expect(mockSearch).not.toHaveBeenCalled()
   })
 
   it('url text scrapes then extracts then calls onAddPlaces', async () => {
@@ -108,7 +110,7 @@ describe('CombinedInput', () => {
       country: 'Japan', countryCode: 'jp',
       places: [{ name: '淺草寺', type: 'attraction' }],
     })
-    mockSearch.mockResolvedValue(MOCK_PLACE)
+    mockSearchEssentials.mockResolvedValue(MOCK_PLACE)
     const onAddPlaces = jest.fn()
     render(<CombinedInput onAdd={jest.fn()} onAddPlaces={onAddPlaces} />)
     fireEvent.change(screen.getByPlaceholderText(PLACEHOLDER), { target: { value: 'https://blog.example.com/japan' } })
@@ -116,6 +118,7 @@ describe('CombinedInput', () => {
     await waitFor(() => expect(onAddPlaces).toHaveBeenCalled())
     expect(mockScrape).toHaveBeenCalledWith('https://blog.example.com/japan')
     expect(mockExtract).toHaveBeenCalledWith('scraped blog body about Japan')
+    expect(mockSearchEssentials).toHaveBeenCalledWith('淺草寺', 'Japan')
   })
 
   it('shows country selector when no country detected, then verifies on confirm', async () => {
@@ -123,7 +126,7 @@ describe('CombinedInput', () => {
       country: null, countryCode: null,
       places: [{ name: '某地方', type: 'attraction' }],
     })
-    mockSearch.mockResolvedValue(MOCK_PLACE)
+    mockSearchEssentials.mockResolvedValue(MOCK_PLACE)
     const onAddPlaces = jest.fn()
     const longText = '一段沒有國家資訊的文字，' + '行程內容'.repeat(50)
     render(<CombinedInput onAdd={jest.fn()} onAddPlaces={onAddPlaces} />)
@@ -133,6 +136,6 @@ describe('CombinedInput', () => {
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Taiwan' } })
     fireEvent.click(screen.getByText('繼續分析'))
     await waitFor(() => expect(onAddPlaces).toHaveBeenCalled())
-    expect(mockSearch).toHaveBeenCalledWith('某地方', 'Taiwan')
+    expect(mockSearchEssentials).toHaveBeenCalledWith('某地方', 'Taiwan')
   })
 })

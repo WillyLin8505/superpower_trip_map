@@ -218,7 +218,7 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
           {place.rating && (
             <p className="text-sm text-muted mt-0.5">評分：{place.rating} &#x2605;</p>
           )}
-          <PhotoStrip photos={photos} placeId={place.placeId} placeName={displayName.primary} className="mt-2" placeType={place.type} aliases={photoAliases} lat={place.lat} lng={place.lng} />
+          <PhotoStrip photos={photos} placeId={place.placeId} placeName={displayName.primary} className="mt-2" placeType={place.type} aliases={photoAliases} lat={place.lat} lng={place.lng} autoFetch={false} previewCount={1} autoFetchKind="cover" deferGooglePhotoMedia />
           {descriptionText && (
             <p className="text-sm text-gray-600 mt-2 italic">{descriptionText}</p>
           )}

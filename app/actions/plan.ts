@@ -6,6 +6,7 @@ import { optimizeRoute } from './optimize'
 import { schedulePlaces } from './schedule'
 import { applyLegDefaults } from './legs'
 import { generateDaySummaries } from './ai'
+import { shouldEnrichPlanningWithDetails } from '@/lib/googleMapsCost'
 
 export async function planItinerary(
   places: Place[],
@@ -13,13 +14,14 @@ export async function planItinerary(
   mode: TransportMode,
   startDate: string
 ): Promise<PlanResult> {
-  // Enrich with full details (opening hours, rating, etc.)
-  const enriched = await Promise.all(
-    places.map(async (p) => {
-      const details = await getPlaceDetails(p.placeId, p.localizedName?.original ?? p.name)
-      return details ? { ...details, id: p.id, type: p.type } : p
-    })
-  )
+  const enriched = shouldEnrichPlanningWithDetails()
+    ? await Promise.all(
+      places.map(async (p) => {
+        const details = await getPlaceDetails(p.placeId, p.localizedName?.original ?? p.name)
+        return details ? { ...details, id: p.id, type: p.type } : p
+      })
+    )
+    : places
 
   const matrix = await buildDistanceMatrix(enriched, mode)
   const orderedIds = await optimizeRoute(matrix)

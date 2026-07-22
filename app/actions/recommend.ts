@@ -1,7 +1,4 @@
 'use server'
-import { readFile } from 'fs/promises'
-import { join } from 'path'
-import type { Source } from '@/lib/types'
 import { scrapeText } from './scrape'
 import { searchPlace, getPlaceDetails, nearbySearch } from './places'
 import { validateType } from '@/lib/placeType'
@@ -27,6 +24,7 @@ import { ensurePoiBackfill } from '@/lib/poiBackfill'
 import { runWithTripId } from '@/lib/apiUsageContext'
 import { ensurePlaceChineseName } from '@/lib/utils/bilingualNames'
 import { isRecommendationCandidateAcceptable, sortRecommendationCandidates } from '@/lib/utils/recommendationRank'
+import { getRecommendationSources } from '@/lib/recommendationSources'
 
 const REC_LIMIT = 5
 const REC_CANDIDATE_POOL_LIMIT = REC_LIMIT * 4
@@ -202,8 +200,7 @@ async function getDayRecommendationsImpl(
 
   let extracted: DayRecommendation[] = []
   try {
-    const raw = await readFile(join(process.cwd(), 'config/sources.json'), 'utf-8')
-    const sources: Source[] = JSON.parse(raw)
+    const sources = await getRecommendationSources()
     if (sources.length > 0) {
       const scraped = await Promise.all(
         sources.map(async (src) => ({ label: src.label, text: await scrapeText(src.url) }))

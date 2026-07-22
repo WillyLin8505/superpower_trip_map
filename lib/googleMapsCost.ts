@@ -29,8 +29,18 @@ export function shouldEnrichRecommendationsWithDetails(): boolean {
   return mode === 'live'
 }
 
+export function shouldEnrichPlanningWithDetails(): boolean {
+  const mode = process.env.GOOGLE_MAPS_PLANNING_DETAILS_MODE ?? (process.env.NODE_ENV === 'test' ? 'live' : 'off')
+  return mode === 'live'
+}
+
 export function shouldUsePaidRecommendationFallback(): boolean {
   const mode = process.env.GOOGLE_MAPS_RECOMMENDATION_PAID_FALLBACK_MODE ?? (process.env.NODE_ENV === 'test' ? 'on' : 'off')
+  return mode === 'on'
+}
+
+export function shouldUseGooglePhotoFallback(): boolean {
+  const mode = process.env.GOOGLE_MAPS_PHOTO_FALLBACK_MODE ?? (process.env.NODE_ENV === 'test' ? 'on' : 'off')
   return mode === 'on'
 }
 

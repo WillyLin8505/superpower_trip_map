@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { extractItinerary } from '@/app/actions/ai'
-import { searchPlace } from '@/app/actions/places'
+import { searchPlaceEssentials } from '@/app/actions/places'
 import type { Place, PlaceType } from '@/lib/types'
 import { validateType } from '@/lib/placeType'
 
@@ -19,6 +19,7 @@ const COUNTRIES = [
   { name: 'Malaysia', label: '馬來西亞' },
   { name: 'Vietnam', label: '越南' },
 ]
+const VERIFY_CONCURRENCY = 5
 
 interface ExtractedPlace {
   name: string
@@ -42,14 +43,22 @@ export function ItineraryPasteInput({ onPlacesFound }: Props) {
     setPhase('verifying')
     setVerifyProgress({ done: 0, total: places.length })
     let done = 0
-    const results = await Promise.all(
-      places.map(async (p) => {
-        const found = await searchPlace(p.name, countryName)
+    const results: Array<Place | null> = new Array(places.length).fill(null)
+    let nextIndex = 0
+
+    const worker = async () => {
+      while (nextIndex < places.length) {
+        const index = nextIndex++
+        const p = places[index]
+        const found = await searchPlaceEssentials(p.name, countryName)
         done++
         setVerifyProgress({ done, total: places.length })
-        if (!found) return null
-        return { ...found, type: validateType(p.type) } as Place
-      })
+        results[index] = found ? { ...found, type: validateType(p.type) } as Place : null
+      }
+    }
+
+    await Promise.all(
+      Array.from({ length: Math.min(VERIFY_CONCURRENCY, places.length) }, () => worker())
     )
     const valid = results.filter((p): p is Place => p !== null)
     onPlacesFound(valid)

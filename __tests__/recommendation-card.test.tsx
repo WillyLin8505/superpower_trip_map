@@ -50,8 +50,9 @@ it('renders name, category, available thumbnails, and a short explanation in com
   render(<RecommendationCard rec={rec} dateIso="2026-07-01" onAdd={() => {}} compact />)
 
   expect(screen.getByText('Museum Cafe')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '載入照片' }))
   expect(screen.getByTestId('photo-thumb-0')).toBeInTheDocument()
-  expect(screen.getByTestId('photo-thumb-1')).toBeInTheDocument()
+  expect(screen.queryByTestId('photo-thumb-1')).not.toBeInTheDocument()
   expect(screen.queryByText(/4.7/)).not.toBeInTheDocument()
   expect(screen.getByText('A scenic museum cafe.')).toBeInTheDocument()
   expect(screen.queryByText('Good stop nearby.')).not.toBeInTheDocument()
@@ -89,7 +90,7 @@ it('fetches a free cover photo for Open POI recommendations without stored photo
   expect(params.get('placeName')).toBe('MVTTS 咖啡')
   expect(params.get('placeType')).toBe('dessert')
   expect(params.getAll('alias')).toContain('Cà Phê MVTTS')
-  expect(params.get('limit')).toBeNull()
+  expect(params.get('limit')).toBe('1')
 })
 
 it('renders a visual cover fallback when compact recommendation data has no fetchable photo source', () => {

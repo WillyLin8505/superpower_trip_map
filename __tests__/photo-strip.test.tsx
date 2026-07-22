@@ -238,6 +238,24 @@ describe('PhotoStrip', () => {
     expect(global.fetch).not.toHaveBeenCalled()
   })
 
+  it('does not auto-fetch missing Google photos when autoFetch is disabled', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ photoUrls: ['/api/photo?ref=manual'] }),
+    }) as unknown as typeof fetch
+
+    render(<PhotoStrip placeId={googlePlaceId} placeName="Manual Place" photos={[]} autoFetch={false} />)
+
+    expect(screen.queryByTestId('photo-placeholder')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '載入照片' })).toBeInTheDocument()
+    expect(global.fetch).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: '載入照片' }))
+
+    expect(await screen.findByTestId('photo-thumb-0')).toBeInTheDocument()
+    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Manual+Place&v=5`)
+  })
+
   it('hides the gray placeholder when a missing-photo fetch returns no photos', async () => {
     const onPhotoUnavailable = jest.fn()
     global.fetch = jest.fn().mockResolvedValue({

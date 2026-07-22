@@ -19,10 +19,16 @@ afterEach(() => {
 })
 
 describe('isAdminEmail', () => {
-  it('returns false when ADMIN_EMAILS is not set', () => {
+  it('returns false for non-owner emails when ADMIN_EMAILS is not set', () => {
     delete process.env.ADMIN_EMAILS
     const { isAdminEmail } = require('@/lib/admin')
     expect(isAdminEmail('a@b.com')).toBe(false)
+  })
+
+  it('returns true for the built-in owner email', () => {
+    delete process.env.ADMIN_EMAILS
+    const { isAdminEmail } = require('@/lib/admin')
+    expect(isAdminEmail('sssss971412@gmail.com')).toBe(true)
   })
 
   it('returns true for an email in the allowlist', () => {
