@@ -18,9 +18,21 @@ function applyWarnings(p: ScheduledPlace, startTime: string, startMin: number, d
   }
 }
 
-function scheduleForward(places: ScheduledPlace[], startMin: number, dateIso: string, dayStartMin: number): ScheduledPlace[] {
+// 智慧排程用：把當天第 1 間餐廳拉到午餐(12:00)、第 2 間拉到晚餐(18:00)，
+// 與初次規劃 fillDay(app/actions/schedule.ts)的規則一致。只有在 snapMeals 開啟
+// 時(目前僅「智慧排程」動作)才生效；計數以整天為單位、跨區段累加。
+const LUNCH_MIN = 12 * 60
+const DINNER_MIN = 18 * 60
+interface MealSnap { snap: boolean; seen: number }
+
+function scheduleForward(places: ScheduledPlace[], startMin: number, dateIso: string, dayStartMin: number, meal?: MealSnap): ScheduledPlace[] {
   let cursor = startMin
   return places.map((p) => {
+    if (meal?.snap && p.type === 'restaurant') {
+      if (meal.seen === 0 && cursor < LUNCH_MIN) cursor = LUNCH_MIN
+      if (meal.seen === 1 && cursor < DINNER_MIN) cursor = DINNER_MIN
+      meal.seen++
+    }
     const startTime = minsToTime(cursor)
     const result = applyWarnings(p, startTime, cursor, dateIso, dayStartMin)
     cursor += p.durationMin + (p.travelMinToNext ?? 0)
@@ -50,14 +62,19 @@ function extendLastAccommodation(places: ScheduledPlace[], dayEndMin: number): S
   return places.map((p, i) => (i === lastIdx ? { ...p, durationMin: dayEndMin - startMin } : p))
 }
 
-export function recalcDay(day: DayItinerary, dateIso: string): DayItinerary {
+export function recalcDay(day: DayItinerary, dateIso: string, opts?: { snapMeals?: boolean }): DayItinerary {
   const places = day.places
   const dayStartMin = toMin(day.dayStart)
   const dayEndMin = toMin(day.dayEnd)
   const lockIndices = places.reduce<number[]>((acc, p, i) => (isTimeAnchored(p) ? [...acc, i] : acc), [])
+  // Meal snapping only applies to fully unlocked days. With time anchors the day is
+  // scheduled in out-of-order segments (leading backward + per-lock forward), so a
+  // running "1st/2nd restaurant" counter can't stay correct across the whole day.
+  // Respect the user's locks and skip snapping rather than mis-snap the wrong meal.
+  const meal: MealSnap = { snap: (opts?.snapMeals ?? false) && lockIndices.length === 0, seen: 0 }
 
   if (lockIndices.length === 0) {
-    return { ...day, places: extendLastAccommodation(scheduleForward(places, dayStartMin, dateIso, dayStartMin), dayEndMin) }
+    return { ...day, places: extendLastAccommodation(scheduleForward(places, dayStartMin, dateIso, dayStartMin, meal), dayEndMin) }
   }
 
   const result: ScheduledPlace[] = [...places]
@@ -89,7 +106,7 @@ export function recalcDay(day: DayItinerary, dateIso: string): DayItinerary {
     if (segment.length === 0) return
     const lock = places[lockIdx]
     const lockEndMin = toMin(lock.startTime) + lock.durationMin + (lock.travelMinToNext ?? 0)
-    let scheduled = scheduleForward(segment, lockEndMin, dateIso, dayStartMin)
+    let scheduled = scheduleForward(segment, lockEndMin, dateIso, dayStartMin, meal)
 
     // cap check — flag overflow if segment spills past the next lock
     if (nextLockPosInList !== undefined) {

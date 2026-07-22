@@ -67,8 +67,9 @@ function cost(
   opts: ArrangeOpts
 ): number {
   const refreshed = withRefreshedTravel(order, inputs)
-  // 時序以既有 recalcDay 計算（鎖定錨點、前後段排程的單一來源）
-  const timedDay = recalcDay({ ...day, places: refreshed }, dateIso)
+  // 時序以既有 recalcDay 計算（鎖定錨點、前後段排程的單一來源）。
+  // snapMeals：智慧排程時把餐廳貼到午/晚餐時段，讓 2-opt 以貼齊後的時間評估人潮/營業時間。
+  const timedDay = recalcDay({ ...day, places: refreshed }, dateIso, { snapMeals: true })
   const wTravel = opts.avoidTraffic ? 1.0 : opts.avoidCrowds ? W_TRAVEL_WHEN_CROWD_ONLY : 0
   const wCrowd = opts.avoidCrowds ? 1.0 : 0
   const travel = totalTravelSecs(order, inputs)

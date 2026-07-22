@@ -1,5 +1,5 @@
-import { recalcPlan } from '@/lib/utils/clientScheduler'
-import type { PlanResult, ScheduledPlace, RecommendationCenter } from '@/lib/types'
+import { recalcPlan, recalcDay } from '@/lib/utils/clientScheduler'
+import type { DayItinerary, PlanResult, ScheduledPlace, RecommendationCenter } from '@/lib/types'
 
 function makePlace(overrides: Partial<ScheduledPlace> = {}): ScheduledPlace {
   return {
@@ -29,6 +29,48 @@ function makePlace(overrides: Partial<ScheduledPlace> = {}): ScheduledPlace {
 function makePlan(places: ScheduledPlace[]): PlanResult {
   return { days: [{ day: 1, places, aiSummary: null, dayStart: '09:00', dayEnd: '21:00' }], transportMode: 'driving', startDate: '2026-06-01' }
 }
+
+// --- Meal snapping (smart-arrange only, opt-in via snapMeals) ---
+function makeDay(places: ScheduledPlace[]): DayItinerary {
+  return { day: 1, places, aiSummary: null, dayStart: '09:00', dayEnd: '21:00' }
+}
+
+test('snapMeals: first restaurant pulled to 12:00, second to 18:00', () => {
+  const a1 = makePlace({ type: 'attraction', durationMin: 60, travelMinToNext: 0 })
+  const r1 = makePlace({ type: 'restaurant', durationMin: 60, travelMinToNext: 0 })
+  const a2 = makePlace({ type: 'attraction', durationMin: 60, travelMinToNext: 0 })
+  const r2 = makePlace({ type: 'restaurant', durationMin: 60, travelMinToNext: 0 })
+  const snapped = recalcDay(makeDay([a1, r1, a2, r2]), '2026-06-01', { snapMeals: true })
+  expect(snapped.places[1].startTime).toBe('12:00') // 1st restaurant → lunch
+  expect(snapped.places[3].startTime).toBe('18:00') // 2nd restaurant → dinner
+})
+
+test('without snapMeals (default) restaurants keep sequential times', () => {
+  const a1 = makePlace({ type: 'attraction', durationMin: 60, travelMinToNext: 0 })
+  const r1 = makePlace({ type: 'restaurant', durationMin: 60, travelMinToNext: 0 })
+  const a2 = makePlace({ type: 'attraction', durationMin: 60, travelMinToNext: 0 })
+  const r2 = makePlace({ type: 'restaurant', durationMin: 60, travelMinToNext: 0 })
+  const plain = recalcDay(makeDay([a1, r1, a2, r2]), '2026-06-01')
+  expect(plain.places[1].startTime).toBe('10:00') // 09:00 + 60, no snap
+  expect(plain.places[3].startTime).toBe('12:00') // still sequential, not dinner
+})
+
+test('snapMeals never moves a restaurant earlier than its sequential slot', () => {
+  // A restaurant that naturally lands after 12:00 is not pulled backward to lunch.
+  const filler = Array.from({ length: 5 }, () => makePlace({ type: 'attraction', durationMin: 60, travelMinToNext: 0 }))
+  const r1 = makePlace({ type: 'restaurant', durationMin: 60, travelMinToNext: 0 })
+  const snapped = recalcDay(makeDay([...filler, r1]), '2026-06-01', { snapMeals: true })
+  expect(snapped.places[5].startTime).toBe('14:00') // 09:00 + 5*60, later than 12:00 → unchanged
+})
+
+test('snapMeals is skipped when the day has a time-locked anchor', () => {
+  // With locks the day schedules in out-of-order segments; snapping is intentionally
+  // disabled so we never mis-count and snap the wrong restaurant.
+  const locked = makePlace({ type: 'attraction', durationMin: 60, travelMinToNext: 0, startTime: '10:00', startLocked: true })
+  const r1 = makePlace({ type: 'restaurant', durationMin: 60, travelMinToNext: 0 })
+  const snapped = recalcDay(makeDay([locked, r1]), '2026-06-01', { snapMeals: true })
+  expect(snapped.places[1].startTime).toBe('11:00') // 10:00 + 60, not snapped to 12:00
+})
 
 // --- No locked cards: simple forward fill ---
 test('no locked cards: first place starts at 09:00', () => {

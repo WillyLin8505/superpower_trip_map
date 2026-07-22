@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import type { PlanResult, ScheduledPlace, Place, PlaceType, TransportMode, RecommendationsByDay, DayRecommendation, RecommendationCenter, Candidate } from '@/lib/types'
-import { recalcPlan } from '@/lib/utils/clientScheduler'
+import { recalcPlan, recalcDay } from '@/lib/utils/clientScheduler'
 import { addDays, daysBetween, dayDate } from '@/lib/utils/date'
 import { legInfo, computeLegPlan } from '@/app/actions/legs'
 import { applyTimeEditCascade } from '@/lib/utils/timeEdit'
@@ -791,7 +791,13 @@ export function ItineraryClient({
       setLegError('交通時間計算失敗')
     }
     const newDays = planRef.current.days.map((d, i) => (i === dayIdx ? { ...d, places: arrangedPlaces } : d))
-    const recalced = recalcPlan({ ...planRef.current, days: newDays })
+    // 只有被排的那天套用午/晚餐時段貼齊；其他天照常重算，不動它們的時間。
+    // 日期用最新的 planRef.current.startDate（與下方 recalced 展開的一致），
+    // 避免 await 期間使用者改了開始日期造成錯位。
+    const recalcedDays = newDays.map((d, i) =>
+      recalcDay(d, dayDate(planRef.current.startDate, d.day), { snapMeals: i === dayIdx })
+    )
+    const recalced = { ...planRef.current, days: recalcedDays }
     commitPlan(recalced)
     void refreshCost()
   }, [commitPlan, refreshCost])
