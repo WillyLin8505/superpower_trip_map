@@ -12,11 +12,12 @@ function place(over: Partial<ScheduledPlace> = {}): ScheduledPlace {
   }
 }
 
-test('renders name, rating and description', () => {
+test('renders name and description without rating', () => {
   render(<CardContent place={place()} dateIso="2026-06-29" />)
   expect(screen.getByText('故宮')).toBeInTheDocument()
   expect(screen.getByText(/世界級博物館/)).toBeInTheDocument()
-  expect(screen.getByText(/4\.5/)).toBeInTheDocument()
+  expect(screen.queryByText(/評分/)).not.toBeInTheDocument()
+  expect(screen.queryByText(/4\.5/)).not.toBeInTheDocument()
 })
 
 test('lock buttons fire callbacks', () => {

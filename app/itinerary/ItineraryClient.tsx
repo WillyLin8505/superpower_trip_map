@@ -829,7 +829,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
   }, [removeRecommendationFromShown])
 
   const handleAddRecommendation = useCallback(async (dayIdx: number, rec: DayRecommendation) => {
-    const needsDetails = !rec.rating || !rec.openingHours?.length
+    const needsDetails = !rec.openingHours?.length
     const details = needsDetails ? await fetchDetailsOnAdd(rec, tripIdRef.current) : null
     if (needsDetails) void refreshCost()
     const enriched = details
@@ -865,7 +865,7 @@ export function ItineraryClient({ initial, tripId, initialCandidates = [], initi
       startTime: '09:00',
       durationMin: DWELL[rec.type],
       travelMinToNext: null,
-      aiDescription: rec.reason,
+      aiDescription: null,
       outsideHours: false,
       lateExit: false,
       startLocked: false,

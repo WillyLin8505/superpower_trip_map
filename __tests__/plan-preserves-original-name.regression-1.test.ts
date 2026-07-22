@@ -85,4 +85,5 @@ it('passes the existing original localized name back into getPlaceDetails during
   await planItinerary([input], 1, 'driving', '2026-07-13')
 
   expect(getDetailsMock).toHaveBeenCalledWith(input.placeId, originalName)
+  expect(generateDaySummariesMock).not.toHaveBeenCalled()
 })

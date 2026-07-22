@@ -19,7 +19,6 @@ export function AiRearrangeInput({ plan, onApply }: Props) {
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(false)
   const [changes, setChanges] = useState<Change[] | null>(null)
-  const [summary, setSummary] = useState('')
   const [rejected, setRejected] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
 
@@ -29,7 +28,7 @@ export function AiRearrangeInput({ plan, onApply }: Props) {
     const res = await rearrangeItinerary(plan, text.trim())
     setLoading(false)
     if (!res.ok) { setError(res.error); return }
-    setChanges(res.changes); setSummary(res.summary)
+    setChanges(res.changes)
   }
 
   function reject(id: string) {
@@ -71,7 +70,6 @@ export function AiRearrangeInput({ plan, onApply }: Props) {
 
       {changes && (
         <div className="mt-3">
-          {summary && <p className="text-sm text-gray-600 mb-2">{summary}</p>}
           {days.length === 0 ? (
             <p className="text-sm text-gray-500">沒有需要調整的地方</p>
           ) : (

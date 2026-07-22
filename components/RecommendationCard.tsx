@@ -9,7 +9,7 @@ import { PhotoStrip } from './PhotoStrip'
 const ARCHIVE_LABEL = '移到備用'
 const ARCHIVE_ICON = '💾'
 const DELETE_LABEL = '刪除'
-const GENERIC_REASONS = new Set(['Google 高評分推薦'])
+const GENERIC_REASONS = new Set(['Google 高評分推薦', '附近推薦'])
 
 interface ActionLink {
   label: string
@@ -64,6 +64,8 @@ export function RecommendationCard({ rec, dateIso, onAdd, onArchive, onDelete, a
   const displayName = resolveLocalizedText(rec.localizedName, rec.name)
   const mapsUrl = googleMapsSearchUrl(rec, displayName.primary)
   const shortExplanation = compactExplanation(rec)
+  const reasonText = rec.reason?.trim()
+  const showReason = Boolean(reasonText && !GENERIC_REASONS.has(reasonText))
   const photoAliases = uniqueText([
     displayName.secondary,
     rec.localizedName?.original,
@@ -133,13 +135,12 @@ export function RecommendationCard({ rec, dateIso, onAdd, onArchive, onDelete, a
           </div>
           {displayName.secondary && <p className="text-xs text-gray-500 mt-0.5">{displayName.secondary}</p>}
           {!compact && todayHours && <p className="text-xs text-gray-500 mt-0.5">營業 {todayHours}</p>}
-          {!compact && rec.rating && <p className="text-xs text-gray-500 mt-0.5">評分：{rec.rating} ★</p>}
           {hasPhotoSource ? (
             <PhotoStrip photos={photos} placeId={rec.placeId} placeName={displayName.primary} className="mt-2" emptyFallback={photoFallback} placeType={rec.type} aliases={photoAliases} lat={rec.lat} lng={rec.lng} onPhotoUnavailable={onPhotoUnavailable} previewCount={1} autoFetchKind="cover" deferGooglePhotoMedia />
           ) : photoFallback}
           {compact && shortExplanation && <p className="text-xs text-gray-600 mt-1 break-words [overflow-wrap:anywhere]">{shortExplanation}</p>}
           {!compact && rec.description && <p className="text-xs text-gray-600 mt-1 italic break-words [overflow-wrap:anywhere]">{rec.description}</p>}
-          {!compact && <p className="text-xs text-gray-600 mt-1 break-words [overflow-wrap:anywhere]">{rec.reason}</p>}
+          {!compact && showReason && <p className="text-xs text-gray-600 mt-1 break-words [overflow-wrap:anywhere]">{reasonText}</p>}
           {actionLinks && actionLinks.length > 0 && (
             <div className="mt-1 flex max-w-full min-w-0 flex-wrap gap-2 text-[11px] text-gray-500">
               {actionLinks.map((link) => (

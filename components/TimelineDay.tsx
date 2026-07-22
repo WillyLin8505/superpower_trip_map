@@ -81,7 +81,6 @@ export function TimelineDay({ day, dayIdx, mode, startDate, isDragging, draggabl
           </div>
         )
       })()}
-      {day.aiSummary && <p className="text-sm text-gray-500 mb-4">{day.aiSummary}</p>}
       <div className="flex gap-6 items-start">
         <div ref={setNodeRef} className={`flex-1 rounded-lg transition-colors min-h-[60px] ${isOver ? 'ring-2 ring-blue-400 bg-blue-50' : ''}`}>
           <div className="flex">

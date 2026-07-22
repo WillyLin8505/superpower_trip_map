@@ -40,7 +40,8 @@ it('renders the full card when not compact', () => {
   render(<RecommendationCard rec={rec} dateIso="2026-07-01" onAdd={() => {}} />)
 
   expect(screen.getByText('Museum Cafe')).toBeInTheDocument()
-  expect(screen.getByText(/4.7/)).toBeInTheDocument()
+  expect(screen.queryByText(/評分/)).not.toBeInTheDocument()
+  expect(screen.queryByText(/4.7/)).not.toBeInTheDocument()
   expect(screen.getByText('A scenic museum cafe.')).toBeInTheDocument()
   expect(screen.getByText('Good stop nearby.')).toBeInTheDocument()
   expect(screen.getByText(/Google/)).toBeInTheDocument()

@@ -165,7 +165,6 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
           </div>
         )
       })()}
-      {day.aiSummary && <p className="text-sm text-muted mb-4">{day.aiSummary}</p>}
       {embedUrl && (
         <div className="rounded-xl overflow-hidden border border-border mb-4" data-testid="day-map-fullwidth">
           <iframe

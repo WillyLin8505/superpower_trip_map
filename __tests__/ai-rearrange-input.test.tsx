@@ -31,6 +31,7 @@ it('submits the instruction and lists changes grouped by day', async () => {
   fireEvent.change(screen.getByPlaceholderText(/第二天太滿/), { target: { value: '把B移到第二天' } })
   fireEvent.click(screen.getByRole('button', { name: '重排' }))
   await waitFor(() => expect(screen.getByText(/B 移到第 2 天/)).toBeInTheDocument())
+  expect(screen.queryByText('摘要')).not.toBeInTheDocument()
   expect(screen.getByText(/活動開始 09:00 → 10:00/)).toBeInTheDocument()
   expect(rearrangeItinerary).toHaveBeenCalledWith(expect.anything(), '把B移到第二天')
 })

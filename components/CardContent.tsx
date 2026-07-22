@@ -21,7 +21,7 @@ interface Props {
 
 export function CardContent({ place, dateIso, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType }: Props) {
   const todayHours = getHoursForDate(place.openingHours, dateIso)
-  const descriptionText = place.description || place.aiDescription
+  const descriptionText = place.description
   const meta = TYPE_META[place.type]
   const pin = effectivePinned(place)
   const displayName = resolveLocalizedText(place.localizedName, place.name)
@@ -69,7 +69,6 @@ export function CardContent({ place, dateIso, onTimeChange, onToggleStartLock, o
           )}
         </div>
         {todayHours && <p className="text-sm text-gray-500 mt-0.5">營業 {todayHours}</p>}
-        {place.rating && <p className="text-sm text-gray-500 mt-0.5">評分：{place.rating} &#x2605;</p>}
         {descriptionText && <p className="text-sm text-gray-600 mt-2 italic">{descriptionText}</p>}
         {place.lateExit && <p className="text-xs text-orange-600 font-medium mt-1">&#x26A0; 結束時間超出營業時間</p>}
       </div>

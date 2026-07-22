@@ -28,15 +28,12 @@ afterEach(() => {
   process.env = OLD_ENV
 })
 
-it('renders the map full-width below the AI summary, not inside the side column', () => {
+it('renders the map full-width without the AI summary, not inside the side column', () => {
   render(
     <ItineraryDay day={day} dayIdx={0} mode="driving" startDate="2026-07-01" onAddRecommendation={() => {}} />
   )
-  const summary = screen.getByText('今天走文青路線')
   const map = screen.getByTitle('第 1 天路線地圖')
-  // map must appear after the summary in DOM order (below it), and outside the
-  // two-column row (not a sibling of the side panel inside a shared flex row)
-  expect(summary.compareDocumentPosition(map) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(screen.queryByText('今天走文青路線')).not.toBeInTheDocument()
   expect(screen.getByTestId('day-map-fullwidth')).toContainElement(map)
 })
 

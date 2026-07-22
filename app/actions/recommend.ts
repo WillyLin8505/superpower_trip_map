@@ -30,7 +30,7 @@ const REC_LIMIT = 5
 const REC_CANDIDATE_POOL_LIMIT = REC_LIMIT * 4
 const OPEN_POI_RADII_METERS = [4000, 12000]
 const GOOGLE_SOURCE_LABEL = 'Google 推薦'
-const GOOGLE_REASON = 'Google 高評分推薦'
+const GOOGLE_REASON = '附近推薦'
 const OPEN_POI_SOURCE_LABEL = 'Open POI'
 const OPEN_POI_REASON = '開放 POI 候選池推薦'
 

@@ -32,7 +32,7 @@ it('valid AI output → ok with the derived changes', async () => {
   const res = await rearrangeItinerary(plan(), '把B移到第二天')
   expect(res.ok).toBe(true)
   if (res.ok) {
-    expect(res.summary).toBe('把 B 移到第 2 天')
+    expect(res.summary).toBe('')
     expect(res.changes).toContainEqual({ id: 'move-B', day: 1, kind: 'move', placeId: 'B', placeName: 'B', toDay: 2 })
   }
 })

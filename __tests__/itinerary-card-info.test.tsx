@@ -99,9 +99,9 @@ test('shows Google description when available', () => {
   expect(screen.getByText('Google 說明')).toBeInTheDocument()
 })
 
-test('falls back to aiDescription when description is null', () => {
+test('does not show aiDescription when description is null', () => {
   render(<ItineraryCard place={{ ...BASE_PLACE, description: null, aiDescription: 'AI 說明' }} index={0} dateIso="2026-06-30" />)
-  expect(screen.getByText('AI 說明')).toBeInTheDocument()
+  expect(screen.queryByText('AI 說明')).toBeNull()
 })
 
 test('shows Google description over aiDescription when both exist', () => {

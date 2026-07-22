@@ -62,8 +62,8 @@ ${dayLines}
 
 規則：只能把現有地點移到不同天、改停留時長、改活動窗；不可新增/刪除地點，不可增減天數。標「鎖停留」者不要改停留時長，「鎖開始」者盡量不要移動。ref 必須恰好是 1 到 ${refPlaces.length} 各出現一次。
 
-只回傳純 JSON（不要 markdown）：
-{"summary":"一句話說明你做了什麼","days":[{"day":1,"dayStart":"09:00","dayEnd":"21:00","places":[{"ref":1,"durationMin":90}]}]}`
+只回傳純 JSON（不要 markdown），不要摘要：
+{"days":[{"day":1,"dayStart":"09:00","dayEnd":"21:00","places":[{"ref":1,"durationMin":90}]}]}`
 
   let raw: string
   try {
@@ -75,10 +75,10 @@ ${dayLines}
     const stripped = raw.replace(/```(?:json)?\s*([\s\S]*?)```/g, '$1').trim()
     const match = stripped.match(/\{[\s\S]*\}/)
     if (!match) return { ok: false, error: ERR }
-    const parsed = JSON.parse(match[0]) as { summary?: string; days?: unknown }
+    const parsed = JSON.parse(match[0]) as { days?: unknown }
     const proposed = buildProposed(plan, refPlaces, parsed.days)
     if (!proposed) return { ok: false, error: ERR }
-    return { ok: true, changes: diffPlan(plan, proposed), summary: parsed.summary ?? '' }
+    return { ok: true, changes: diffPlan(plan, proposed), summary: '' }
   } catch {
     return { ok: false, error: ERR }
   }

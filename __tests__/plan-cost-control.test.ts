@@ -82,4 +82,5 @@ it('does not call full Place Details for every place when planning details mode 
 
   expect(getPlaceDetailsMock).not.toHaveBeenCalled()
   expect(buildDistanceMatrixMock).toHaveBeenCalledWith(input, 'driving')
+  expect(generateDaySummariesMock).not.toHaveBeenCalled()
 })
