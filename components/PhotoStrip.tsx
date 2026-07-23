@@ -24,7 +24,7 @@ interface Props {
 
 const MAX_PHOTOS = 5
 const photoRequestCache = new Map<string, Promise<string[]>>()
-const PHOTO_LOOKUP_VERSION = '7'
+const PHOTO_LOOKUP_VERSION = '8'
 const PHOTO_CACHE_PREFIX = `photo-strip:v${PHOTO_LOOKUP_VERSION}`
 
 function mergePhotos(primary: string[], fetched: string[]): string[] {

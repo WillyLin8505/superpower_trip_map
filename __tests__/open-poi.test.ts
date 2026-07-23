@@ -114,7 +114,7 @@ it('maps open-data quality metadata used by recommendation ranking', () => {
 it('prioritizes dessert-specific Open POI rows before nearby generic cafes', async () => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role'
-  const recentMiss = { status: 'not_found', version: 6, fetchedAt: new Date().toISOString() }
+  const recentMiss = { status: 'not_found', version: 7, fetchedAt: new Date().toISOString() }
   const row = (
     source_place_id: string,
     name_primary: string,
@@ -538,6 +538,63 @@ it('does not use a generic category image when a small local POI has no exact im
   )
 })
 
+it('uses Wikimedia Commons search to resolve five localized landmark images', async () => {
+  const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url.includes('commons.wikimedia.org/w/api.php')) {
+      return {
+        ok: true,
+        json: async () => ({
+          query: {
+            pages: Object.fromEntries(
+              Array.from({ length: 5 }, (_, index) => [
+                String(index + 1),
+                {
+                  title: `File:Asakusa Shrine ${index + 1}.jpg`,
+                  imageinfo: [{
+                    thumburl: `https://upload.wikimedia.org/asakusa-shrine-${index + 1}.jpg`,
+                    mime: 'image/jpeg',
+                  }],
+                },
+              ])
+            ),
+          },
+        }),
+      }
+    }
+
+    return {
+      ok: true,
+      json: async () => ({ results: [] }),
+    }
+  })
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  const result = await resolveFreeImageForPlace({
+    placeId: 'user:asakusa-shrine',
+    placeName: '浅草神社',
+    category: 'attraction',
+    allowGeneric: true,
+    limit: 5,
+  })
+
+  expect(result?.generic).toBeUndefined()
+  expect(result).toMatchObject({
+    source: 'wikimedia_commons',
+    photoUrls: [
+      'https://upload.wikimedia.org/asakusa-shrine-1.jpg',
+      'https://upload.wikimedia.org/asakusa-shrine-2.jpg',
+      'https://upload.wikimedia.org/asakusa-shrine-3.jpg',
+      'https://upload.wikimedia.org/asakusa-shrine-4.jpg',
+      'https://upload.wikimedia.org/asakusa-shrine-5.jpg',
+    ],
+  })
+  expect(fetchMock).not.toHaveBeenCalledWith(
+    expect.stringContaining('q=travel+landmark+attraction'),
+    expect.anything(),
+  )
+})
+
 it('returns up to five generic Openverse category images when generic fallback is allowed', async () => {
   const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
     const url = String(input)
@@ -645,7 +702,7 @@ it('ignores previously persisted generic free image metadata', () => {
       photoUrls: ['https://images.example/generic-cafe-dessert.jpg'],
       free_image: {
         status: 'found',
-        version: 6,
+        version: 7,
         source: 'openverse',
         generic: true,
         url: 'https://images.example/generic-cafe-dessert.jpg',
@@ -723,7 +780,7 @@ it('skips external image lookups for recent not-found cache entries', async () =
       wikidata: 'Q999999',
       free_image: {
         status: 'not_found',
-        version: 6,
+        version: 7,
         fetchedAt: new Date().toISOString(),
       },
     },
@@ -763,7 +820,7 @@ it('persists not-found image lookups so future reloads skip external searches', 
     metadata: expect.objectContaining({
       free_image: expect.objectContaining({
         status: 'not_found',
-        version: 6,
+        version: 7,
       }),
     }),
   }))

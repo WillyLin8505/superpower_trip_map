@@ -1,5 +1,5 @@
 'use client'
-import { Fragment } from 'react'
+import { Fragment, useMemo } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { ItineraryCard } from './ItineraryCard'
 import { buildDayEmbedUrl } from '@/lib/utils/mapUrl'
@@ -7,6 +7,7 @@ import { dayDate, formatDateLabel } from '@/lib/utils/date'
 import { SidePanel } from './SidePanel'
 import type { SidePanelTab } from './SidePanel'
 import { freeBlocks, formatGap } from '@/lib/utils/freeTime'
+import { stripRepeatedPhotoSets } from '@/lib/utils/photoSanitizer'
 import type { DayItinerary, TransportMode, PlaceType, CategoryBuckets, DayRecommendation, Candidate, Place, RecommendationCenter, ScheduledPlace } from '@/lib/types'
 
 function toMin(t: string): number {
@@ -74,6 +75,7 @@ interface Props {
 export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggable, isOverflow, onScatter, onDelete, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType, onSetDayStartLock, onSetDayDurationLock, onChangeWindow, recommendations, showSidePanel, onAddRecommendation, onArchiveRecommendation, onDeleteRecommendation, onRecommendationPhotoUnavailable, candidates, archived, onAddReservePlace, onAddReservePlaces, onAddArchivedToDay, onDeleteArchived, onAddCandidateToDay, onArchiveCandidate, onDeleteCandidate, sidePanelTab, onSidePanelTabChange, collectionBuckets, onAddCollectionPlace, onArchiveCollection, onDismissCollection, onCollectionImported, backfilling, recsHasCenter, onSetRecommendationCenter, onClearRecommendationCenter, onRefreshRecommendationCategory, recsRefreshing, recsError, isLastDay, onSmartArrange, onSetAvoid, arranging, onChangeLegMode, legBusyPlaceId, onDeletePlace, onArchivePlace }: Props) {
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
+  const displayPlaces = useMemo(() => stripRepeatedPhotoSets(day.places), [day.places])
 
   return (
     <section className="mb-12" data-testid={`day-${dayIdx}`}>
@@ -190,7 +192,7 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
             const byAfter = new Map(
               freeBlocks(day.places, toMin(day.dayEnd)).map((b) => [b.afterId, b] as const)
             )
-            return day.places.map((place, i) => {
+            return displayPlaces.map((place, i) => {
               const fb = byAfter.get(place.id)
               return (
                 <Fragment key={place.id}>

@@ -144,24 +144,12 @@ describe('GET /api/place-photos', () => {
     expect(body.photoUrls).toEqual(['https://images.example/hanoi-train-street.jpg'])
   })
 
-  it('tops up with free category images without calling Google when paid photo fallback is off', async () => {
+  it('does not top up with generic category images when paid photo fallback is off', async () => {
     process.env.GOOGLE_MAPS_PHOTO_FALLBACK_MODE = 'off'
-    resolveFreeImageForPlaceMock
-      .mockResolvedValueOnce({
-        photoUrls: ['https://images.example/train-street-exact.jpg'],
-        source: 'wikidata',
-      })
-      .mockResolvedValueOnce({
-        photoUrls: [
-          'https://images.example/train-street-exact.jpg',
-          'https://images.example/free-attraction-1.jpg',
-          'https://images.example/free-attraction-2.jpg',
-          'https://images.example/free-attraction-3.jpg',
-          'https://images.example/free-attraction-4.jpg',
-        ],
-        source: 'openverse',
-        generic: true,
-      })
+    resolveFreeImageForPlaceMock.mockResolvedValueOnce({
+      photoUrls: ['https://images.example/train-street-exact.jpg'],
+      source: 'wikidata',
+    })
 
     const req = new NextRequest('http://localhost/api/place-photos?placeId=osm%3Away%2Ftrain-street&placeName=Train+Street&placeType=attraction')
     const res = await GET(req)
@@ -173,18 +161,8 @@ describe('GET /api/place-photos', () => {
       placeName: 'Train Street',
       limit: 5,
     }))
-    expect(resolveFreeImageForPlaceMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      allowGeneric: true,
-      placeName: 'Train Street',
-      limit: 5,
-    }))
-    expect(body.photoUrls).toEqual([
-      'https://images.example/train-street-exact.jpg',
-      'https://images.example/free-attraction-1.jpg',
-      'https://images.example/free-attraction-2.jpg',
-      'https://images.example/free-attraction-3.jpg',
-      'https://images.example/free-attraction-4.jpg',
-    ])
+    expect(resolveFreeImageForPlaceMock).toHaveBeenCalledTimes(1)
+    expect(body.photoUrls).toEqual(['https://images.example/train-street-exact.jpg'])
   })
 
   it('uses Google Maps as the last fallback for non-Google place ids when free lookup misses', async () => {
@@ -418,14 +396,8 @@ describe('GET /api/place-photos', () => {
     expect(body.photoUrls).toEqual(['/api/photo?ref=orick-google-photo'])
   })
 
-  it('tops up attraction cards with generic free images only after Google has fewer than five photos', async () => {
-    resolveFreeImageForPlaceMock
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        photoUrls: ['https://images.example/generic-shrine.jpg'],
-        source: 'openverse',
-        generic: true,
-      })
+  it('does not top up attraction cards with generic free images after Google has fewer than five photos', async () => {
+    resolveFreeImageForPlaceMock.mockResolvedValueOnce(null)
     ;(fetch as jest.Mock)
       .mockResolvedValueOnce({
         ok: true,
@@ -457,16 +429,12 @@ describe('GET /api/place-photos', () => {
       allowGeneric: false,
       placeName: 'Shinmeigu',
     }))
-    expect(resolveFreeImageForPlaceMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      allowGeneric: true,
-      placeName: 'Shinmeigu',
-    }))
+    expect(resolveFreeImageForPlaceMock).toHaveBeenCalledTimes(1)
     expect(body.photoUrls).toEqual([
       '/api/photo?ref=shrine-google-1',
       '/api/photo?ref=shrine-google-2',
       '/api/photo?ref=shrine-google-3',
       '/api/photo?ref=shrine-google-4',
-      'https://images.example/generic-shrine.jpg',
     ])
   })
 })

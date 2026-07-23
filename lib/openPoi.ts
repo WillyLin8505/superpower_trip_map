@@ -9,7 +9,7 @@ import { compareRecommendationCandidates, isRecommendationCandidateAcceptable } 
 type OpenPoiSource = 'overture' | 'osm' | 'wikidata' | 'user'
 type FreeImageSource = 'metadata' | 'wikimedia_commons' | 'wikidata' | 'wikipedia' | 'openverse'
 const FREE_IMAGE_TTL_SECONDS = 60 * 60 * 24 * 30
-const FREE_IMAGE_LOOKUP_VERSION = 6
+const FREE_IMAGE_LOOKUP_VERSION = 7
 const FREE_IMAGE_FETCH_TIMEOUT_MS = 4000
 const MAX_FREE_IMAGE_URLS = 5
 const MAX_GENERIC_IMAGE_POOL_URLS = 50
@@ -311,6 +311,12 @@ interface WikipediaSummaryResponse {
   originalimage?: { source?: unknown }
 }
 
+interface WikipediaSearchResponse {
+  query?: {
+    search?: Array<{ title?: unknown }>
+  }
+}
+
 async function wikipediaImageResult(lang: string, title: string): Promise<FreeImageResult | null> {
   return cachedFreeImage(['wikipedia', lang, title], async () => {
     const data = await fetchJsonWithTimeout(
@@ -325,6 +331,73 @@ async function wikipediaImageResult(lang: string, title: string): Promise<FreeIm
     const url = normalizeImageUrl(cleanText(data.thumbnail?.source) ?? cleanText(data.originalimage?.source))
     return url ? { photoUrls: [url], source: 'wikipedia', pageUrl: `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}` } : null
   })
+}
+
+const WIKIPEDIA_SEARCH_LANGS = ['zh', 'ja', 'en'] as const
+
+function containsCjk(value: string): boolean {
+  return /[\u3040-\u30ff\u3400-\u9fff]/.test(value)
+}
+
+function normalizeCjkLookupText(value: string): string {
+  return value.replace(/\s+/g, '').toLowerCase()
+}
+
+function wikipediaTitleMatchesQuery(query: string, title: string): boolean {
+  const cleanQuery = cleanText(query)
+  const cleanTitle = cleanText(title)
+  if (!cleanQuery || !cleanTitle) return false
+
+  const tokens = significantSearchTokens(cleanQuery)
+  if (tokens.length > 0) {
+    const haystack = normalizeSearchText(cleanTitle)
+    return tokens.every((token) => haystack.includes(token))
+  }
+
+  if (containsCjk(cleanQuery)) {
+    const normalizedQuery = normalizeCjkLookupText(cleanQuery)
+    const normalizedTitle = normalizeCjkLookupText(cleanTitle)
+    return normalizedTitle.includes(normalizedQuery) || normalizedQuery.includes(normalizedTitle)
+  }
+
+  return false
+}
+
+async function wikipediaSearchTitle(lang: string, query: string): Promise<string | null> {
+  return cachedFreeImage(['wikipedia-search-title', lang, query], async () => {
+    const params = new URLSearchParams({
+      action: 'query',
+      list: 'search',
+      srsearch: query,
+      srlimit: '5',
+      format: 'json',
+      origin: '*',
+    })
+    const data = await fetchJsonWithTimeout(`https://${lang}.wikipedia.org/w/api.php?${params.toString()}`, {
+      provider: 'wikipedia',
+      endpoint: 'page_search',
+      skuHint: 'wikipedia_free',
+      metadata: { lang, query },
+    }) as WikipediaSearchResponse
+    const titles = (data.query?.search ?? [])
+      .map((item) => cleanText(item.title))
+      .filter((title): title is string => Boolean(title))
+    return titles.find((title) => wikipediaTitleMatchesQuery(query, title)) ?? null
+  })
+}
+
+async function wikipediaSearchImageResultForQuery(query: string): Promise<FreeImageResult | null> {
+  const cleanQuery = cleanText(query)
+  if (!cleanQuery) return null
+
+  for (const lang of WIKIPEDIA_SEARCH_LANGS) {
+    const title = await wikipediaSearchTitle(lang, cleanQuery)
+    if (!title) continue
+    const result = await wikipediaImageResult(lang, title)
+    if (result?.photoUrls.length) return result
+  }
+
+  return null
 }
 
 interface CommonsPage {
@@ -356,6 +429,38 @@ function commonsMetadataText(
   return cleanHtmlText(extmetadata?.[key]?.value)
 }
 
+function commonsResultFromPages(pages: CommonsPage[]): FreeImageResult | null {
+  const photoUrls: string[] = []
+  let firstPageUrl: string | null = null
+  let firstLicense: string | null = null
+  let firstAttribution: string | null = null
+
+  for (const page of pages) {
+    const imageInfo = page.imageinfo?.find((info) =>
+      typeof info.mime === 'string' && info.mime.startsWith('image/')
+    )
+    if (!imageInfo) continue
+    const url = normalizeImageUrl(cleanText(imageInfo.thumburl) ?? cleanText(imageInfo.url))
+    if (!url) continue
+    const title = cleanText(page.title)
+    if (!photoUrls.includes(url)) photoUrls.push(url)
+    firstPageUrl ??= title ? `https://commons.wikimedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}` : null
+    firstLicense ??= commonsMetadataText(imageInfo.extmetadata, 'LicenseShortName')
+    firstAttribution ??= commonsMetadataText(imageInfo.extmetadata, 'Artist')
+    if (photoUrls.length >= MAX_FREE_IMAGE_URLS) break
+  }
+
+  return photoUrls.length > 0
+    ? {
+      photoUrls,
+      source: 'wikimedia_commons',
+      pageUrl: firstPageUrl,
+      license: firstLicense,
+      attribution: firstAttribution,
+    }
+    : null
+}
+
 async function wikimediaCommonsCategoryImageResult(category: string): Promise<FreeImageResult | null> {
   return cachedFreeImage(['wikimedia-commons-category', category], async () => {
     const params = new URLSearchParams({
@@ -376,34 +481,34 @@ async function wikimediaCommonsCategoryImageResult(category: string): Promise<Fr
       skuHint: 'wikimedia_free',
       metadata: { category },
     }) as CommonsQueryResponse
-    const pages = Object.values(data.query?.pages ?? {})
-    const photoUrls: string[] = []
-    let firstPageUrl: string | null = null
-    let firstLicense: string | null = null
-    let firstAttribution: string | null = null
+    return commonsResultFromPages(Object.values(data.query?.pages ?? {}))
+  })
+}
 
-    for (const page of pages) {
-      const imageInfo = page.imageinfo?.find((info) =>
-        typeof info.mime === 'string' && info.mime.startsWith('image/')
-      ) ?? page.imageinfo?.[0]
-      const url = normalizeImageUrl(cleanText(imageInfo?.thumburl) ?? cleanText(imageInfo?.url))
-      if (!url) continue
-      const title = cleanText(page.title)
-      if (!photoUrls.includes(url)) photoUrls.push(url)
-      firstPageUrl ??= title ? `https://commons.wikimedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}` : null
-      firstLicense ??= commonsMetadataText(imageInfo?.extmetadata, 'LicenseShortName')
-      firstAttribution ??= commonsMetadataText(imageInfo?.extmetadata, 'Artist')
-      if (photoUrls.length >= MAX_FREE_IMAGE_URLS) break
-    }
-    return photoUrls.length > 0
-      ? {
-        photoUrls,
-        source: 'wikimedia_commons',
-        pageUrl: firstPageUrl,
-        license: firstLicense,
-        attribution: firstAttribution,
-      }
-      : null
+async function wikimediaCommonsSearchImageResultForQuery(query: string, category: PlaceType): Promise<FreeImageResult | null> {
+  const cleanQuery = cleanText(query)
+  if (!cleanQuery) return null
+
+  return cachedFreeImage(['wikimedia-commons-search', cleanQuery], async () => {
+    const params = new URLSearchParams({
+      action: 'query',
+      generator: 'search',
+      gsrsearch: cleanQuery,
+      gsrnamespace: '6',
+      gsrlimit: '12',
+      prop: 'imageinfo',
+      iiprop: 'url|mime|extmetadata',
+      iiurlwidth: '900',
+      format: 'json',
+      origin: '*',
+    })
+    const data = await fetchJsonWithTimeout(`https://commons.wikimedia.org/w/api.php?${params.toString()}`, {
+      provider: 'wikimedia',
+      endpoint: 'commons_search_images',
+      skuHint: 'wikimedia_free',
+      metadata: { query: cleanQuery, category },
+    }) as CommonsQueryResponse
+    return commonsResultFromPages(Object.values(data.query?.pages ?? {}))
   })
 }
 
@@ -630,6 +735,26 @@ async function openverseImageResult(row: OpenPoiRow): Promise<FreeImageResult | 
   return merged
 }
 
+async function wikimediaCommonsSearchImageResult(row: OpenPoiRow): Promise<FreeImageResult | null> {
+  let merged: FreeImageResult | null = null
+  for (const query of imageSearchAliasesForRow(row)) {
+    const result = await wikimediaCommonsSearchImageResultForQuery(query, row.category)
+    merged = mergeFreeImageResults(merged, result)
+    if ((merged?.photoUrls.length ?? 0) >= MAX_FREE_IMAGE_URLS) return merged
+  }
+  return merged
+}
+
+async function wikipediaSearchImageResult(row: OpenPoiRow): Promise<FreeImageResult | null> {
+  let merged: FreeImageResult | null = null
+  for (const query of imageSearchAliasesForRow(row)) {
+    const result = await wikipediaSearchImageResultForQuery(query)
+    merged = mergeFreeImageResults(merged, result)
+    if ((merged?.photoUrls.length ?? 0) >= MAX_FREE_IMAGE_URLS) return merged
+  }
+  return merged
+}
+
 async function openverseCategoryImageResult(category: PlaceType, seed: string): Promise<FreeImageResult | null> {
   const query = CATEGORY_FREE_IMAGE_QUERIES[category]
   const pool = await cachedFreeImage<FreeImageResult | null>(['openverse-category-pool', category, query], async () => {
@@ -696,6 +821,8 @@ async function freeImageResultForRow(row: OpenPoiRow, allowGenericFallback = fal
   if (qid) resolvers.push(() => wikidataImageResult(qid))
   const wikipedia = wikipediaTagFromMetadata(row.metadata) ?? knownEntity?.wikipedia ?? null
   if (wikipedia) resolvers.push(() => wikipediaImageResult(wikipedia.lang, wikipedia.title))
+  resolvers.push(() => wikimediaCommonsSearchImageResult(row))
+  resolvers.push(() => wikipediaSearchImageResult(row))
   resolvers.push(() => openverseImageResult(row))
   if (allowGenericFallback) resolvers.push(() => openverseCategoryImageResult(row.category, genericImageSeedForRow(row)))
 
