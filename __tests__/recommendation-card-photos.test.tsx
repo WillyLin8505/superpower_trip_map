@@ -13,8 +13,8 @@ const rec: DayRecommendation = {
   address: 'Hanoi',
   openingHours: null,
   rating: 4.9,
-  photoUrl: '/api/photo?ref=one',
-  photoUrls: ['/api/photo?ref=one', '/api/photo?ref=two'],
+  photoUrl: 'https://images.example/one.jpg',
+  photoUrls: ['https://images.example/one.jpg', 'https://images.example/two.jpg'],
   description: 'Coffee shop',
   reason: 'Good coffee',
   sourceLabel: 'Google',
@@ -24,11 +24,10 @@ it('opens photo lightbox without triggering add', async () => {
   const onAdd = jest.fn()
   render(<RecommendationCard rec={rec} dateIso="2026-07-12" onAdd={onAdd} />)
 
-  fireEvent.click(screen.getByRole('button', { name: '載入照片' }))
   fireEvent.click(screen.getByTestId('photo-thumb-0'))
 
   expect(onAdd).not.toHaveBeenCalled()
   expect(screen.getByRole('dialog')).toBeInTheDocument()
   fireEvent.click(screen.getByTestId('photo-next'))
-  await waitFor(() => expect(screen.getByAltText('Avoccino 照片 2')).toHaveAttribute('src', '/api/photo?ref=two'))
+  await waitFor(() => expect(screen.getByAltText('Avoccino 照片 2')).toHaveAttribute('src', 'https://images.example/two.jpg'))
 })

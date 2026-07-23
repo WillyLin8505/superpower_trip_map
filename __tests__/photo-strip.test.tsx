@@ -57,6 +57,41 @@ describe('PhotoStrip', () => {
     expect(global.fetch).not.toHaveBeenCalled()
   })
 
+  it('refreshes full legacy photo sets when requested', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        photoUrls: [
+          'https://images.example/free-1.jpg',
+          'https://images.example/free-2.jpg',
+          'https://images.example/free-3.jpg',
+          'https://images.example/free-4.jpg',
+          'https://images.example/free-5.jpg',
+        ],
+      }),
+    }) as unknown as typeof fetch
+
+    render(
+      <PhotoStrip
+        placeId={googlePlaceId}
+        placeName="Stale Place"
+        photos={[
+          'https://stale.example/old-1.jpg',
+          'https://stale.example/old-2.jpg',
+          'https://stale.example/old-3.jpg',
+          'https://stale.example/old-4.jpg',
+          'https://stale.example/old-5.jpg',
+        ]}
+        eagerAutoFetch
+        refreshFetchedPhotos
+      />
+    )
+
+    await waitFor(() => expect(screen.getByTestId('photo-thumb-0').querySelector('img')).toHaveAttribute('src', 'https://images.example/free-1.jpg'))
+    expect(screen.getByTestId('photo-thumb-4').querySelector('img')).toHaveAttribute('src', 'https://images.example/free-5.jpg')
+    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Stale+Place&v=11`)
+  })
+
   it('fills stored cover photos to five as soon as the card is eligible', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
@@ -79,7 +114,7 @@ describe('PhotoStrip', () => {
       />
     )
 
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Avoccino&v=7`))
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Avoccino&v=11`))
     expect(await screen.findByTestId('photo-thumb-4')).toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('photo-thumb-0'))
@@ -134,7 +169,7 @@ describe('PhotoStrip', () => {
 
     expect(await screen.findByTestId('photo-thumb-4')).toBeInTheDocument()
     expect(screen.getByTestId('photo-thumb-0').querySelector('img')).toHaveAttribute('src', 'https://free.example/one.jpg')
-    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Avoccino&v=7`)
+    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Avoccino&v=11`)
   })
 
   it('does not auto-load stored Google photo media when cover mode defers paid photos', async () => {
@@ -158,7 +193,7 @@ describe('PhotoStrip', () => {
     const coverImg = screen.getByTestId('photo-thumb-0').querySelector('img')
     expect(coverImg).toHaveAttribute('src', 'https://free.example/cover.jpg')
     expect(coverImg).not.toHaveAttribute('src', '/api/photo?ref=paid-google-cover')
-    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Train+Street&v=7&limit=1`)
+    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Train+Street&v=11&limit=1`)
   })
 
   it('fetches up to five photos when no photo URL is already available', async () => {
@@ -188,7 +223,7 @@ describe('PhotoStrip', () => {
     const coverImg = screen.getByTestId('photo-thumb-0').querySelector('img')
     expect(coverImg).toHaveAttribute('src', '/api/photo?ref=cover')
     expect(coverImg).toHaveAttribute('loading', 'lazy')
-    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Avoccino&v=7`)
+    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Avoccino&v=11`)
   })
 
   it('waits until the photo slot is near the viewport before fetching missing photos', async () => {
@@ -206,7 +241,7 @@ describe('PhotoStrip', () => {
     MockIntersectionObserver.instances[0].intersect()
 
     expect(await screen.findByTestId('photo-thumb-0')).toBeInTheDocument()
-    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Avoccino&v=7`)
+    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Avoccino&v=11`)
   })
 
   it('observes stored cover-photo cards before fetching the remaining photos', async () => {
@@ -234,7 +269,7 @@ describe('PhotoStrip', () => {
     MockIntersectionObserver.instances[0].intersect()
 
     expect(await screen.findByTestId('photo-thumb-4')).toBeInTheDocument()
-    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Train+Street&v=7`)
+    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Train+Street&v=11`)
   })
 
   it('deduplicates simultaneous missing-photo requests for the same place', async () => {
@@ -263,7 +298,7 @@ describe('PhotoStrip', () => {
     render(<PhotoStrip placeId="osm:123" placeName="Train Street" photos={[]} />)
 
     expect(await screen.findByTestId('photo-thumb-0')).toBeInTheDocument()
-    expect(global.fetch).toHaveBeenCalledWith('/api/place-photos?placeId=osm%3A123&placeName=Train+Street&v=7')
+    expect(global.fetch).toHaveBeenCalledWith('/api/place-photos?placeId=osm%3A123&placeName=Train+Street&v=11')
   })
 
   it('ignores stale v1 cached cover photos so old generic images are not reused', async () => {
@@ -277,7 +312,7 @@ describe('PhotoStrip', () => {
 
     expect(await screen.findByTestId('photo-thumb-0')).toBeInTheDocument()
     expect(screen.getByTestId('photo-thumb-0').querySelector('img')).toHaveAttribute('src', '/api/photo?ref=fresh-place-photo')
-    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Fresh+Place&v=7`)
+    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Fresh+Place&v=11`)
   })
 
   it('refetches stale one-photo all caches instead of reusing incomplete results', async () => {
@@ -298,7 +333,34 @@ describe('PhotoStrip', () => {
     render(<PhotoStrip placeId={googlePlaceId} placeName="Train Street" photos={['/api/photo?ref=one']} />)
 
     expect(await screen.findByTestId('photo-thumb-4')).toBeInTheDocument()
-    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Train+Street&v=7`)
+    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Train+Street&v=11`)
+  })
+
+  it('filters broken Openverse thumb proxy URLs from incoming photos', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        photoUrls: [
+          'https://images.example/replacement-1.jpg',
+          'https://images.example/replacement-2.jpg',
+          'https://images.example/replacement-3.jpg',
+          'https://images.example/replacement-4.jpg',
+          'https://images.example/replacement-5.jpg',
+        ],
+      }),
+    }) as unknown as typeof fetch
+
+    render(
+      <PhotoStrip
+        placeId={googlePlaceId}
+        placeName="Croissent"
+        photos={['https://api.openverse.org/v1/images/118284db-3f7c-4cf9-a93d-9d826d3cacbf/thumb/']}
+      />
+    )
+
+    expect(await screen.findByTestId('photo-thumb-0')).toBeInTheDocument()
+    expect(screen.getByTestId('photo-thumb-0').querySelector('img')).toHaveAttribute('src', 'https://images.example/replacement-1.jpg')
+    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Croissent&v=11`)
   })
 
   it('does not show a gray placeholder or fetch Google photos for short local ids', () => {
@@ -325,7 +387,7 @@ describe('PhotoStrip', () => {
     fireEvent.click(screen.getByRole('button', { name: '載入照片' }))
 
     expect(await screen.findByTestId('photo-thumb-0')).toBeInTheDocument()
-    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Manual+Place&v=7`)
+    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Manual+Place&v=11`)
   })
 
   it('hides the gray placeholder when a missing-photo fetch returns no photos', async () => {

@@ -7,9 +7,9 @@ import { trackedApiFetch } from '@/lib/apiUsageEvents'
 import { compareRecommendationCandidates, isRecommendationCandidateAcceptable } from '@/lib/utils/recommendationRank'
 
 type OpenPoiSource = 'overture' | 'osm' | 'wikidata' | 'user'
-type FreeImageSource = 'metadata' | 'wikimedia_commons' | 'wikidata' | 'wikipedia' | 'openverse'
+type FreeImageSource = 'metadata' | 'wikimedia_commons' | 'wikidata' | 'wikipedia' | 'openverse' | 'static_free'
 const FREE_IMAGE_TTL_SECONDS = 60 * 60 * 24 * 30
-const FREE_IMAGE_LOOKUP_VERSION = 7
+const FREE_IMAGE_LOOKUP_VERSION = 10
 const FREE_IMAGE_FETCH_TIMEOUT_MS = 4000
 const MAX_FREE_IMAGE_URLS = 5
 const MAX_GENERIC_IMAGE_POOL_URLS = 50
@@ -158,7 +158,9 @@ function normalizeImageUrl(value: string | null): string | null {
 function isKnownNonEmbeddableImageUrl(value: string): boolean {
   try {
     const url = new URL(value)
-    return ['photos.app.goo.gl', 'photos.google.com'].includes(url.hostname.toLowerCase())
+    const hostname = url.hostname.toLowerCase()
+    if (['photos.app.goo.gl', 'photos.google.com'].includes(hostname)) return true
+    return hostname === 'api.openverse.org' && /^\/v1\/images\/[^/]+\/thumb\/?$/i.test(url.pathname)
   } catch {
     return false
   }
@@ -343,6 +345,21 @@ function normalizeCjkLookupText(value: string): string {
   return value.replace(/\s+/g, '').toLowerCase()
 }
 
+function cjkChars(value: string): string[] {
+  return Array.from(normalizeCjkLookupText(value).match(/[\u3040-\u30ff\u3400-\u9fff]/g) ?? [])
+}
+
+function cjkFuzzyTitleMatch(query: string, title: string): boolean {
+  const queryChars = Array.from(new Set(cjkChars(query)))
+  const titleChars = new Set(cjkChars(title))
+  if (queryChars.length === 0 || titleChars.size === 0) return false
+
+  const shared = queryChars.filter((char) => titleChars.has(char)).length
+  const threshold = Math.max(2, Math.ceil(queryChars.length * 0.6))
+  const lastQueryChar = queryChars[queryChars.length - 1]
+  return shared >= threshold && titleChars.has(lastQueryChar)
+}
+
 function wikipediaTitleMatchesQuery(query: string, title: string): boolean {
   const cleanQuery = cleanText(query)
   const cleanTitle = cleanText(title)
@@ -357,7 +374,9 @@ function wikipediaTitleMatchesQuery(query: string, title: string): boolean {
   if (containsCjk(cleanQuery)) {
     const normalizedQuery = normalizeCjkLookupText(cleanQuery)
     const normalizedTitle = normalizeCjkLookupText(cleanTitle)
-    return normalizedTitle.includes(normalizedQuery) || normalizedQuery.includes(normalizedTitle)
+    return normalizedTitle.includes(normalizedQuery) ||
+      normalizedQuery.includes(normalizedTitle) ||
+      cjkFuzzyTitleMatch(cleanQuery, cleanTitle)
   }
 
   return false
@@ -386,14 +405,17 @@ async function wikipediaSearchTitle(lang: string, query: string): Promise<string
   })
 }
 
-async function wikipediaSearchImageResultForQuery(query: string): Promise<FreeImageResult | null> {
+async function wikipediaSearchImageResultForQuery(query: string, category: PlaceType): Promise<FreeImageResult | null> {
   const cleanQuery = cleanText(query)
   if (!cleanQuery) return null
 
   for (const lang of WIKIPEDIA_SEARCH_LANGS) {
     const title = await wikipediaSearchTitle(lang, cleanQuery)
     if (!title) continue
-    const result = await wikipediaImageResult(lang, title)
+    const result = mergeFreeImageResults(
+      await wikipediaImageResult(lang, title),
+      await wikimediaCommonsSearchImageResultForQuery(title, category)
+    )
     if (result?.photoUrls.length) return result
   }
 
@@ -461,6 +483,37 @@ function commonsResultFromPages(pages: CommonsPage[]): FreeImageResult | null {
     : null
 }
 
+function commonsPageTitleLooksEmbeddable(title: string | null): boolean {
+  if (!title) return false
+  return !/\.(?:pdf|djvu)(?:\b|$)/i.test(title) &&
+    !/\b(?:cadal|ndl|ia|internet archive)\b/i.test(title)
+}
+
+function commonsPageTitleMatchesQuery(query: string, title: string | null): boolean {
+  const cleanQuery = cleanText(query)
+  const cleanTitle = cleanText(title)
+  if (!cleanQuery || !cleanTitle) return false
+
+  const fileTitle = cleanTitle
+    .replace(/^File:/i, '')
+    .replace(/\.[a-z0-9]{2,5}$/i, '')
+    .replace(/[_-]+/g, ' ')
+
+  if (containsCjk(cleanQuery)) {
+    const normalizedQuery = normalizeCjkLookupText(cleanQuery)
+    const normalizedTitle = normalizeCjkLookupText(fileTitle)
+    if (normalizedTitle.includes(normalizedQuery) || cjkFuzzyTitleMatch(cleanQuery, fileTitle)) return true
+  }
+
+  const tokens = significantSearchTokens(cleanQuery)
+  if (tokens.length === 0) return false
+  if (tokens.length === 1 && tokens[0].length < 5) return false
+
+  const haystack = normalizeSearchText(fileTitle)
+  const requiredTokens = tokens.slice(0, Math.min(tokens.length, 2))
+  return requiredTokens.every((token) => haystack.includes(token))
+}
+
 async function wikimediaCommonsCategoryImageResult(category: string): Promise<FreeImageResult | null> {
   return cachedFreeImage(['wikimedia-commons-category', category], async () => {
     const params = new URLSearchParams({
@@ -481,7 +534,8 @@ async function wikimediaCommonsCategoryImageResult(category: string): Promise<Fr
       skuHint: 'wikimedia_free',
       metadata: { category },
     }) as CommonsQueryResponse
-    return commonsResultFromPages(Object.values(data.query?.pages ?? {}))
+    return commonsResultFromPages(Object.values(data.query?.pages ?? {})
+      .filter((page) => commonsPageTitleLooksEmbeddable(cleanText(page.title))))
   })
 }
 
@@ -508,7 +562,11 @@ async function wikimediaCommonsSearchImageResultForQuery(query: string, category
       skuHint: 'wikimedia_free',
       metadata: { query: cleanQuery, category },
     }) as CommonsQueryResponse
-    return commonsResultFromPages(Object.values(data.query?.pages ?? {}))
+    return commonsResultFromPages(Object.values(data.query?.pages ?? {})
+      .filter((page) => {
+        const title = cleanText(page.title)
+        return commonsPageTitleLooksEmbeddable(title) && commonsPageTitleMatchesQuery(cleanQuery, title)
+      }))
   })
 }
 
@@ -527,6 +585,7 @@ interface OpenverseImageResponse {
 
 const OPENVERSE_STOP_WORDS = new Set([
   'the', 'and', 'for', 'with', 'cafe', 'coffee', 'restaurant', 'shop', 'store',
+  'road',
 ])
 
 const CATEGORY_FREE_IMAGE_QUERIES: Record<PlaceType, string> = {
@@ -534,6 +593,89 @@ const CATEGORY_FREE_IMAGE_QUERIES: Record<PlaceType, string> = {
   restaurant: 'local restaurant food',
   dessert: 'cafe dessert cake',
   accommodation: 'hotel building',
+}
+
+const STATIC_FREE_CATEGORY_IMAGE_URLS: Record<PlaceType, string[]> = {
+  attraction: [
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/Akihabara_Electric_Town_9999_26.jpg/960px-Akihabara_Electric_Town_9999_26.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/Akihabara_Electric_Town_9999_14.jpg/960px-Akihabara_Electric_Town_9999_14.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Claw_cranes_with_kawaii_stuffed_mascots_and_a_woman_playing%2C_Akihabara%2C_Chiyoda%2C_Tokyo%2C_Japan.jpg/960px-Claw_cranes_with_kawaii_stuffed_mascots_and_a_woman_playing%2C_Akihabara%2C_Chiyoda%2C_Tokyo%2C_Japan.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Akihabara_Electric_Town_9999_25.jpg/960px-Akihabara_Electric_Town_9999_25.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Akihabara_Electric_Town_9999_29.jpg/960px-Akihabara_Electric_Town_9999_29.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Tokyo_Skytree_2014_%E2%85%A2.jpg/960px-Tokyo_Skytree_2014_%E2%85%A2.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Tokyo_Skytree_%28white%29.jpg/960px-Tokyo_Skytree_%28white%29.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f0/Tokyo_Skytree%3B_March_2014.jpg/960px-Tokyo_Skytree%3B_March_2014.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/1/11/Worm%27s-eye_view_of_Tokyo_Skytree_with_vertical_symmetry_impression%2C_a_sunny_day%2C_in_Japan.jpg/960px-Worm%27s-eye_view_of_Tokyo_Skytree_with_vertical_symmetry_impression%2C_a_sunny_day%2C_in_Japan.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Tokyo_Skytree_%2849938192996%29.jpg/960px-Tokyo_Skytree_%2849938192996%29.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Sensoji_2023.jpg/960px-Sensoji_2023.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Main_Hall%2C_Sens%C5%8D-ji_Temple%2C_Tokyo%2C_20240824_1104_5619.jpg/960px-Main_Hall%2C_Sens%C5%8D-ji_Temple%2C_Tokyo%2C_20240824_1104_5619.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Asakusa_shrine_2012.JPG/960px-Asakusa_shrine_2012.JPG',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Torii_of_Asakusa_Shrine_2.JPG/960px-Torii_of_Asakusa_Shrine_2.JPG',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/Asakusa_-_Senso-ji_82_%2815163996964%29.jpg/960px-Asakusa_-_Senso-ji_82_%2815163996964%29.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/0/06/Asakusa_Shrine_20150915.JPG/960px-Asakusa_Shrine_20150915.JPG',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/Asakusa_shrine-1.jpg/960px-Asakusa_shrine-1.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/Meiji-jingu-pathway.jpg/960px-Meiji-jingu-pathway.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Meiji_Jingu_Stadium_aerial_view.jpg/960px-Meiji_Jingu_Stadium_aerial_view.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Meiji-jing%C5%AB_grand_torii_d%27entr%C3%A9e.jpg/960px-Meiji-jing%C5%AB_grand_torii_d%27entr%C3%A9e.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Meiji-jing%C5%AB_corbeau_gros_bec.jpg/960px-Meiji-jing%C5%AB_corbeau_gros_bec.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/Meiji-jing%C5%AB_vin_de_Bourgogne.jpg/960px-Meiji-jing%C5%AB_vin_de_Bourgogne.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/5/52/Buildings_in_Hibiya%2C_rainy_summer_evening.jpg/960px-Buildings_in_Hibiya%2C_rainy_summer_evening.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/7/73/Buildings_in_Hibiya%2C_rainy_summer_evening_5.jpg/960px-Buildings_in_Hibiya%2C_rainy_summer_evening_5.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Asakusa_Rockza_Building.JPG/960px-Asakusa_Rockza_Building.JPG',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/1/17/Asakusa_Rockza_2012.JPG/960px-Asakusa_Rockza_2012.JPG',
+  ],
+  restaurant: [
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5d/Tamago_yaki_by_ayustety_in_Tokyo.jpg/960px-Tamago_yaki_by_ayustety_in_Tokyo.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/5/54/%E7%8E%89%E5%AD%90%E7%87%92_%E6%9D%BE%E9%9C%B2_%2810363166125%29.jpg/960px-%E7%8E%89%E5%AD%90%E7%87%92_%E6%9D%BE%E9%9C%B2_%2810363166125%29.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/3/31/Tamago_yaki.JPG/960px-Tamago_yaki.JPG',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Tamago_yaki_a0.jpg/960px-Tamago_yaki_a0.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/3/38/Jojoen_Yakiniku_Restaurant_01.jpg/960px-Jojoen_Yakiniku_Restaurant_01.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fd/%E6%95%98%E6%95%98%E8%8B%91_%2848118317297%29.jpg/960px-%E6%95%98%E6%95%98%E8%8B%91_%2848118317297%29.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/%E6%95%98%E6%95%98%E8%8B%91_%2848118259848%29.jpg/960px-%E6%95%98%E6%95%98%E8%8B%91_%2848118259848%29.jpg',
+    'https://live.staticflickr.com/6094/6338451149_68e475632c_b.jpg',
+    'https://live.staticflickr.com/7312/9755629992_689d39b423_b.jpg',
+    'https://live.staticflickr.com/4025/4718509513_2a9a29792e_b.jpg',
+    'https://live.staticflickr.com/24/39037399_af847ff548_b.jpg',
+    'https://live.staticflickr.com/3704/8966869716_0e7d40eddd_b.jpg',
+    'https://live.staticflickr.com/7437/8965680493_f0c01704fc_b.jpg',
+    'https://live.staticflickr.com/7356/8966870764_6519f2129b_b.jpg',
+  ],
+  dessert: [
+    'https://commons.wikimedia.org/wiki/Special:FilePath/Gaufrette_of_Tokyo_Fugetsudo.jpg?width=900',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fb/Kobe-Fugetsudo_chocolates.jpg/960px-Kobe-Fugetsudo_chocolates.jpg',
+    'https://live.staticflickr.com/2143/2239975118_4562aa3ba6.jpg',
+    'https://live.staticflickr.com/8493/8445136988_7784c0a0db_b.jpg',
+    'https://live.staticflickr.com/4058/4254829770_09e4731e7a_b.jpg',
+    'https://live.staticflickr.com/3754/14294093741_7b2b7d49d0_b.jpg',
+    'https://live.staticflickr.com/3332/3537630156_786d6d0fc1_b.jpg',
+    'https://live.staticflickr.com/6094/6338451149_68e475632c_b.jpg',
+    'https://live.staticflickr.com/7312/9755629992_689d39b423_b.jpg',
+    'https://live.staticflickr.com/4025/4718509513_2a9a29792e_b.jpg',
+    'https://live.staticflickr.com/8034/8014601203_2c0c68afac.jpg',
+    'https://live.staticflickr.com/3880/15006539841_4701798c1c_b.jpg',
+    'https://commons.wikimedia.org/wiki/Special:FilePath/HK_HKCL_D%C3%A9lifrance.JPG?width=900',
+    'https://live.staticflickr.com/24/39037399_af847ff548_b.jpg',
+    'https://live.staticflickr.com/3704/8966869716_0e7d40eddd_b.jpg',
+    'https://live.staticflickr.com/7437/8965680493_f0c01704fc_b.jpg',
+    'https://live.staticflickr.com/7356/8966870764_6519f2129b_b.jpg',
+    'https://live.staticflickr.com/65535/54155304956_e0ffecdc5a_b.jpg',
+    'https://live.staticflickr.com/65535/54155768780_1e3c0c537a_b.jpg',
+    'https://live.staticflickr.com/65535/54155628129_eb361bb4fb_b.jpg',
+    'https://live.staticflickr.com/65535/54155627704_718d9c6799_b.jpg',
+    'https://live.staticflickr.com/65535/54155305091_3005c16ae5_b.jpg',
+  ],
+  accommodation: [
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/5/52/Buildings_in_Hibiya%2C_rainy_summer_evening.jpg/960px-Buildings_in_Hibiya%2C_rainy_summer_evening.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/7/73/Buildings_in_Hibiya%2C_rainy_summer_evening_5.jpg/960px-Buildings_in_Hibiya%2C_rainy_summer_evening_5.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Tokyo_Skytree_2014_%E2%85%A2.jpg/960px-Tokyo_Skytree_2014_%E2%85%A2.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Tokyo_Skytree_%28white%29.jpg/960px-Tokyo_Skytree_%28white%29.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/Akihabara_Electric_Town_9999_26.jpg/960px-Akihabara_Electric_Town_9999_26.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/Akihabara_Electric_Town_9999_14.jpg/960px-Akihabara_Electric_Town_9999_14.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Akihabara_Electric_Town_9999_25.jpg/960px-Akihabara_Electric_Town_9999_25.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Sensoji_2023.jpg/960px-Sensoji_2023.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Meiji-jing%C5%AB_grand_torii_d%27entr%C3%A9e.jpg/960px-Meiji-jing%C5%AB_grand_torii_d%27entr%C3%A9e.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Asakusa_Rockza_Building.JPG/960px-Asakusa_Rockza_Building.JPG',
+  ],
 }
 
 function stableHash(value: string): number {
@@ -547,16 +689,25 @@ function stableHash(value: string): number {
 function seededPhotoUrls(photoUrls: string[], seed: string, limit = MAX_FREE_IMAGE_URLS): string[] {
   const uniquePhotoUrls = Array.from(new Set(photoUrls.filter(Boolean)))
   if (uniquePhotoUrls.length <= limit) return uniquePhotoUrls.slice(0, limit)
-  const startIndex = stableHash(seed) % uniquePhotoUrls.length
-  return Array.from({ length: limit }, (_, offset) =>
-    uniquePhotoUrls[(startIndex + offset) % uniquePhotoUrls.length]
-  )
+  let state = stableHash(seed) || 1
+  const shuffled = [...uniquePhotoUrls]
+  const nextRandom = () => {
+    state = (state * 1664525 + 1013904223) >>> 0
+    return state / 0x100000000
+  }
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(nextRandom() * (index + 1))
+    ;[shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]]
+  }
+  return shuffled.slice(0, limit)
 }
 
 function genericImageSeedForRow(row: OpenPoiRow): string {
   return [
     row.source,
     row.source_place_id,
+    String(row.lat),
+    String(row.lng),
     row.name_primary,
     row.name_local,
     row.name_zh,
@@ -564,6 +715,16 @@ function genericImageSeedForRow(row: OpenPoiRow): string {
     ...metadataStrings(row.metadata, 'search_aliases'),
     ...metadataStrings(row.metadata, 'aliases'),
   ].map((value) => cleanText(value)).filter(Boolean).join('|')
+}
+
+function staticCategoryImageResult(category: PlaceType, seed: string): FreeImageResult | null {
+  const photoUrls = seededPhotoUrls(STATIC_FREE_CATEGORY_IMAGE_URLS[category], seed)
+  if (photoUrls.length === 0) return null
+  return {
+    photoUrls,
+    source: 'static_free',
+    generic: true,
+  }
 }
 
 interface KnownFreeImageEntity {
@@ -605,7 +766,7 @@ function normalizeAliasLookupText(value: string): string {
 }
 
 function addUniqueText(values: string[], value: string | null | undefined): void {
-  const cleaned = cleanText(value)
+  const cleaned = cleanText(value)?.replace(/\bcroissent\b/gi, 'croissant')
   if (!cleaned) return
   if (!values.some((existing) => normalizeAliasLookupText(existing) === normalizeAliasLookupText(cleaned))) {
     values.push(cleaned)
@@ -748,7 +909,7 @@ async function wikimediaCommonsSearchImageResult(row: OpenPoiRow): Promise<FreeI
 async function wikipediaSearchImageResult(row: OpenPoiRow): Promise<FreeImageResult | null> {
   let merged: FreeImageResult | null = null
   for (const query of imageSearchAliasesForRow(row)) {
-    const result = await wikipediaSearchImageResultForQuery(query)
+    const result = await wikipediaSearchImageResultForQuery(query, row.category)
     merged = mergeFreeImageResults(merged, result)
     if ((merged?.photoUrls.length ?? 0) >= MAX_FREE_IMAGE_URLS) return merged
   }
@@ -757,37 +918,42 @@ async function wikipediaSearchImageResult(row: OpenPoiRow): Promise<FreeImageRes
 
 async function openverseCategoryImageResult(category: PlaceType, seed: string): Promise<FreeImageResult | null> {
   const query = CATEGORY_FREE_IMAGE_QUERIES[category]
-  const pool = await cachedFreeImage<FreeImageResult | null>(['openverse-category-pool', category, query], async () => {
-    const params = new URLSearchParams({
-      q: query,
-      page_size: String(MAX_GENERIC_IMAGE_POOL_URLS),
-      license_type: 'commercial,modification',
+  let pool: FreeImageResult | null = null
+  try {
+    pool = await cachedFreeImage<FreeImageResult | null>(['openverse-category-pool', category, query], async () => {
+      const params = new URLSearchParams({
+        q: query,
+        page_size: String(MAX_GENERIC_IMAGE_POOL_URLS),
+        license_type: 'commercial,modification',
+      })
+      const data = await fetchJsonWithTimeout(`https://api.openverse.org/v1/images?${params.toString()}`, {
+        provider: 'openverse',
+        endpoint: 'category_image_search',
+        skuHint: 'openverse_free',
+        metadata: { query, category, fallback: 'category' },
+      }) as OpenverseImageResponse
+      const matches = (data.results ?? [])
+        .map((item) => ({
+          item,
+          url: openverseEmbeddableUrl(item) ?? normalizeImageUrl(cleanText(item.thumbnail) ?? cleanText(item.url)),
+        }))
+        .filter((match): match is { item: OpenverseImageResult; url: string } => match.url !== null)
+      const result = matches[0]?.item
+      const photoUrls = Array.from(new Set(matches.map((match) => match.url))).slice(0, MAX_GENERIC_IMAGE_POOL_URLS)
+      if (!result || photoUrls.length === 0) return null
+      return {
+        photoUrls,
+        source: 'openverse',
+        pageUrl: cleanText(result.foreign_landing_url),
+        license: cleanText(result.license),
+        attribution: cleanText(result.creator),
+        generic: true,
+      }
     })
-    const data = await fetchJsonWithTimeout(`https://api.openverse.org/v1/images?${params.toString()}`, {
-      provider: 'openverse',
-      endpoint: 'category_image_search',
-      skuHint: 'openverse_free',
-      metadata: { query, category, fallback: 'category' },
-    }) as OpenverseImageResponse
-    const matches = (data.results ?? [])
-      .map((item) => ({
-        item,
-        url: openverseEmbeddableUrl(item) ?? normalizeImageUrl(cleanText(item.thumbnail) ?? cleanText(item.url)),
-      }))
-      .filter((match): match is { item: OpenverseImageResult; url: string } => match.url !== null)
-    const result = matches[0]?.item
-    const photoUrls = Array.from(new Set(matches.map((match) => match.url))).slice(0, MAX_GENERIC_IMAGE_POOL_URLS)
-    if (!result || photoUrls.length === 0) return null
-    return {
-      photoUrls,
-      source: 'openverse',
-      pageUrl: cleanText(result.foreign_landing_url),
-      license: cleanText(result.license),
-      attribution: cleanText(result.creator),
-      generic: true,
-    }
-  })
-  if (!pool?.photoUrls.length) return null
+  } catch {
+    pool = null
+  }
+  if (!pool?.photoUrls.length) return staticCategoryImageResult(category, seed)
   return {
     ...pool,
     photoUrls: seededPhotoUrls(pool.photoUrls, seed),

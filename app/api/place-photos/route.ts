@@ -199,15 +199,15 @@ export async function GET(req: NextRequest) {
       placeName,
       aliases,
       category,
-      allowGeneric: false,
+      allowGeneric: true,
       limit,
     })
-    freePhotoUrls = freeImage?.photoUrls.length && !freeImage.generic
+    freePhotoUrls = freeImage?.photoUrls.length
       ? freeImage.photoUrls.slice(0, limit)
       : []
-    if (freePhotoUrls.length >= limit && !shouldPreferGooglePhotos(category)) {
+    if (freePhotoUrls.length >= limit) {
       return NextResponse.json(
-        { photoUrls: freePhotoUrls, source: freeImage?.source },
+        { photoUrls: freePhotoUrls, source: freeImage?.source, generic: freeImage?.generic === true },
         { headers: { 'cache-control': googleMapsPhotoCacheControl() } }
       )
     }

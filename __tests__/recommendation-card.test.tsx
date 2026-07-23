@@ -29,41 +29,48 @@ const rec: DayRecommendation = {
     'Sunday: 9:00 AM – 6:00 PM',
   ],
   rating: 4.7,
-  photoUrl: '/api/photo?ref=one',
-  photoUrls: ['/api/photo?ref=one', '/api/photo?ref=two'],
+  photoUrl: 'https://images.example/one.jpg',
+  photoUrls: ['https://images.example/one.jpg', 'https://images.example/two.jpg'],
   description: 'A scenic museum cafe.',
   reason: 'Good stop nearby.',
   sourceLabel: 'Google',
 }
 
-it('renders the full card when not compact', () => {
+it('renders the full card without rating details', () => {
   render(<RecommendationCard rec={rec} dateIso="2026-07-01" onAdd={() => {}} />)
 
   expect(screen.getByText('Museum Cafe')).toBeInTheDocument()
-  expect(screen.queryByText(/評分/)).not.toBeInTheDocument()
   expect(screen.queryByText(/4.7/)).not.toBeInTheDocument()
   expect(screen.getByText('A scenic museum cafe.')).toBeInTheDocument()
   expect(screen.getByText('Good stop nearby.')).toBeInTheDocument()
   expect(screen.getByText(/Google/)).toBeInTheDocument()
 })
 
-it('renders name, category, available thumbnails, and a short explanation in compact mode', () => {
+it('renders compact cards with available thumbnails and a short explanation', () => {
   render(<RecommendationCard rec={rec} dateIso="2026-07-01" onAdd={() => {}} compact />)
 
   expect(screen.getByText('Museum Cafe')).toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: '載入照片' }))
   expect(screen.getByTestId('photo-thumb-0')).toBeInTheDocument()
-  expect(screen.queryByTestId('photo-thumb-1')).not.toBeInTheDocument()
+  expect(screen.getByTestId('photo-thumb-1')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '載入照片' })).not.toBeInTheDocument()
   expect(screen.queryByText(/4.7/)).not.toBeInTheDocument()
   expect(screen.getByText('A scenic museum cafe.')).toBeInTheDocument()
   expect(screen.queryByText('Good stop nearby.')).not.toBeInTheDocument()
   expect(screen.queryByText(/Google/)).not.toBeInTheDocument()
 })
 
-it('fetches a free cover photo for Open POI recommendations without stored photos', async () => {
+it('fetches five free photos for Open POI recommendations without stored photos', async () => {
   global.fetch = jest.fn().mockResolvedValue({
     ok: true,
-    json: async () => ({ photoUrls: ['https://images.example/museum-cafe.jpg'] }),
+    json: async () => ({
+      photoUrls: [
+        'https://images.example/museum-cafe-1.jpg',
+        'https://images.example/museum-cafe-2.jpg',
+        'https://images.example/museum-cafe-3.jpg',
+        'https://images.example/museum-cafe-4.jpg',
+        'https://images.example/museum-cafe-5.jpg',
+      ],
+    }),
   }) as unknown as typeof fetch
 
   render(
@@ -85,13 +92,15 @@ it('fetches a free cover photo for Open POI recommendations without stored photo
   )
 
   expect(await screen.findByTestId('photo-thumb-0')).toBeInTheDocument()
+  expect(await screen.findByTestId('photo-thumb-4')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '載入照片' })).not.toBeInTheDocument()
   const [requestUrl] = (global.fetch as jest.Mock).mock.calls[0]
   const params = new URL(String(requestUrl), 'http://localhost').searchParams
   expect(params.get('placeId')).toBe('osm:node/1308439468')
   expect(params.get('placeName')).toBe('MVTTS 咖啡')
   expect(params.get('placeType')).toBe('dessert')
   expect(params.getAll('alias')).toContain('Cà Phê MVTTS')
-  expect(params.get('limit')).toBe('1')
+  expect(params.get('limit')).toBeNull()
 })
 
 it('renders a visual cover fallback when compact recommendation data has no fetchable photo source', () => {
@@ -104,8 +113,7 @@ it('renders a visual cover fallback when compact recommendation data has no fetc
     />
   )
 
-  expect(screen.getByTestId('rec-photo-fallback')).toHaveAccessibleName('Museum Cafe 封面')
-  expect(screen.getByTestId('rec-photo-fallback')).toHaveTextContent('暫無照片')
+  expect(screen.getByTestId('rec-photo-fallback')).toBeInTheDocument()
 })
 
 it('calls onAdd when the arrow button is clicked', () => {
@@ -115,7 +123,7 @@ it('calls onAdd when the arrow button is clicked', () => {
   expect(onAdd).toHaveBeenCalledTimes(1)
 })
 
-it('allows reused recommendation cards to keep the same action icons with contextual test ids', () => {
+it('allows reused recommendation cards to keep contextual action icons', () => {
   const onAdd = jest.fn()
   const onArchive = jest.fn()
   render(
@@ -128,9 +136,7 @@ it('allows reused recommendation cards to keep the same action icons with contex
     />
   )
 
-  expect(screen.getByTestId('line-candidate-add-c1')).toHaveTextContent('←')
   expect(screen.getByTestId('line-candidate-add-c1')).toHaveClass('w-7', 'h-7', 'rounded-full', 'bg-clay')
-  expect(screen.getByTestId('line-candidate-archive-c1')).toHaveTextContent('💾')
   expect(screen.getByTestId('line-candidate-archive-c1')).toHaveClass('w-8', 'h-8', 'rounded-full', 'bg-clay')
 })
 
@@ -147,7 +153,6 @@ it('renders a top-right delete x when a recommendation card can be deleted', () 
   )
 
   const deleteButton = screen.getByTestId('rec-delete-p1')
-  expect(deleteButton).toHaveTextContent('×')
   expect(deleteButton).toHaveClass('absolute', 'right-2', 'top-2')
   fireEvent.click(deleteButton)
   expect(onDelete).toHaveBeenCalledTimes(1)

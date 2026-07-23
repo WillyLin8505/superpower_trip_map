@@ -20,15 +20,27 @@ interface Props {
   autoFetchKind?: 'cover' | 'all'
   deferGooglePhotoMedia?: boolean
   showDeferredGooglePhotoButton?: boolean
+  eagerAutoFetch?: boolean
+  refreshFetchedPhotos?: boolean
 }
 
 const MAX_PHOTOS = 5
 const photoRequestCache = new Map<string, Promise<string[]>>()
-const PHOTO_LOOKUP_VERSION = '8'
+const PHOTO_LOOKUP_VERSION = '11'
 const PHOTO_CACHE_PREFIX = `photo-strip:v${PHOTO_LOOKUP_VERSION}`
 
 function mergePhotos(primary: string[], fetched: string[]): string[] {
-  return Array.from(new Set([...primary, ...fetched].filter(Boolean))).slice(0, MAX_PHOTOS)
+  return Array.from(new Set([...primary, ...fetched].filter(isEmbeddablePhotoUrl))).slice(0, MAX_PHOTOS)
+}
+
+function isEmbeddablePhotoUrl(url: string): boolean {
+  if (!url) return false
+  try {
+    const parsed = new URL(url, typeof window === 'undefined' ? 'http://localhost' : window.location.origin)
+    return !(parsed.hostname.toLowerCase() === 'api.openverse.org' && /^\/v1\/images\/[^/]+\/thumb\/?$/i.test(parsed.pathname))
+  } catch {
+    return false
+  }
 }
 
 function photoCacheKey(placeId: string, kind: 'cover' | 'all'): string {
@@ -55,7 +67,7 @@ function readCachedPhotos(placeId: string, kind: 'cover' | 'all'): string[] | nu
     const raw = window.sessionStorage.getItem(photoCacheKey(placeId, kind))
     if (!raw) return null
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string') : null
+    return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string' && isEmbeddablePhotoUrl(value)) : null
   } catch {
     return null
   }
@@ -116,7 +128,7 @@ async function fetchPhotoUrls(
     .then(async (response) => {
       if (!response.ok) return []
       const data = await response.json() as { photoUrls?: string[] }
-      const photoUrls = (data.photoUrls ?? []).filter(Boolean).slice(0, kind === 'cover' ? 1 : MAX_PHOTOS)
+      const photoUrls = (data.photoUrls ?? []).filter(isEmbeddablePhotoUrl).slice(0, kind === 'cover' ? 1 : MAX_PHOTOS)
       if (photoUrls.length > 0) {
         writeCachedPhotos(placeId, kind, photoUrls)
         if (kind === 'all') writeCachedPhotos(placeId, 'cover', photoUrls.slice(0, 1))
@@ -132,10 +144,10 @@ async function fetchPhotoUrls(
   return request
 }
 
-export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFallback = null, placeType, aliases = [], lat, lng, onPhotoUnavailable, autoFetch = true, previewCount = MAX_PHOTOS, autoFetchKind = 'all', deferGooglePhotoMedia = false, showDeferredGooglePhotoButton = true }: Props) {
+export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFallback = null, placeType, aliases = [], lat, lng, onPhotoUnavailable, autoFetch = true, previewCount = MAX_PHOTOS, autoFetchKind = 'all', deferGooglePhotoMedia = false, showDeferredGooglePhotoButton = true, eagerAutoFetch = false, refreshFetchedPhotos = false }: Props) {
   const photoKey = photos.join('\u0000')
   const aliasKey = aliases.join('\u0000')
-  const rawIncomingPhotos = useMemo(() => (photoKey ? photoKey.split('\u0000').slice(0, MAX_PHOTOS) : []), [photoKey])
+  const rawIncomingPhotos = useMemo(() => (photoKey ? photoKey.split('\u0000').filter(isEmbeddablePhotoUrl).slice(0, MAX_PHOTOS) : []), [photoKey])
   const deferredGooglePhotos = useMemo(
     () => deferGooglePhotoMedia ? rawIncomingPhotos.filter(isGooglePhotoProxyUrl) : [],
     [deferGooglePhotoMedia, rawIncomingPhotos]
@@ -151,7 +163,7 @@ export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFa
   const [resolvedPhotos, setResolvedPhotos] = useState(incomingPhotos)
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const slotRef = useRef<HTMLDivElement | null>(null)
-  const [photosEligible, setPhotosEligible] = useState(() => typeof IntersectionObserver === 'undefined')
+  const [photosEligible, setPhotosEligible] = useState(() => eagerAutoFetch || typeof IntersectionObserver === 'undefined')
   const [fetchedPhotos, setFetchedPhotos] = useState(false)
   const [manualFetchRequested, setManualFetchRequested] = useState(false)
   const notifiedUnavailableRef = useRef(false)
@@ -160,7 +172,7 @@ export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFa
   const coverPhoto = resolvedPhotos[0]
   const displayPhotos = resolvedPhotos.slice(0, MAX_PHOTOS)
   const previewPhotos = displayPhotos.slice(0, Math.min(MAX_PHOTOS, Math.max(1, Math.trunc(previewCount))))
-  const shouldFetchPhotos = Boolean(fetchablePlaceId && resolvedPhotos.length < targetPhotoCount && (autoFetch || manualFetchRequested))
+  const shouldFetchPhotos = Boolean(fetchablePlaceId && (refreshFetchedPhotos || resolvedPhotos.length < targetPhotoCount) && (autoFetch || manualFetchRequested))
   const canLoadMore = Boolean(fetchablePlaceId && resolvedPhotos.length < MAX_PHOTOS && !fetchedPhotos)
 
   useEffect(() => {
@@ -168,12 +180,12 @@ export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFa
   }, [incomingPhotos])
 
   useEffect(() => {
-    setPhotosEligible(typeof IntersectionObserver === 'undefined')
+    setPhotosEligible(eagerAutoFetch || typeof IntersectionObserver === 'undefined')
     setFetchedPhotos(false)
     setManualFetchRequested(false)
     setGooglePhotoMediaReleased(false)
     notifiedUnavailableRef.current = false
-  }, [photoKey, placeId, placeName, placeType, aliasKey])
+  }, [eagerAutoFetch, photoKey, placeId, placeName, placeType, aliasKey, refreshFetchedPhotos])
 
   useEffect(() => {
     if (!shouldFetchPhotos || fetchedPhotos || photosEligible) return
@@ -209,7 +221,9 @@ export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFa
           }
           return
         }
-        setResolvedPhotos((current) => mergePhotos(current, photoUrls))
+        setResolvedPhotos((current) => refreshFetchedPhotos && photoUrls.length >= targetPhotoCount
+          ? photoUrls.slice(0, MAX_PHOTOS)
+          : mergePhotos(current, photoUrls))
       })
       .finally(() => {
         if (cancelled) return
@@ -219,7 +233,7 @@ export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFa
     return () => {
       cancelled = true
     }
-  }, [autoFetchKind, fetchablePlaceId, fetchedPhotos, onPhotoUnavailable, photosEligible, lat, lng, placeName, placeType, photoAliases, resolvedPhotos.length, shouldFetchPhotos])
+  }, [autoFetchKind, fetchablePlaceId, fetchedPhotos, onPhotoUnavailable, photosEligible, lat, lng, placeName, placeType, photoAliases, refreshFetchedPhotos, resolvedPhotos.length, shouldFetchPhotos, targetPhotoCount])
 
   const loadMorePhotos = useCallback(async (): Promise<string[]> => {
     if (resolvedPhotos.length >= MAX_PHOTOS) return resolvedPhotos.slice(0, MAX_PHOTOS)

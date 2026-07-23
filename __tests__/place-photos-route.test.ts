@@ -137,7 +137,7 @@ describe('GET /api/place-photos', () => {
       placeName: '火車街',
       aliases: [],
       category: 'attraction',
-      allowGeneric: false,
+      allowGeneric: true,
       limit: 1,
     })
     expect(fetch).not.toHaveBeenCalled()
@@ -157,7 +157,7 @@ describe('GET /api/place-photos', () => {
 
     expect(fetch).not.toHaveBeenCalled()
     expect(resolveFreeImageForPlaceMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      allowGeneric: false,
+      allowGeneric: true,
       placeName: 'Train Street',
       limit: 5,
     }))
@@ -194,7 +194,7 @@ describe('GET /api/place-photos', () => {
       placeName: 'MVTTS 咖啡',
       aliases: ['Cà Phê MVTTS'],
       category: 'dessert',
-      allowGeneric: false,
+      allowGeneric: true,
       limit: 1,
     })
     expect(fetch).toHaveBeenNthCalledWith(1, expect.stringContaining('/findplacefromtext/json?'), expect.any(Object))
@@ -308,7 +308,7 @@ describe('GET /api/place-photos', () => {
     ])
   })
 
-  it('prefers Google photo results over free-image matches for local businesses', async () => {
+  it('returns full free-image matches for local businesses without calling paid Google photos', async () => {
     resolveFreeImageForPlaceMock.mockResolvedValueOnce({
       photoUrls: [
         'https://images.example/free-king-roti-1.jpg',
@@ -319,43 +319,22 @@ describe('GET /api/place-photos', () => {
       ],
       source: 'openverse',
     })
-    ;(fetch as jest.Mock)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          status: 'OK',
-          candidates: [{ place_id: 'ChIJkingRotiGoogle' }],
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          status: 'OK',
-          result: {
-            photos: [
-              { photo_reference: 'king-google-1' },
-              { photo_reference: 'king-google-2' },
-            ],
-          },
-        }),
-      })
 
     const req = new NextRequest('http://localhost/api/place-photos?placeId=osm%3Anode%2F4427721996&placeName=King+Roti&placeType=dessert&alias=Cua+Hang+Banh+Mi+King+Roti&lat=21.0324&lng=105.8507')
     const res = await GET(req)
     const body = await res.json()
 
-    expect(fetch).toHaveBeenNthCalledWith(1, expect.stringContaining('input=Cua+Hang+Banh+Mi+King+Roti'), expect.any(Object))
-    expect(fetch).toHaveBeenNthCalledWith(2, expect.stringContaining('place_id=ChIJkingRotiGoogle'), expect.any(Object))
+    expect(fetch).not.toHaveBeenCalled()
     expect(body.photoUrls).toEqual([
-      '/api/photo?ref=king-google-1',
-      '/api/photo?ref=king-google-2',
       'https://images.example/free-king-roti-1.jpg',
       'https://images.example/free-king-roti-2.jpg',
       'https://images.example/free-king-roti-3.jpg',
+      'https://images.example/free-king-roti-4.jpg',
+      'https://images.example/free-king-roti-5.jpg',
     ])
   })
 
-  it('does not return a generic category image before the Google text fallback', async () => {
+  it('uses generic free images before paid Google when they satisfy the requested limit', async () => {
     resolveFreeImageForPlaceMock.mockResolvedValueOnce({
       photoUrls: ['https://images.example/generic-cafe-dessert.jpg'],
       source: 'openverse',
@@ -388,12 +367,11 @@ describe('GET /api/place-photos', () => {
       placeName: 'Orick Coffee',
       aliases: [],
       category: 'dessert',
-      allowGeneric: false,
+      allowGeneric: true,
       limit: 1,
     })
-    expect(fetch).toHaveBeenNthCalledWith(1, expect.stringContaining('/findplacefromtext/json?'), expect.any(Object))
-    expect(fetch).toHaveBeenNthCalledWith(2, expect.stringContaining('place_id=ChIJorickCoffee'), expect.any(Object))
-    expect(body.photoUrls).toEqual(['/api/photo?ref=orick-google-photo'])
+    expect(fetch).not.toHaveBeenCalled()
+    expect(body.photoUrls).toEqual(['https://images.example/generic-cafe-dessert.jpg'])
   })
 
   it('does not top up attraction cards with generic free images after Google has fewer than five photos', async () => {
@@ -426,7 +404,7 @@ describe('GET /api/place-photos', () => {
     const body = await res.json()
 
     expect(resolveFreeImageForPlaceMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      allowGeneric: false,
+      allowGeneric: true,
       placeName: 'Shinmeigu',
     }))
     expect(resolveFreeImageForPlaceMock).toHaveBeenCalledTimes(1)

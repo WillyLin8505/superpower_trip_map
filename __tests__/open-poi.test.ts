@@ -114,7 +114,7 @@ it('maps open-data quality metadata used by recommendation ranking', () => {
 it('prioritizes dessert-specific Open POI rows before nearby generic cafes', async () => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role'
-  const recentMiss = { status: 'not_found', version: 7, fetchedAt: new Date().toISOString() }
+  const recentMiss = { status: 'not_found', version: 10, fetchedAt: new Date().toISOString() }
   const row = (
     source_place_id: string,
     name_primary: string,
@@ -300,6 +300,7 @@ it('uses Openverse exact search when metadata has no direct Wikimedia image', as
       results: [
         {
           title: 'Ozakaj? Osaka castle',
+          url: 'https://images.example/osaka-castle.jpg',
           thumbnail: 'https://api.openverse.org/v1/images/osaka-castle/thumb/',
           foreign_landing_url: 'https://www.flickr.com/photos/example/osaka-castle',
           license: 'by',
@@ -319,10 +320,10 @@ it('uses Openverse exact search when metadata has no direct Wikimedia image', as
     lng: 135.526,
     category: 'attraction',
     confidence: null,
-    metadata: {},
+    metadata: { image_search_aliases: ['Hanoi Train Street'] },
   })).resolves.toMatchObject({
-    photoUrl: 'https://api.openverse.org/v1/images/osaka-castle/thumb/',
-    photoUrls: ['https://api.openverse.org/v1/images/osaka-castle/thumb/'],
+    photoUrl: 'https://images.example/osaka-castle.jpg',
+    photoUrls: ['https://images.example/osaka-castle.jpg'],
   })
 
   expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({
@@ -368,7 +369,7 @@ it('uses alternate names to resolve free images for localized landmark names', a
     source_place_id: 'way/train-street',
     name_primary: '火車街',
     name_zh: '火車街',
-    name_local: 'Ngõ 224 Lê Duẩn',
+    name_local: 'Ngo 224 Le Du?n',
     lat: 21.024,
     lng: 105.842,
     category: 'attraction',
@@ -470,7 +471,7 @@ it('tops up a one-photo Wikimedia result with Openverse matches for Train Street
     source_place_id: 'way/train-street',
     name_primary: 'Hanoi Train Street',
     name_zh: '火車街',
-    name_local: 'Ngõ 224 Lê Duẩn',
+    name_local: 'Ngo 224 Le Du?n',
     lat: 21.024,
     lng: 105.842,
     category: 'attraction',
@@ -572,7 +573,8 @@ it('uses Wikimedia Commons search to resolve five localized landmark images', as
 
   const result = await resolveFreeImageForPlace({
     placeId: 'user:asakusa-shrine',
-    placeName: '浅草神社',
+    placeName: '?草神社',
+    aliases: ['Asakusa Shrine'],
     category: 'attraction',
     allowGeneric: true,
     limit: 5,
@@ -593,6 +595,57 @@ it('uses Wikimedia Commons search to resolve five localized landmark images', as
     expect.stringContaining('q=travel+landmark+attraction'),
     expect.anything(),
   )
+})
+
+it('rejects non-photo Commons search hits for localized landmark names', async () => {
+  const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url.includes('commons.wikimedia.org/w/api.php')) {
+      return {
+        ok: true,
+        json: async () => ({
+          query: {
+            pages: {
+              '1': {
+                title: 'File:NDL-DC 1312421-Utagawa Kuniyoshi-東都三?股??.djvu',
+                imageinfo: [{
+                  thumburl: 'https://upload.wikimedia.org/generic-book-page.jpg',
+                  mime: 'image/jpeg',
+                }],
+              },
+              '2': {
+                title: 'File:Godzilla Tokyo landmark.jpg',
+                imageinfo: [{
+                  thumburl: 'https://upload.wikimedia.org/godzilla-landmark.jpg',
+                  mime: 'image/jpeg',
+                }],
+              },
+            },
+          },
+        }),
+      }
+    }
+
+    return {
+      ok: true,
+      json: async () => ({ results: [] }),
+    }
+  })
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  const result = await resolveFreeImageForPlace({
+    placeId: 'user:godzilla-head',
+    placeName: '哥吉拉像',
+    aliases: ['Godzilla Tokyo landmark'],
+    category: 'attraction',
+    allowGeneric: true,
+    limit: 5,
+  })
+
+  expect(result?.source).toBe('wikimedia_commons')
+  expect(result?.photoUrls[0]).toBe('https://upload.wikimedia.org/godzilla-landmark.jpg')
+  expect(result?.photoUrls).not.toContain('https://upload.wikimedia.org/generic-book-page.jpg')
+  expect(result?.photoUrls).toHaveLength(5)
 })
 
 it('returns up to five generic Openverse category images when generic fallback is allowed', async () => {
@@ -634,6 +687,37 @@ it('returns up to five generic Openverse category images when generic fallback i
   expect(result?.generic).toBe(true)
   expect(result?.photoUrls).toHaveLength(5)
   expect(result?.photoUrls.every((url) => /^https:\/\/images\.example\/generic-dessert-\d+\.jpg$/.test(url))).toBe(true)
+})
+
+it('falls back to built-in free category images when Openverse category fallback is rate limited', async () => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url.includes('api.openverse.org') && url.includes('cafe+dessert+cake')) {
+      return {
+        ok: false,
+        status: 429,
+        json: async () => ({}),
+      }
+    }
+
+    return {
+      ok: true,
+      json: async () => ({ results: [] }),
+    }
+  }) as unknown as typeof fetch
+
+  const result = await resolveFreeImageForPlace({
+    placeId: 'osm:node/no-image-dessert',
+    placeName: 'No Image Dessert',
+    category: 'dessert',
+    allowGeneric: true,
+    limit: 5,
+  })
+
+  expect(result?.source).toBe('static_free')
+  expect(result?.generic).toBe(true)
+  expect(result?.photoUrls).toHaveLength(5)
+  expect(result?.photoUrls.every((url) => /^https?:\/\//.test(url))).toBe(true)
 })
 
 it('varies generic Openverse category fallback photos between different places', async () => {
@@ -702,7 +786,7 @@ it('ignores previously persisted generic free image metadata', () => {
       photoUrls: ['https://images.example/generic-cafe-dessert.jpg'],
       free_image: {
         status: 'found',
-        version: 7,
+        version: 10,
         source: 'openverse',
         generic: true,
         url: 'https://images.example/generic-cafe-dessert.jpg',
@@ -733,8 +817,8 @@ it('ignores stale persisted free image URLs after the resolver version changes',
         status: 'found',
         version: 3,
         source: 'openverse',
-        url: 'https://api.openverse.org/v1/images/broken/thumb/',
-        urls: ['https://api.openverse.org/v1/images/broken/thumb/'],
+        url: 'https://images.example/broken.jpg',
+        urls: ['https://images.example/broken.jpg'],
       },
     },
   })).toMatchObject({
@@ -749,7 +833,7 @@ it('normalizes direct Wikimedia original image URLs to embeddable thumbnails', (
     source_place_id: 'way/hanoi-train-street',
     name_primary: 'Hanoi Train Street',
     name_zh: '火車街',
-    name_local: 'Ngõ 224 Lê Duẩn',
+    name_local: 'Ngo 224 Le Du?n',
     lat: 21.017,
     lng: 105.84,
     category: 'attraction',
@@ -760,6 +844,27 @@ it('normalizes direct Wikimedia original image URLs to embeddable thumbnails', (
   })).toMatchObject({
     photoUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Hanoi_-_Bahngleis_0002.JPG?width=900',
     photoUrls: ['https://commons.wikimedia.org/wiki/Special:FilePath/Hanoi_-_Bahngleis_0002.JPG?width=900'],
+  })
+})
+
+it('ignores Openverse thumb proxy URLs that render as broken images', () => {
+  expect(mapOpenPoiRowToPlace({
+    source: 'osm',
+    source_place_id: 'node/broken-openverse-thumb',
+    name_primary: 'Croissent',
+    name_zh: '可頌',
+    name_local: 'Croissent',
+    lat: 35.646,
+    lng: 139.744,
+    category: 'dessert',
+    confidence: null,
+    metadata: {
+      photoUrl: 'https://api.openverse.org/v1/images/118284db-3f7c-4cf9-a93d-9d826d3cacbf/thumb/',
+      photoUrls: ['https://api.openverse.org/v1/images/118284db-3f7c-4cf9-a93d-9d826d3cacbf/thumb/'],
+    },
+  })).toMatchObject({
+    photoUrl: null,
+    photoUrls: [],
   })
 })
 
@@ -780,7 +885,7 @@ it('skips external image lookups for recent not-found cache entries', async () =
       wikidata: 'Q999999',
       free_image: {
         status: 'not_found',
-        version: 7,
+        version: 10,
         fetchedAt: new Date().toISOString(),
       },
     },
@@ -820,7 +925,7 @@ it('persists not-found image lookups so future reloads skip external searches', 
     metadata: expect.objectContaining({
       free_image: expect.objectContaining({
         status: 'not_found',
-        version: 7,
+        version: 10,
       }),
     }),
   }))
