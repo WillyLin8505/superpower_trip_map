@@ -1,6 +1,27 @@
-# Place Photo QA Findings - 2026-07-24
+# Place Photo Issue Log
 
-## Context
+This is the living log for recurring place-photo problems.
+
+## Logging Policy
+
+- Keep the same problem domain in this file instead of creating a new dated file each time.
+- Append new findings under the closest matching issue section.
+- Add a new section only when the root cause or failure mode is materially different.
+- Keep QA evidence paths, final metrics, and the exact verification method in the same section as the problem.
+- Do not split screenshot links, fixes, and regression tests into separate files for the same issue.
+
+## Active Invariants
+
+- Free image sources should satisfy place-card photos before any paid Google photo fallback.
+- Paid Google photo URLs must not be returned unless the user explicitly accepts the cost.
+- Recommendation, itinerary, LINE discussion, backup, and map-saved cards should render consistent photo behavior.
+- Cards that request photos should settle with 5 usable images whenever a fallback source can provide them.
+- Openverse thumbnail proxy URLs are not trusted as embeddable final image URLs.
+- QA screenshots must be captured after scrolling through the page once and waiting for visible images to settle.
+
+## 2026-07-24 - Free Place Photo Stabilization
+
+### Context
 
 Target itinerary used for QA:
 
@@ -9,7 +30,7 @@ Target itinerary used for QA:
 
 The `/itinerary/...` route may require auth, so browser QA should also verify the public `/share/...` route for the same trip data when direct itinerary access is unavailable.
 
-## Problems Observed
+### Problems Observed
 
 1. Some place cards reused the same full 5-image set across unrelated places.
 2. Some cards still exposed a manual `載入照片` flow instead of loading photos automatically.
@@ -19,16 +40,16 @@ The `/itinerary/...` route may require auth, so browser QA should also verify th
 6. Legacy saved cards with 5 stale image URLs did not refetch, so bad persisted data kept showing even after the resolver was improved.
 7. QA screenshots taken during lazy loading can falsely show placeholders; final QA must scroll through the page first, wait for visible images to settle, then scroll back and capture.
 
-## Root Causes
+### Root Causes
 
 - `PhotoStrip` skipped fetching when a card already had 5 stored images, even if those images were stale or generic.
-- Recommendation cards and itinerary cards had different fetch/eager behavior, which made "manual load" and "auto load" inconsistent.
-- Openverse category fallback had a small generic pool and deterministic selection was too similar for nearby/related places.
+- Recommendation cards and itinerary cards had different fetch/eager behavior, which made manual-load and auto-load behavior inconsistent.
+- Openverse category fallback had a small generic pool and deterministic selection was too similar for nearby or related places.
 - Wikimedia Commons search accepted broad title hits and non-photo-like file pages, causing irrelevant book scans or unrelated place images.
 - Openverse `api.openverse.org/v1/images/.../thumb/` URLs are not reliable embeddable image URLs for the app.
-- The QA script initially counted repeated sets without separating "same exact place duplicated in the trip" from "different places sharing one image set."
+- The QA script initially counted repeated sets without separating same-place duplicates from different places sharing one image set.
 
-## Fixes Applied
+### Fixes Applied
 
 - Bumped image resolver/cache versions so stale session and resolver caches are invalidated.
 - Added `refreshFetchedPhotos` to `PhotoStrip`, allowing itinerary cards to replace full legacy photo sets with fresh free-photo API results.
@@ -39,7 +60,7 @@ The `/itinerary/...` route may require auth, so browser QA should also verify th
 - Added built-in free category fallback pools and seeded shuffling so free fallback still returns 5 images without using paid Google photo media.
 - Changed the place photo route so full free results return before any paid Google photo fallback.
 
-## Regression Tests Added or Updated
+### Regression Tests Added Or Updated
 
 - `__tests__/photo-strip.test.tsx`
   - Full legacy 5-photo sets can be refreshed.
@@ -47,7 +68,7 @@ The `/itinerary/...` route may require auth, so browser QA should also verify th
   - Photo lookup cache version expectations were updated.
 - `__tests__/open-poi.test.ts`
   - Wikimedia search rejects non-photo Commons hits.
-  - Static free category fallback works when Openverse is unavailable/rate-limited.
+  - Static free category fallback works when Openverse is unavailable or rate-limited.
   - Generic fallback varies across places.
   - Stale persisted free image metadata is ignored after resolver version changes.
 - `__tests__/place-photos-route.test.ts`
@@ -56,7 +77,7 @@ The `/itinerary/...` route may require auth, so browser QA should also verify th
 - `__tests__/recommendation-card*.test.tsx`
   - Recommendation cards request all 5 photos and do not require the manual load button.
 
-## Final QA Metrics
+### Final QA Metrics
 
 Final browser QA artifact:
 
@@ -75,7 +96,7 @@ Final settled metrics:
 
 One repeated set remained only for the same title/place duplicated in the trip. That is not the same bug as unrelated places sharing a fallback image set.
 
-## QA Checklist For Next Time
+### QA Checklist For This Problem
 
 1. Build first: `NEXT_PUBLIC_GOOGLE_MAPS_JS_MODE=off NEXT_PUBLIC_GOOGLE_MAPS_EMBED_MODE=off npm run build`.
 2. Start production server with `npm start`.
@@ -92,7 +113,7 @@ One repeated set remained only for the same title/place duplicated in the trip. 
    - the same place title duplicated in the itinerary.
 9. Do not re-enable paid Google photo fallback unless the user explicitly accepts the cost.
 
-## Screenshot Evidence
+### Screenshot Evidence
 
 - `D:\vibe_coding_project\food_map\superpowers_food_map\.gstack\qa-reports\screenshots\image-qa-2026-07-23-after-refresh-settled\02-settled-1600.png`
 - `D:\vibe_coding_project\food_map\superpowers_food_map\.gstack\qa-reports\screenshots\image-qa-2026-07-23-after-refresh-settled\03-settled-2400.png`
