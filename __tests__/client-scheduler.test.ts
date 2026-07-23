@@ -35,14 +35,21 @@ function makeDay(places: ScheduledPlace[]): DayItinerary {
   return { day: 1, places, aiSummary: null, dayStart: '09:00', dayEnd: '21:00' }
 }
 
-test('snapMeals: first restaurant pulled to 12:00, second to 18:00', () => {
+test('snapMeals: 1st restaurant into lunch window (11:00), 2nd into dinner window (17:00)', () => {
   const a1 = makePlace({ type: 'attraction', durationMin: 60, travelMinToNext: 0 })
   const r1 = makePlace({ type: 'restaurant', durationMin: 60, travelMinToNext: 0 })
   const a2 = makePlace({ type: 'attraction', durationMin: 60, travelMinToNext: 0 })
   const r2 = makePlace({ type: 'restaurant', durationMin: 60, travelMinToNext: 0 })
   const snapped = recalcDay(makeDay([a1, r1, a2, r2]), '2026-06-01', { snapMeals: true })
-  expect(snapped.places[1].startTime).toBe('12:00') // 1st restaurant → lunch
-  expect(snapped.places[3].startTime).toBe('18:00') // 2nd restaurant → dinner
+  expect(snapped.places[1].startTime).toBe('11:00') // r1 sequences at 10:00 (< 11:00) → lunch-window start
+  expect(snapped.places[3].startTime).toBe('17:00') // r2 sequences at 13:00 (< 17:00) → dinner-window start
+})
+
+test('snapMeals leaves a restaurant already inside its window untouched', () => {
+  const a1 = makePlace({ type: 'attraction', durationMin: 120, travelMinToNext: 30 })
+  const r1 = makePlace({ type: 'restaurant', durationMin: 60, travelMinToNext: 0 })
+  const snapped = recalcDay(makeDay([a1, r1]), '2026-06-01', { snapMeals: true })
+  expect(snapped.places[1].startTime).toBe('11:30') // 09:00 + 120 + 30 = 11:30, inside 11:00–13:00 → unchanged
 })
 
 test('without snapMeals (default) restaurants keep sequential times', () => {
@@ -56,20 +63,24 @@ test('without snapMeals (default) restaurants keep sequential times', () => {
 })
 
 test('snapMeals never moves a restaurant earlier than its sequential slot', () => {
-  // A restaurant that naturally lands after 12:00 is not pulled backward to lunch.
+  // A restaurant that already sits past its window start is left where it is.
   const filler = Array.from({ length: 5 }, () => makePlace({ type: 'attraction', durationMin: 60, travelMinToNext: 0 }))
   const r1 = makePlace({ type: 'restaurant', durationMin: 60, travelMinToNext: 0 })
   const snapped = recalcDay(makeDay([...filler, r1]), '2026-06-01', { snapMeals: true })
-  expect(snapped.places[5].startTime).toBe('14:00') // 09:00 + 5*60, later than 12:00 → unchanged
+  expect(snapped.places[5].startTime).toBe('14:00') // 09:00 + 5*60, already past lunch-window start → unchanged
 })
 
-test('snapMeals is skipped when the day has a time-locked anchor', () => {
-  // With locks the day schedules in out-of-order segments; snapping is intentionally
-  // disabled so we never mis-count and snap the wrong restaurant.
-  const locked = makePlace({ type: 'attraction', durationMin: 60, travelMinToNext: 0, startTime: '10:00', startLocked: true })
+test('snapMeals works on a day with a time-locked anchor (locked place keeps its time)', () => {
+  // Previously a locked day skipped snapping entirely. Now, with the first place locked,
+  // the rest is a forward segment where restaurants still snap into their meal windows.
+  const locked = makePlace({ type: 'attraction', durationMin: 30, travelMinToNext: 0, startTime: '09:00', startLocked: true })
   const r1 = makePlace({ type: 'restaurant', durationMin: 60, travelMinToNext: 0 })
-  const snapped = recalcDay(makeDay([locked, r1]), '2026-06-01', { snapMeals: true })
-  expect(snapped.places[1].startTime).toBe('11:00') // 10:00 + 60, not snapped to 12:00
+  const a1 = makePlace({ type: 'attraction', durationMin: 60, travelMinToNext: 0 })
+  const r2 = makePlace({ type: 'restaurant', durationMin: 60, travelMinToNext: 0 })
+  const snapped = recalcDay(makeDay([locked, r1, a1, r2]), '2026-06-01', { snapMeals: true })
+  expect(snapped.places[0].startTime).toBe('09:00') // locked, unchanged
+  expect(snapped.places[1].startTime).toBe('11:00') // 1st restaurant → lunch window (would have been skipped before)
+  expect(snapped.places[3].startTime).toBe('17:00') // 2nd restaurant → dinner window
 })
 
 // --- No locked cards: simple forward fill ---

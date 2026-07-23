@@ -18,20 +18,22 @@ function applyWarnings(p: ScheduledPlace, startTime: string, startMin: number, d
   }
 }
 
-// 智慧排程用：把當天第 1 間餐廳拉到午餐(12:00)、第 2 間拉到晚餐(18:00)，
-// 與初次規劃 fillDay(app/actions/schedule.ts)的規則一致。只有在 snapMeals 開啟
-// 時(目前僅「智慧排程」動作)才生效；計數以整天為單位、跨區段累加。
-const LUNCH_MIN = 12 * 60
-const DINNER_MIN = 18 * 60
-interface MealSnap { snap: boolean; seen: number }
+// 智慧排程用：把當天第 1 間餐廳排進午餐窗、第 2 間排進晚餐窗，與 fillDay 規則一致。
+// 用「彈性用餐窗」而非硬性單點：午餐 11:00–13:00、晚餐 17:00–19:00（理想 12:00/18:00，
+// ±1 小時皆可）。只有當餐廳落在窗「之前」才推到窗起點；已在窗內或更晚就不動，也永遠
+// 不會比原本的順序時間更早。餐廳「第幾間」以整天位置預先編號(見 recalcDay 的 mealRank)，
+// 跨區段/有鎖定日仍正確。只有 snapMeals 開啟(目前僅「智慧排程」動作)才生效。
+const LUNCH_START = 11 * 60   // 午餐窗起點
+const DINNER_START = 17 * 60  // 晚餐窗起點
+interface MealSnap { snap: boolean; rank: Map<string, number> }
 
 function scheduleForward(places: ScheduledPlace[], startMin: number, dateIso: string, dayStartMin: number, meal?: MealSnap): ScheduledPlace[] {
   let cursor = startMin
   return places.map((p) => {
     if (meal?.snap && p.type === 'restaurant') {
-      if (meal.seen === 0 && cursor < LUNCH_MIN) cursor = LUNCH_MIN
-      if (meal.seen === 1 && cursor < DINNER_MIN) cursor = DINNER_MIN
-      meal.seen++
+      const rank = meal.rank.get(p.id)
+      if (rank === 0 && cursor < LUNCH_START) cursor = LUNCH_START
+      else if (rank === 1 && cursor < DINNER_START) cursor = DINNER_START
     }
     const startTime = minsToTime(cursor)
     const result = applyWarnings(p, startTime, cursor, dateIso, dayStartMin)
@@ -67,11 +69,17 @@ export function recalcDay(day: DayItinerary, dateIso: string, opts?: { snapMeals
   const dayStartMin = toMin(day.dayStart)
   const dayEndMin = toMin(day.dayEnd)
   const lockIndices = places.reduce<number[]>((acc, p, i) => (isTimeAnchored(p) ? [...acc, i] : acc), [])
-  // Meal snapping only applies to fully unlocked days. With time anchors the day is
-  // scheduled in out-of-order segments (leading backward + per-lock forward), so a
-  // running "1st/2nd restaurant" counter can't stay correct across the whole day.
-  // Respect the user's locks and skip snapping rather than mis-snap the wrong meal.
-  const meal: MealSnap = { snap: (opts?.snapMeals ?? false) && lockIndices.length === 0, seen: 0 }
+  // Number restaurants by their position in the whole day (keyed by the unique card id,
+  // since placeId can repeat). Position-based rank stays correct even when the day is
+  // scheduled in out-of-order segments (leading backward + per-lock forward), so meal
+  // snapping now works on days with time-locked anchors too — a locked place keeps its
+  // time but still consumes a rank.
+  const mealRank = new Map<string, number>()
+  if (opts?.snapMeals) {
+    let n = 0
+    for (const p of places) if (p.type === 'restaurant') mealRank.set(p.id, n++)
+  }
+  const meal: MealSnap = { snap: opts?.snapMeals ?? false, rank: mealRank }
 
   if (lockIndices.length === 0) {
     return { ...day, places: extendLastAccommodation(scheduleForward(places, dayStartMin, dateIso, dayStartMin, meal), dayEndMin) }

@@ -100,10 +100,27 @@ export interface CategoryBuckets {
 
 export type RecommendationsByDay = CategoryBuckets[]  // index 0 = day 1
 
+export type SourceKind = 'recommendation' | 'image'
+
+export type ImageSourceProvider =
+  | 'official_website'
+  | 'rebake'
+  | 'yahoo_map'
+  | 'tabelog'
+  | 'custom'
+
+export interface SourceConfig {
+  provider?: ImageSourceProvider
+  notes?: string
+}
+
 export interface Source {
   id: string
   url: string
   label: string
+  kind: SourceKind
+  enabled: boolean
+  config: SourceConfig
   lastFetchedAt: string | null
   lastFetchStatus: 'ok' | 'error' | null
 }

@@ -2,14 +2,29 @@ import 'server-only'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { Source } from '@/lib/types'
+import { normalizeSourceConfig, normalizeSourceKind } from '@/lib/sourceConfig'
+import type { Source, SourceKind } from '@/lib/types'
 
 interface SourceRow {
   id: string
   url: string
   label: string
+  kind?: string | null
+  enabled?: boolean | null
+  config?: unknown
   last_fetched_at: string | null
   last_fetch_status: 'ok' | 'error' | null
+}
+
+interface ConfigSourceRow {
+  id: string
+  url: string
+  label: string
+  kind?: string | null
+  enabled?: boolean | null
+  config?: unknown
+  lastFetchedAt?: string | null
+  lastFetchStatus?: 'ok' | 'error' | null
 }
 
 function hasSupabaseAdminEnv(): boolean {
@@ -20,12 +35,30 @@ function hasSupabaseAdminEnv(): boolean {
 }
 
 function toSource(row: SourceRow): Source {
+  const kind = normalizeSourceKind(row.kind)
   return {
     id: row.id,
     url: row.url,
     label: row.label,
+    kind,
+    enabled: row.enabled ?? true,
+    config: normalizeSourceConfig(row.config, kind),
     lastFetchedAt: row.last_fetched_at,
     lastFetchStatus: row.last_fetch_status,
+  }
+}
+
+function toConfigSource(row: ConfigSourceRow): Source {
+  const kind = normalizeSourceKind(row.kind)
+  return {
+    id: row.id,
+    url: row.url,
+    label: row.label,
+    kind,
+    enabled: row.enabled ?? true,
+    config: normalizeSourceConfig(row.config, kind),
+    lastFetchedAt: row.lastFetchedAt ?? null,
+    lastFetchStatus: row.lastFetchStatus ?? null,
   }
 }
 
@@ -35,7 +68,7 @@ async function getSourcesFromSupabase(): Promise<Source[] | null> {
   try {
     const { data, error } = await createAdminClient()
       .from('sources')
-      .select('id, url, label, last_fetched_at, last_fetch_status')
+      .select('id, url, label, kind, enabled, config, last_fetched_at, last_fetch_status')
       .order('created_at', { ascending: true })
 
     if (error || !data) return null
@@ -48,13 +81,22 @@ async function getSourcesFromSupabase(): Promise<Source[] | null> {
 async function getSourcesFromConfigFile(): Promise<Source[]> {
   try {
     const raw = await readFile(join(process.cwd(), 'config/sources.json'), 'utf-8')
-    return JSON.parse(raw) as Source[]
+    return (JSON.parse(raw) as ConfigSourceRow[]).map(toConfigSource)
   } catch {
     return []
   }
 }
 
-export async function getRecommendationSources(): Promise<Source[]> {
+async function getManagedSources(kind: SourceKind): Promise<Source[]> {
   const supabaseSources = await getSourcesFromSupabase()
-  return supabaseSources ?? getSourcesFromConfigFile()
+  const sources = supabaseSources ?? await getSourcesFromConfigFile()
+  return sources.filter((source) => source.enabled && source.kind === kind)
+}
+
+export async function getRecommendationSources(): Promise<Source[]> {
+  return getManagedSources('recommendation')
+}
+
+export async function getImageSources(): Promise<Source[]> {
+  return getManagedSources('image')
 }

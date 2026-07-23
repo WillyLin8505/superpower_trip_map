@@ -38,5 +38,6 @@ test('restaurants have startTime in meal windows', async () => {
   const result = await schedulePlaces(places, zeroMatrix(1), 1, '2026-06-01')
   const r = result[0].places.find((p) => p.type === 'restaurant')!
   const hour = parseInt(r.startTime.split(':')[0], 10)
-  expect([12, 18, 19]).toContain(hour)
+  // Flexible meal windows: lunch 11:00–13:00, dinner 17:00–19:00 (a lone restaurant → lunch-window start 11:00)
+  expect([11, 12, 13, 17, 18, 19]).toContain(hour)
 })

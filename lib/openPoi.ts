@@ -9,9 +9,10 @@ import { compareRecommendationCandidates, isRecommendationCandidateAcceptable } 
 type OpenPoiSource = 'overture' | 'osm' | 'wikidata' | 'user'
 type FreeImageSource = 'metadata' | 'wikimedia_commons' | 'wikidata' | 'wikipedia' | 'openverse'
 const FREE_IMAGE_TTL_SECONDS = 60 * 60 * 24 * 30
-const FREE_IMAGE_LOOKUP_VERSION = 5
+const FREE_IMAGE_LOOKUP_VERSION = 6
 const FREE_IMAGE_FETCH_TIMEOUT_MS = 4000
 const MAX_FREE_IMAGE_URLS = 5
+const MAX_GENERIC_IMAGE_POOL_URLS = 50
 
 export interface OpenPoiRow {
   source: OpenPoiSource
@@ -430,6 +431,36 @@ const CATEGORY_FREE_IMAGE_QUERIES: Record<PlaceType, string> = {
   accommodation: 'hotel building',
 }
 
+function stableHash(value: string): number {
+  let hash = 0
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0
+  }
+  return hash
+}
+
+function seededPhotoUrls(photoUrls: string[], seed: string, limit = MAX_FREE_IMAGE_URLS): string[] {
+  const uniquePhotoUrls = Array.from(new Set(photoUrls.filter(Boolean)))
+  if (uniquePhotoUrls.length <= limit) return uniquePhotoUrls.slice(0, limit)
+  const startIndex = stableHash(seed) % uniquePhotoUrls.length
+  return Array.from({ length: limit }, (_, offset) =>
+    uniquePhotoUrls[(startIndex + offset) % uniquePhotoUrls.length]
+  )
+}
+
+function genericImageSeedForRow(row: OpenPoiRow): string {
+  return [
+    row.source,
+    row.source_place_id,
+    row.name_primary,
+    row.name_local,
+    row.name_zh,
+    ...metadataStrings(row.metadata, 'image_search_aliases'),
+    ...metadataStrings(row.metadata, 'search_aliases'),
+    ...metadataStrings(row.metadata, 'aliases'),
+  ].map((value) => cleanText(value)).filter(Boolean).join('|')
+}
+
 interface KnownFreeImageEntity {
   aliases: string[]
   wikidata?: string
@@ -599,12 +630,12 @@ async function openverseImageResult(row: OpenPoiRow): Promise<FreeImageResult | 
   return merged
 }
 
-async function openverseCategoryImageResult(category: PlaceType): Promise<FreeImageResult | null> {
+async function openverseCategoryImageResult(category: PlaceType, seed: string): Promise<FreeImageResult | null> {
   const query = CATEGORY_FREE_IMAGE_QUERIES[category]
-  return cachedFreeImage(['openverse-category', category, query], async () => {
+  const pool = await cachedFreeImage<FreeImageResult | null>(['openverse-category-pool', category, query], async () => {
     const params = new URLSearchParams({
       q: query,
-      page_size: '10',
+      page_size: String(MAX_GENERIC_IMAGE_POOL_URLS),
       license_type: 'commercial,modification',
     })
     const data = await fetchJsonWithTimeout(`https://api.openverse.org/v1/images?${params.toString()}`, {
@@ -620,7 +651,7 @@ async function openverseCategoryImageResult(category: PlaceType): Promise<FreeIm
       }))
       .filter((match): match is { item: OpenverseImageResult; url: string } => match.url !== null)
     const result = matches[0]?.item
-    const photoUrls = Array.from(new Set(matches.map((match) => match.url))).slice(0, MAX_FREE_IMAGE_URLS)
+    const photoUrls = Array.from(new Set(matches.map((match) => match.url))).slice(0, MAX_GENERIC_IMAGE_POOL_URLS)
     if (!result || photoUrls.length === 0) return null
     return {
       photoUrls,
@@ -631,6 +662,12 @@ async function openverseCategoryImageResult(category: PlaceType): Promise<FreeIm
       generic: true,
     }
   })
+  if (!pool?.photoUrls.length) return null
+  return {
+    ...pool,
+    photoUrls: seededPhotoUrls(pool.photoUrls, seed),
+    generic: true,
+  }
 }
 
 async function runImageResolver(resolver: () => Promise<FreeImageResult | null>): Promise<{
@@ -660,7 +697,7 @@ async function freeImageResultForRow(row: OpenPoiRow, allowGenericFallback = fal
   const wikipedia = wikipediaTagFromMetadata(row.metadata) ?? knownEntity?.wikipedia ?? null
   if (wikipedia) resolvers.push(() => wikipediaImageResult(wikipedia.lang, wikipedia.title))
   resolvers.push(() => openverseImageResult(row))
-  if (allowGenericFallback) resolvers.push(() => openverseCategoryImageResult(row.category))
+  if (allowGenericFallback) resolvers.push(() => openverseCategoryImageResult(row.category, genericImageSeedForRow(row)))
 
   let hadFailure = false
   for (const resolver of resolvers) {

@@ -114,7 +114,7 @@ it('maps open-data quality metadata used by recommendation ranking', () => {
 it('prioritizes dessert-specific Open POI rows before nearby generic cafes', async () => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role'
-  const recentMiss = { status: 'not_found', version: 5, fetchedAt: new Date().toISOString() }
+  const recentMiss = { status: 'not_found', version: 6, fetchedAt: new Date().toISOString() }
   const row = (
     source_place_id: string,
     name_primary: string,
@@ -566,22 +566,67 @@ it('returns up to five generic Openverse category images when generic fallback i
   })
   global.fetch = fetchMock as unknown as typeof fetch
 
-  await expect(resolveFreeImageForPlace({
+  const result = await resolveFreeImageForPlace({
     placeId: 'osm:node/no-image-dessert',
     placeName: 'No Image Dessert',
     category: 'dessert',
     allowGeneric: true,
     limit: 5,
-  })).resolves.toMatchObject({
-    generic: true,
-    photoUrls: [
-      'https://images.example/generic-dessert-1.jpg',
-      'https://images.example/generic-dessert-2.jpg',
-      'https://images.example/generic-dessert-3.jpg',
-      'https://images.example/generic-dessert-4.jpg',
-      'https://images.example/generic-dessert-5.jpg',
-    ],
   })
+
+  expect(result?.generic).toBe(true)
+  expect(result?.photoUrls).toHaveLength(5)
+  expect(result?.photoUrls.every((url) => /^https:\/\/images\.example\/generic-dessert-\d+\.jpg$/.test(url))).toBe(true)
+})
+
+it('varies generic Openverse category fallback photos between different places', async () => {
+  const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (!url.includes('api.openverse.org')) {
+      return {
+        ok: true,
+        json: async () => ({ results: [] }),
+      }
+    }
+
+    const query = new URL(url).searchParams.get('q')
+    return {
+      ok: true,
+      json: async () => ({
+        results: query === 'cafe dessert cake'
+          ? Array.from({ length: 18 }, (_, index) => ({
+            title: `Cafe dessert ${index + 1}`,
+            thumbnail: `https://images.example/generic-dessert-${index + 1}.jpg`,
+            foreign_landing_url: `https://www.flickr.com/photos/example/generic-dessert-${index + 1}`,
+            license: 'by',
+            creator: 'Example creator',
+          }))
+          : [],
+      }),
+    }
+  })
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  const first = await resolveFreeImageForPlace({
+    placeId: 'osm:node/no-image-dessert-a',
+    placeName: 'No Image Dessert A',
+    category: 'dessert',
+    allowGeneric: true,
+    limit: 5,
+  })
+  const second = await resolveFreeImageForPlace({
+    placeId: 'osm:node/no-image-dessert-b',
+    placeName: 'No Image Dessert B',
+    category: 'dessert',
+    allowGeneric: true,
+    limit: 5,
+  })
+
+  expect(first?.generic).toBe(true)
+  expect(second?.generic).toBe(true)
+  expect(first?.photoUrls).toHaveLength(5)
+  expect(second?.photoUrls).toHaveLength(5)
+  expect(second?.photoUrls).not.toEqual(first?.photoUrls)
 })
 
 it('ignores previously persisted generic free image metadata', () => {
@@ -600,7 +645,7 @@ it('ignores previously persisted generic free image metadata', () => {
       photoUrls: ['https://images.example/generic-cafe-dessert.jpg'],
       free_image: {
         status: 'found',
-        version: 5,
+        version: 6,
         source: 'openverse',
         generic: true,
         url: 'https://images.example/generic-cafe-dessert.jpg',
@@ -678,7 +723,7 @@ it('skips external image lookups for recent not-found cache entries', async () =
       wikidata: 'Q999999',
       free_image: {
         status: 'not_found',
-        version: 5,
+        version: 6,
         fetchedAt: new Date().toISOString(),
       },
     },
@@ -718,7 +763,7 @@ it('persists not-found image lookups so future reloads skip external searches', 
     metadata: expect.objectContaining({
       free_image: expect.objectContaining({
         status: 'not_found',
-        version: 5,
+        version: 6,
       }),
     }),
   }))

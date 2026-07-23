@@ -59,8 +59,10 @@ function fillDay(orderedPlaces: Place[], dateIso: string, distMatrix: DistanceMa
 
   return orderedPlaces.map((place, i) => {
     if (place.type === 'restaurant') {
-      if (restaurantsSeen === 0 && cursor < 12 * 60) cursor = 12 * 60
-      if (restaurantsSeen === 1 && cursor < 18 * 60) cursor = 18 * 60
+      // 彈性用餐窗（午餐 11:00–13:00、晚餐 17:00–19:00）：只有落在窗之前才推到窗起點，
+      // 與 clientScheduler 的智慧排程貼齊規則一致。
+      if (restaurantsSeen === 0 && cursor < 11 * 60) cursor = 11 * 60
+      if (restaurantsSeen === 1 && cursor < 17 * 60) cursor = 17 * 60
       restaurantsSeen++
     }
 

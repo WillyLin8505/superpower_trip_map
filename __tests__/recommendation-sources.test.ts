@@ -17,7 +17,7 @@ jest.mock('@/lib/supabase/admin', () => ({
 }))
 
 import { readFile } from 'fs/promises'
-import { getRecommendationSources } from '@/lib/recommendationSources'
+import { getImageSources, getRecommendationSources } from '@/lib/recommendationSources'
 
 const rf = readFile as jest.Mock
 const OLD_ENV = process.env
@@ -42,7 +42,10 @@ it('loads recommendation sources from Supabase first', async () => {
     data: [{
       id: 's1',
       url: 'https://travel.example/osaka',
-      label: '大阪旅遊',
+      label: 'Osaka guide',
+      kind: 'recommendation',
+      enabled: true,
+      config: {},
       last_fetched_at: '2026-07-22T00:00:00Z',
       last_fetch_status: 'ok',
     }],
@@ -51,7 +54,10 @@ it('loads recommendation sources from Supabase first', async () => {
   await expect(getRecommendationSources()).resolves.toEqual([{
     id: 's1',
     url: 'https://travel.example/osaka',
-    label: '大阪旅遊',
+    label: 'Osaka guide',
+    kind: 'recommendation',
+    enabled: true,
+    config: {},
     lastFetchedAt: '2026-07-22T00:00:00Z',
     lastFetchStatus: 'ok',
   }])
@@ -72,6 +78,9 @@ it('falls back to config/sources.json when Supabase admin env is unavailable', a
     id: 'local-1',
     url: 'https://local.example',
     label: 'Local',
+    kind: 'recommendation',
+    enabled: true,
+    config: {},
     lastFetchedAt: null,
     lastFetchStatus: null,
   }])
@@ -91,6 +100,83 @@ it('falls back to config/sources.json when Supabase read fails', async () => {
     id: 'local-1',
     url: 'https://local.example',
     label: 'Local',
+    kind: 'recommendation',
+    enabled: true,
+    config: {},
+    lastFetchedAt: null,
+    lastFetchStatus: null,
+  }])
+})
+
+it('filters image and disabled sources out of recommendation sources', async () => {
+  builder = makeBuilder({
+    data: [
+      {
+        id: 'rec-1',
+        url: 'https://travel.example/osaka',
+        label: 'Travel',
+        kind: 'recommendation',
+        enabled: true,
+        config: {},
+        last_fetched_at: null,
+        last_fetch_status: null,
+      },
+      {
+        id: 'image-1',
+        url: 'https://tabelog.example/osaka',
+        label: 'Tabelog',
+        kind: 'image',
+        enabled: true,
+        config: { provider: 'tabelog' },
+        last_fetched_at: null,
+        last_fetch_status: null,
+      },
+      {
+        id: 'rec-disabled',
+        url: 'https://disabled.example',
+        label: 'Disabled',
+        kind: 'recommendation',
+        enabled: false,
+        config: {},
+        last_fetched_at: null,
+        last_fetch_status: null,
+      },
+    ],
+  })
+
+  await expect(getRecommendationSources()).resolves.toEqual([{
+    id: 'rec-1',
+    url: 'https://travel.example/osaka',
+    label: 'Travel',
+    kind: 'recommendation',
+    enabled: true,
+    config: {},
+    lastFetchedAt: null,
+    lastFetchStatus: null,
+  }])
+})
+
+it('loads enabled image sources separately', async () => {
+  builder = makeBuilder({
+    data: [{
+      id: 'image-1',
+      url: 'https://tabelog.example/osaka',
+      label: 'Tabelog',
+      kind: 'image',
+      enabled: true,
+      config: { provider: 'tabelog' },
+      last_fetched_at: null,
+      last_fetch_status: null,
+    }],
+  })
+
+  await expect(getImageSources()).resolves.toEqual([{
+    id: 'image-1',
+    url: 'https://tabelog.example/osaka',
+    label: 'Tabelog',
+    kind: 'image',
+    enabled: true,
+    config: { provider: 'tabelog' },
     lastFetchedAt: null,
     lastFetchStatus: null,
   }])

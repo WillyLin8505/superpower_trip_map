@@ -40,21 +40,39 @@ beforeEach(() => {
 
 function formData(fields: Record<string, string>): FormData {
   const fd = new FormData()
-  Object.entries(fields).forEach(([k, v]) => fd.set(k, v))
+  Object.entries(fields).forEach(([key, value]) => fd.set(key, value))
   return fd
 }
 
 describe('getSources', () => {
-  it('maps last_fetched_at/last_fetch_status to lastFetchedAt/lastFetchStatus', async () => {
+  it('maps source metadata and fetch status to Source objects', async () => {
     readBuilder = makeBuilder({
       select: {
-        data: [{ id: 's1', url: 'https://a.com', label: 'A', last_fetched_at: '2026-07-01T00:00:00Z', last_fetch_status: 'ok' }],
+        data: [{
+          id: 's1',
+          url: 'https://a.com',
+          label: 'A',
+          kind: 'image',
+          enabled: false,
+          config: { provider: 'tabelog' },
+          last_fetched_at: '2026-07-01T00:00:00Z',
+          last_fetch_status: 'ok',
+        }],
         error: null,
       },
     })
     const { getSources } = require('@/app/actions/sources')
     const out = await getSources()
-    expect(out).toEqual([{ id: 's1', url: 'https://a.com', label: 'A', lastFetchedAt: '2026-07-01T00:00:00Z', lastFetchStatus: 'ok' }])
+    expect(out).toEqual([{
+      id: 's1',
+      url: 'https://a.com',
+      label: 'A',
+      kind: 'image',
+      enabled: false,
+      config: { provider: 'tabelog' },
+      lastFetchedAt: '2026-07-01T00:00:00Z',
+      lastFetchStatus: 'ok',
+    }])
   })
 
   it('returns an empty array on error', async () => {
@@ -80,8 +98,20 @@ describe('addSource', () => {
 
   it('inserts via the admin client when the caller is admin', async () => {
     const { addSource } = require('@/app/actions/sources')
-    await addSource(formData({ url: 'https://a.com', label: 'A' }))
-    expect(adminBuilder.insert).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://a.com', label: 'A' }))
+    await addSource(formData({
+      url: 'https://a.com',
+      label: 'A',
+      kind: 'image',
+      provider: 'rebake',
+      enabled: 'true',
+    }))
+    expect(adminBuilder.insert).toHaveBeenCalledWith(expect.objectContaining({
+      url: 'https://a.com',
+      label: 'A',
+      kind: 'image',
+      enabled: true,
+      config: { provider: 'rebake' },
+    }))
   })
 })
 
@@ -95,8 +125,19 @@ describe('editSource', () => {
 
   it('updates the matching row via the admin client when admin', async () => {
     const { editSource } = require('@/app/actions/sources')
-    await editSource('s1', formData({ url: 'https://b.com', label: 'B' }))
-    expect(adminBuilder.update).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://b.com', label: 'B' }))
+    await editSource('s1', formData({
+      url: 'https://b.com',
+      label: 'B',
+      kind: 'recommendation',
+      enabled: 'false',
+    }))
+    expect(adminBuilder.update).toHaveBeenCalledWith(expect.objectContaining({
+      url: 'https://b.com',
+      label: 'B',
+      kind: 'recommendation',
+      enabled: false,
+      config: {},
+    }))
     expect(adminBuilder.eq).toHaveBeenCalledWith('id', 's1')
   })
 
