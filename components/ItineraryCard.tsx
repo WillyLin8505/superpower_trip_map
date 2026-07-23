@@ -5,7 +5,7 @@ import { TimeScrollPicker } from './TimeScrollPicker'
 import { TypePicker } from './TypePicker'
 import { PhotoStrip } from './PhotoStrip'
 import { getHoursForDate } from '@/lib/utils/hours'
-import { addMinutes } from '@/lib/utils/time'
+import { addMinutes, timeToMin as toMin } from '@/lib/utils/time'
 import { resolveLocalizedText } from '@/lib/utils/localizedPlace'
 import { googleMapsSearchUrl } from '@/lib/utils/googleMapsUrl'
 import type { PlaceType, ScheduledPlace, TransportMode } from '@/lib/types'
@@ -17,11 +17,6 @@ const ARCHIVE_ICON = '\uD83D\uDCBE'
 
 function uniqueText(values: Array<string | null | undefined>): string[] {
   return Array.from(new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value))))
-}
-
-function toMin(t: string): number {
-  const [h, m] = t.split(':').map(Number)
-  return h * 60 + m
 }
 
 interface Props {
@@ -40,9 +35,10 @@ interface Props {
   onArchive?: (place: ScheduledPlace) => void
   dayEnd?: string
   compact?: boolean
+  isGeoOutlier?: boolean
 }
 
-export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType, onChangeLegMode, legBusy, onDeletePlace, onArchive, dayEnd, compact = false }: Props) {
+export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, onToggleStartLock, onToggleDurationLock, onToggleEndLock, onChangeType, onChangeLegMode, legBusy, onDeletePlace, onArchive, dayEnd, compact = false, isGeoOutlier = false }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: place.id, disabled: !draggable })
 
@@ -156,6 +152,9 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
             {place.nightIndex && <span className="text-xs text-lodging-ink">第 {place.nightIndex} 晚</span>}
             {place.outsideHours && (
               <span className="text-xs text-warn font-medium">&#x26A0; 請確認營業時間</span>
+            )}
+            {isGeoOutlier && (
+              <span className="text-xs text-warn font-medium">&#x26A0; 離當天其他行程很遠</span>
             )}
           </div>
           {displayName.secondary && (

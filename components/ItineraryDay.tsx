@@ -2,6 +2,9 @@
 import { Fragment, useMemo } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { ItineraryCard } from './ItineraryCard'
+import { detectDayGeoOutliers } from '@/lib/utils/geoOutlier'
+import { dayLoad } from '@/lib/utils/dayLoad'
+import { timeToMin as toMin } from '@/lib/utils/time'
 import { buildDayEmbedUrl } from '@/lib/utils/mapUrl'
 import { dayDate, formatDateLabel } from '@/lib/utils/date'
 import { SidePanel } from './SidePanel'
@@ -10,10 +13,6 @@ import { freeBlocks, formatGap } from '@/lib/utils/freeTime'
 import { stripRepeatedPhotoSets } from '@/lib/utils/photoSanitizer'
 import type { DayItinerary, TransportMode, PlaceType, CategoryBuckets, DayRecommendation, Candidate, Place, RecommendationCenter, ScheduledPlace } from '@/lib/types'
 
-function toMin(t: string): number {
-  const [h, m] = t.split(':').map(Number)
-  return h * 60 + m
-}
 
 interface Props {
   day: DayItinerary
@@ -76,6 +75,8 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
   const embedUrl = buildDayEmbedUrl(day.places, mode)
   const { setNodeRef, isOver } = useDroppable({ id: `day-${dayIdx}` })
   const displayPlaces = useMemo(() => stripRepeatedPhotoSets(day.places), [day.places])
+  const geoOutliers = useMemo(() => detectDayGeoOutliers(day.places), [day.places])
+  const load = useMemo(() => dayLoad(day), [day])
 
   return (
     <section className="mb-12" data-testid={`day-${dayIdx}`}>
@@ -114,6 +115,22 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
           <span>（{((toMin(day.dayEnd) - toMin(day.dayStart)) / 60).toFixed(1)} 小時）</span>
         </div>
       )}
+      {day.places.length > 0 && (() => {
+        const pct = Math.min(100, Math.round(load.ratio * 100))
+        const barColor = load.state === 'over' ? 'bg-warn' : load.state === 'light' ? 'bg-clay/30' : 'bg-clay'
+        return (
+          <div className="mb-3" data-testid="day-load">
+            <div className="flex items-center justify-between text-xs text-muted mb-1">
+              <span>已排 {(load.usedMin / 60).toFixed(1)} / {(load.windowMin / 60).toFixed(1)} 小時</span>
+              {load.state === 'over' && <span className="text-warn font-medium">超出時間窗</span>}
+              {load.state === 'light' && <span>還可再加</span>}
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
+              <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        )
+      })()}
       {(onSetDayStartLock || onSetDayDurationLock) && (() => {
         const has = day.places.length > 0
         const allStart = has && day.places.every((p) => p.startLocked)
@@ -211,6 +228,7 @@ export function ItineraryDay({ day, dayIdx, mode, startDate, isDragging, draggab
                     onDeletePlace={onDeletePlace}
                     onArchive={onArchivePlace}
                     dayEnd={day.dayEnd}
+                    isGeoOutlier={geoOutliers.has(place.id)}
                   />
                   {fb && (
                     <div
