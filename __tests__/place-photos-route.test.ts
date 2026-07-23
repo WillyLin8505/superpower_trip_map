@@ -18,6 +18,7 @@ describe('GET /api/place-photos', () => {
     ;(fetch as jest.Mock).mockReset()
     resolveFreeImageForPlaceMock.mockReset()
     process.env.GOOGLE_MAPS_API_KEY = 'test-key'
+    delete process.env.GOOGLE_MAPS_PHOTO_FALLBACK_MODE
   })
 
   it('returns up to five proxied photo URLs for a place id', async () => {
@@ -141,6 +142,49 @@ describe('GET /api/place-photos', () => {
     })
     expect(fetch).not.toHaveBeenCalled()
     expect(body.photoUrls).toEqual(['https://images.example/hanoi-train-street.jpg'])
+  })
+
+  it('tops up with free category images without calling Google when paid photo fallback is off', async () => {
+    process.env.GOOGLE_MAPS_PHOTO_FALLBACK_MODE = 'off'
+    resolveFreeImageForPlaceMock
+      .mockResolvedValueOnce({
+        photoUrls: ['https://images.example/train-street-exact.jpg'],
+        source: 'wikidata',
+      })
+      .mockResolvedValueOnce({
+        photoUrls: [
+          'https://images.example/train-street-exact.jpg',
+          'https://images.example/free-attraction-1.jpg',
+          'https://images.example/free-attraction-2.jpg',
+          'https://images.example/free-attraction-3.jpg',
+          'https://images.example/free-attraction-4.jpg',
+        ],
+        source: 'openverse',
+        generic: true,
+      })
+
+    const req = new NextRequest('http://localhost/api/place-photos?placeId=osm%3Away%2Ftrain-street&placeName=Train+Street&placeType=attraction')
+    const res = await GET(req)
+    const body = await res.json()
+
+    expect(fetch).not.toHaveBeenCalled()
+    expect(resolveFreeImageForPlaceMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      allowGeneric: false,
+      placeName: 'Train Street',
+      limit: 5,
+    }))
+    expect(resolveFreeImageForPlaceMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      allowGeneric: true,
+      placeName: 'Train Street',
+      limit: 5,
+    }))
+    expect(body.photoUrls).toEqual([
+      'https://images.example/train-street-exact.jpg',
+      'https://images.example/free-attraction-1.jpg',
+      'https://images.example/free-attraction-2.jpg',
+      'https://images.example/free-attraction-3.jpg',
+      'https://images.example/free-attraction-4.jpg',
+    ])
   })
 
   it('uses Google Maps as the last fallback for non-Google place ids when free lookup misses', async () => {

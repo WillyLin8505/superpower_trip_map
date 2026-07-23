@@ -80,7 +80,7 @@ function shouldPreferGooglePhotos(category: PlaceType): boolean {
   return category === 'dessert' || category === 'restaurant' || category === 'accommodation'
 }
 
-async function genericAttractionPhotoTopUp({
+async function freePhotoTopUp({
   placeId,
   placeName,
   aliases,
@@ -93,7 +93,7 @@ async function genericAttractionPhotoTopUp({
   category: PlaceType
   limit: number
 }): Promise<string[]> {
-  if (category !== 'attraction' || !placeName) return []
+  if (!placeName) return []
   const freeImage = await resolveFreeImageForPlace({
     placeId,
     placeName,
@@ -102,7 +102,7 @@ async function genericAttractionPhotoTopUp({
     allowGeneric: true,
     limit,
   })
-  return freeImage?.generic ? freeImage.photoUrls.slice(0, limit) : []
+  return freeImage?.photoUrls.slice(0, limit) ?? []
 }
 
 async function googlePhotoUrlsForPlaceId(placeId: string, limit: number, tripId: string | null | undefined): Promise<string[]> {
@@ -240,17 +240,23 @@ export async function GET(req: NextRequest) {
 
   const apiKey = process.env.GOOGLE_MAPS_API_KEY
   if (!apiKey) {
-    await recordPhotoLookupUnderfill({ photoUrls: freePhotoUrls, limit, placeId, placeName, category, tripId, source: 'free_no_google_key' })
+    const photoUrls = freePhotoUrls.length < limit
+      ? mergePhotoUrls(freePhotoUrls, await freePhotoTopUp({ placeId, placeName, aliases, category, limit }), limit)
+      : freePhotoUrls
+    await recordPhotoLookupUnderfill({ photoUrls, limit, placeId, placeName, category, tripId, source: 'free_no_google_key' })
     return NextResponse.json(
-      { photoUrls: freePhotoUrls },
+      { photoUrls },
       { headers: { 'cache-control': googleMapsPhotoCacheControl() } }
     )
   }
 
   if (!shouldUseGooglePhotoFallback()) {
-    await recordPhotoLookupUnderfill({ photoUrls: freePhotoUrls, limit, placeId, placeName, category, tripId, source: 'free_google_fallback_off' })
+    const photoUrls = freePhotoUrls.length < limit
+      ? mergePhotoUrls(freePhotoUrls, await freePhotoTopUp({ placeId, placeName, aliases, category, limit }), limit)
+      : freePhotoUrls
+    await recordPhotoLookupUnderfill({ photoUrls, limit, placeId, placeName, category, tripId, source: 'free_google_fallback_off' })
     return NextResponse.json(
-      { photoUrls: freePhotoUrls },
+      { photoUrls },
       { headers: { 'cache-control': googleMapsPhotoCacheControl() } }
     )
   }
@@ -268,7 +274,7 @@ export async function GET(req: NextRequest) {
       ? mergePhotoUrls(googlePhotoUrls, freePhotoUrls, limit)
       : mergePhotoUrls(freePhotoUrls, googlePhotoUrls, limit)
     const genericTopUp = mergedPhotoUrls.length < limit
-      ? await genericAttractionPhotoTopUp({ placeId, placeName, aliases, category, limit })
+      ? await freePhotoTopUp({ placeId, placeName, aliases, category, limit })
       : []
     const photoUrls = mergePhotoUrls(mergedPhotoUrls, genericTopUp, limit)
     await recordPhotoLookupUnderfill({ photoUrls, limit, placeId, placeName, category, tripId, source: 'merged' })

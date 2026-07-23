@@ -1,5 +1,6 @@
 ﻿import { mapOpenPoiRowToPlace, mapOpenPoiRowToPlaceWithFreeImages, openPoiSearch } from '@/lib/openPoi'
 import type { OpenPoiRow } from '@/lib/openPoi'
+import { resolveFreeImageForPlace } from '@/lib/openPoi'
 
 const mockUpdateBuilder: { error: null; eq: jest.Mock } = {
   error: null,
@@ -113,7 +114,7 @@ it('maps open-data quality metadata used by recommendation ranking', () => {
 it('prioritizes dessert-specific Open POI rows before nearby generic cafes', async () => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role'
-  const recentMiss = { status: 'not_found', version: 4, fetchedAt: new Date().toISOString() }
+  const recentMiss = { status: 'not_found', version: 5, fetchedAt: new Date().toISOString() }
   const row = (
     source_place_id: string,
     name_primary: string,
@@ -537,6 +538,52 @@ it('does not use a generic category image when a small local POI has no exact im
   )
 })
 
+it('returns up to five generic Openverse category images when generic fallback is allowed', async () => {
+  const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (!url.includes('api.openverse.org')) {
+      return {
+        ok: true,
+        json: async () => ({ results: [] }),
+      }
+    }
+
+    const query = new URL(url).searchParams.get('q')
+    return {
+      ok: true,
+      json: async () => ({
+        results: query === 'cafe dessert cake'
+          ? [1, 2, 3, 4, 5, 6].map((index) => ({
+            title: `Cafe dessert ${index}`,
+            thumbnail: `https://images.example/generic-dessert-${index}.jpg`,
+            foreign_landing_url: `https://www.flickr.com/photos/example/generic-dessert-${index}`,
+            license: 'by',
+            creator: 'Example creator',
+          }))
+          : [],
+      }),
+    }
+  })
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  await expect(resolveFreeImageForPlace({
+    placeId: 'osm:node/no-image-dessert',
+    placeName: 'No Image Dessert',
+    category: 'dessert',
+    allowGeneric: true,
+    limit: 5,
+  })).resolves.toMatchObject({
+    generic: true,
+    photoUrls: [
+      'https://images.example/generic-dessert-1.jpg',
+      'https://images.example/generic-dessert-2.jpg',
+      'https://images.example/generic-dessert-3.jpg',
+      'https://images.example/generic-dessert-4.jpg',
+      'https://images.example/generic-dessert-5.jpg',
+    ],
+  })
+})
+
 it('ignores previously persisted generic free image metadata', () => {
   expect(mapOpenPoiRowToPlace({
     source: 'osm',
@@ -553,7 +600,7 @@ it('ignores previously persisted generic free image metadata', () => {
       photoUrls: ['https://images.example/generic-cafe-dessert.jpg'],
       free_image: {
         status: 'found',
-        version: 4,
+        version: 5,
         source: 'openverse',
         generic: true,
         url: 'https://images.example/generic-cafe-dessert.jpg',
@@ -631,7 +678,7 @@ it('skips external image lookups for recent not-found cache entries', async () =
       wikidata: 'Q999999',
       free_image: {
         status: 'not_found',
-        version: 4,
+        version: 5,
         fetchedAt: new Date().toISOString(),
       },
     },
@@ -671,7 +718,7 @@ it('persists not-found image lookups so future reloads skip external searches', 
     metadata: expect.objectContaining({
       free_image: expect.objectContaining({
         status: 'not_found',
-        version: 4,
+        version: 5,
       }),
     }),
   }))

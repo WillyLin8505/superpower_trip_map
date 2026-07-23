@@ -9,7 +9,7 @@ import { compareRecommendationCandidates, isRecommendationCandidateAcceptable } 
 type OpenPoiSource = 'overture' | 'osm' | 'wikidata' | 'user'
 type FreeImageSource = 'metadata' | 'wikimedia_commons' | 'wikidata' | 'wikipedia' | 'openverse'
 const FREE_IMAGE_TTL_SECONDS = 60 * 60 * 24 * 30
-const FREE_IMAGE_LOOKUP_VERSION = 4
+const FREE_IMAGE_LOOKUP_VERSION = 5
 const FREE_IMAGE_FETCH_TIMEOUT_MS = 4000
 const MAX_FREE_IMAGE_URLS = 5
 
@@ -613,13 +613,17 @@ async function openverseCategoryImageResult(category: PlaceType): Promise<FreeIm
       skuHint: 'openverse_free',
       metadata: { query, category, fallback: 'category' },
     }) as OpenverseImageResponse
-    const result = (data.results ?? []).find((item) =>
-      normalizeImageUrl(cleanText(item.thumbnail) ?? cleanText(item.url))
-    )
-    const url = normalizeImageUrl(cleanText(result?.thumbnail) ?? cleanText(result?.url))
-    if (!result || !url) return null
+    const matches = (data.results ?? [])
+      .map((item) => ({
+        item,
+        url: openverseEmbeddableUrl(item) ?? normalizeImageUrl(cleanText(item.thumbnail) ?? cleanText(item.url)),
+      }))
+      .filter((match): match is { item: OpenverseImageResult; url: string } => match.url !== null)
+    const result = matches[0]?.item
+    const photoUrls = Array.from(new Set(matches.map((match) => match.url))).slice(0, MAX_FREE_IMAGE_URLS)
+    if (!result || photoUrls.length === 0) return null
     return {
-      photoUrls: [url],
+      photoUrls,
       source: 'openverse',
       pageUrl: cleanText(result.foreign_landing_url),
       license: cleanText(result.license),
