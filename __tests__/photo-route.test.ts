@@ -4,7 +4,14 @@ import { NextRequest } from 'next/server'
 global.fetch = jest.fn()
 
 describe('GET /api/photo', () => {
+  const originalPhotoMediaMode = process.env.GOOGLE_MAPS_PHOTO_MEDIA_MODE
+
   beforeEach(() => jest.clearAllMocks())
+
+  afterEach(() => {
+    if (originalPhotoMediaMode === undefined) delete process.env.GOOGLE_MAPS_PHOTO_MEDIA_MODE
+    else process.env.GOOGLE_MAPS_PHOTO_MEDIA_MODE = originalPhotoMediaMode
+  })
 
   it('returns 400 when ref param is missing', async () => {
     const req = new NextRequest('http://localhost/api/photo')
@@ -13,6 +20,7 @@ describe('GET /api/photo', () => {
   })
 
   it('fetches from Google with the server API key and returns the image', async () => {
+    process.env.GOOGLE_MAPS_PHOTO_MEDIA_MODE = 'on'
     process.env.GOOGLE_MAPS_API_KEY = 'test-key'
     const fakeImage = new ArrayBuffer(4)
     ;(fetch as jest.Mock).mockResolvedValueOnce({
@@ -35,7 +43,20 @@ describe('GET /api/photo', () => {
     expect(res.headers.get('cache-control')).toContain('s-maxage=')
   })
 
+  it('returns a local placeholder without calling Google when photo media is disabled', async () => {
+    process.env.GOOGLE_MAPS_PHOTO_MEDIA_MODE = 'off'
+
+    const req = new NextRequest('http://localhost/api/photo?ref=ABC123')
+    const res = await GET(req)
+
+    expect(fetch).not.toHaveBeenCalled()
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toContain('image/svg+xml')
+    expect(await res.text()).toContain('Google 圖片已關閉')
+  })
+
   it('returns 502 when Google fetch fails', async () => {
+    process.env.GOOGLE_MAPS_PHOTO_MEDIA_MODE = 'on'
     ;(fetch as jest.Mock).mockResolvedValueOnce({ ok: false })
     const req = new NextRequest('http://localhost/api/photo?ref=BAD')
     const res = await GET(req)

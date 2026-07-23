@@ -1,6 +1,7 @@
 'use server'
 import { randomUUID } from 'crypto'
 import type { Place } from '@/lib/types'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import type { SavedPlaceEntry, SavedPlaceSource } from '@/lib/takeout/parse'
 import type { SavedPlaceRow } from '@/lib/savedPlaces/types'
@@ -87,6 +88,18 @@ export async function listSavedPlaces(): Promise<SavedPlaceRow[]> {
     .from('saved_places')
     .select('id, list_name, source, place')
     .eq('owner_id', user.id)
+    .order('created_at', { ascending: true })
+  if (error || !data) return []
+  return (data as { id: string; list_name: string; source: SavedPlaceSource; place: Place }[])
+    .map((r) => ({ id: r.id, listName: r.list_name, source: r.source, place: r.place }))
+}
+
+export async function listSavedPlacesForOwner(ownerId: string): Promise<SavedPlaceRow[]> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('saved_places')
+    .select('id, list_name, source, place')
+    .eq('owner_id', ownerId)
     .order('created_at', { ascending: true })
   if (error || !data) return []
   return (data as { id: string; list_name: string; source: SavedPlaceSource; place: Place }[])

@@ -14,10 +14,10 @@ const EMPTY_BUCKETS: CategoryBuckets = {
 interface Props {
   dateIso: string
   buckets?: CategoryBuckets
-  onAdd: (rec: DayRecommendation) => void
-  onArchive: (rec: DayRecommendation) => void
-  onDelete: (rec: DayRecommendation) => void
-  onImported: () => void
+  onAdd?: (rec: DayRecommendation) => void
+  onArchive?: (rec: DayRecommendation) => void
+  onDelete?: (rec: DayRecommendation) => void
+  onImported?: () => void
 }
 
 export function CollectionPanel({ dateIso, buckets, onAdd, onArchive, onDelete, onImported }: Props) {
@@ -64,7 +64,7 @@ export function CollectionPanel({ dateIso, buckets, onAdd, onArchive, onDelete, 
       setResult(`新增 ${r.added}、已存在 ${r.existing}、找不到 ${r.unresolved}`)
       setEntries([])
       setSelected(new Set())
-      onImported()
+      onImported?.()
     } catch (e) {
       setError(e instanceof Error ? e.message : '匯入失敗，請稍後再試')
     } finally {
@@ -74,6 +74,7 @@ export function CollectionPanel({ dateIso, buckets, onAdd, onArchive, onDelete, 
 
   return (
     <div className="flex flex-col gap-3" data-testid="collection-panel">
+      {onImported && (
       <section className="border border-border rounded-lg p-3 bg-surface" data-testid="collection-import">
         <p className="text-sm font-medium text-ink">匯入 Google Maps 標籤</p>
         <p className="text-xs text-muted mt-0.5">上傳 Google Takeout 匯出的「已儲存地點」(JSON 或各清單 CSV)。</p>
@@ -115,6 +116,7 @@ export function CollectionPanel({ dateIso, buckets, onAdd, onArchive, onDelete, 
           </div>
         )}
       </section>
+      )}
       <DayRecommendations
         recommendations={buckets ?? EMPTY_BUCKETS}
         dateIso={dateIso}

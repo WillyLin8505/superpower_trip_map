@@ -1,11 +1,27 @@
 import { NextRequest } from 'next/server'
-import { googleMapsPhotoCacheControl } from '@/lib/googleMapsCost'
+import { googleMapsPhotoCacheControl, shouldServeGooglePhotoMedia } from '@/lib/googleMapsCost'
 import { trackedApiFetch } from '@/lib/apiUsageEvents'
 import { tripIdFromReferer } from '@/lib/apiUsageContext'
+
+const DISABLED_PHOTO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="260" viewBox="0 0 400 260">
+  <rect width="400" height="260" rx="20" fill="#f4e2da"/>
+  <text x="200" y="120" text-anchor="middle" font-family="Arial, sans-serif" font-size="44">📷</text>
+  <text x="200" y="158" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#9a4f35">Google 圖片已關閉</text>
+</svg>`
+
+function disabledPhotoResponse(): Response {
+  return new Response(DISABLED_PHOTO_SVG, {
+    headers: {
+      'content-type': 'image/svg+xml; charset=utf-8',
+      'cache-control': googleMapsPhotoCacheControl(),
+    },
+  })
+}
 
 export async function GET(req: NextRequest) {
   const ref = req.nextUrl.searchParams.get('ref')
   if (!ref) return new Response('missing ref', { status: 400 })
+  if (!shouldServeGooglePhotoMedia()) return disabledPhotoResponse()
 
   const url =
     `https://maps.googleapis.com/maps/api/place/photo` +

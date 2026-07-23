@@ -18,10 +18,13 @@ export default async function SharedTripPage({ params }: { params: Promise<{ tok
       <ItineraryClient
         initial={trip.plan}
         tripId={trip.tripId}
+        initialCandidates={trip.candidates}
+        initialArchived={trip.archived}
+        initialCollectionRows={trip.collectionRows}
         shareToken={token}
         canEdit={trip.canEdit}
         showCost={false}
-        personalPanelsEnabled={false}
+        personalPanelsEnabled
       />
     </>
   )

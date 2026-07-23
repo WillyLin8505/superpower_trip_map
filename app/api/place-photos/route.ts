@@ -54,6 +54,31 @@ function shouldPreferGooglePhotos(category: PlaceType): boolean {
   return category === 'dessert' || category === 'restaurant' || category === 'accommodation'
 }
 
+async function genericAttractionPhotoTopUp({
+  placeId,
+  placeName,
+  aliases,
+  category,
+  limit,
+}: {
+  placeId: string
+  placeName: string | undefined
+  aliases: string[]
+  category: PlaceType
+  limit: number
+}): Promise<string[]> {
+  if (category !== 'attraction' || !placeName) return []
+  const freeImage = await resolveFreeImageForPlace({
+    placeId,
+    placeName,
+    aliases,
+    category,
+    allowGeneric: true,
+    limit,
+  })
+  return freeImage?.generic ? freeImage.photoUrls.slice(0, limit) : []
+}
+
 async function googlePhotoUrlsForPlaceId(placeId: string, limit: number, tripId: string | null | undefined): Promise<string[]> {
   return cachedGoogle(['photos', placeId, String(limit)], async () => {
     const apiKey = process.env.GOOGLE_MAPS_API_KEY!
@@ -212,9 +237,13 @@ export async function GET(req: NextRequest) {
       ? await googlePhotoUrlsForTextFallback({ placeName: placeName!, aliases, category, lat, lng, limit, tripId })
       : []
     const googlePhotoUrls = mergePhotoUrls(googlePlaceIdPhotoUrls, googleTextPhotoUrls, limit)
-    const photoUrls = shouldPreferGooglePhotos(category)
+    const mergedPhotoUrls = shouldPreferGooglePhotos(category)
       ? mergePhotoUrls(googlePhotoUrls, freePhotoUrls, limit)
       : mergePhotoUrls(freePhotoUrls, googlePhotoUrls, limit)
+    const genericTopUp = mergedPhotoUrls.length < limit
+      ? await genericAttractionPhotoTopUp({ placeId, placeName, aliases, category, limit })
+      : []
+    const photoUrls = mergePhotoUrls(mergedPhotoUrls, genericTopUp, limit)
 
     return NextResponse.json(
       { photoUrls },

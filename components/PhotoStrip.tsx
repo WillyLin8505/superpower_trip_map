@@ -23,7 +23,7 @@ interface Props {
 
 const MAX_PHOTOS = 5
 const photoRequestCache = new Map<string, Promise<string[]>>()
-const PHOTO_LOOKUP_VERSION = '5'
+const PHOTO_LOOKUP_VERSION = '6'
 const PHOTO_CACHE_PREFIX = `photo-strip:v${PHOTO_LOOKUP_VERSION}`
 
 function mergePhotos(primary: string[], fetched: string[]): string[] {
@@ -155,10 +155,11 @@ export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFa
   const [manualFetchRequested, setManualFetchRequested] = useState(false)
   const notifiedUnavailableRef = useRef(false)
   const fetchablePlaceId = isGooglePlaceId(placeId) || isOpenDataPlaceId(placeId) ? placeId : null
+  const targetPhotoCount = autoFetchKind === 'cover' ? 1 : MAX_PHOTOS
   const coverPhoto = resolvedPhotos[0]
   const displayPhotos = resolvedPhotos.slice(0, MAX_PHOTOS)
   const previewPhotos = displayPhotos.slice(0, Math.min(MAX_PHOTOS, Math.max(1, Math.trunc(previewCount))))
-  const shouldFetchPhotos = Boolean(fetchablePlaceId && resolvedPhotos.length < MAX_PHOTOS && (autoFetch || manualFetchRequested))
+  const shouldFetchPhotos = Boolean(fetchablePlaceId && resolvedPhotos.length < targetPhotoCount && (autoFetch || manualFetchRequested))
   const canLoadMore = Boolean(fetchablePlaceId && resolvedPhotos.length < MAX_PHOTOS && !fetchedPhotos)
 
   useEffect(() => {
@@ -230,7 +231,7 @@ export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFa
     return nextPhotos
   }, [fetchablePlaceId, fetchedPhotos, lat, lng, placeName, placeType, photoAliases, resolvedPhotos])
 
-  if (!coverPhoto && deferredGooglePhotos.length > 0 && !googlePhotoMediaReleased) {
+  if (!coverPhoto && deferredGooglePhotos.length > 0 && !googlePhotoMediaReleased && (fetchedPhotos || !shouldFetchPhotos)) {
     return (
       <button
         type="button"

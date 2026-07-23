@@ -35,12 +35,17 @@ export function shouldEnrichPlanningWithDetails(): boolean {
 }
 
 export function shouldUsePaidRecommendationFallback(): boolean {
-  const mode = process.env.GOOGLE_MAPS_RECOMMENDATION_PAID_FALLBACK_MODE ?? (process.env.NODE_ENV === 'test' ? 'on' : 'off')
+  const mode = process.env.GOOGLE_MAPS_RECOMMENDATION_PAID_FALLBACK_MODE ?? 'on'
   return mode === 'on'
 }
 
 export function shouldUseGooglePhotoFallback(): boolean {
   const mode = process.env.GOOGLE_MAPS_PHOTO_FALLBACK_MODE ?? (process.env.NODE_ENV === 'test' ? 'on' : 'off')
+  return mode === 'on'
+}
+
+export function shouldServeGooglePhotoMedia(): boolean {
+  const mode = process.env.GOOGLE_MAPS_PHOTO_MEDIA_MODE ?? (process.env.NODE_ENV === 'test' ? 'on' : 'off')
   return mode === 'on'
 }
 

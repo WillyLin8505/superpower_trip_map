@@ -373,4 +373,56 @@ describe('GET /api/place-photos', () => {
     expect(fetch).toHaveBeenNthCalledWith(2, expect.stringContaining('place_id=ChIJorickCoffee'), expect.any(Object))
     expect(body.photoUrls).toEqual(['/api/photo?ref=orick-google-photo'])
   })
+
+  it('tops up attraction cards with generic free images only after Google has fewer than five photos', async () => {
+    resolveFreeImageForPlaceMock
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        photoUrls: ['https://images.example/generic-shrine.jpg'],
+        source: 'openverse',
+        generic: true,
+      })
+    ;(fetch as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: 'OK',
+          result: {
+            photos: [
+              { photo_reference: 'shrine-google-1' },
+              { photo_reference: 'shrine-google-2' },
+              { photo_reference: 'shrine-google-3' },
+              { photo_reference: 'shrine-google-4' },
+            ],
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: 'ZERO_RESULTS',
+          candidates: [],
+        }),
+      })
+
+    const req = new NextRequest(`http://localhost/api/place-photos?placeId=${googlePlaceId}&placeName=Shinmeigu&placeType=attraction`)
+    const res = await GET(req)
+    const body = await res.json()
+
+    expect(resolveFreeImageForPlaceMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      allowGeneric: false,
+      placeName: 'Shinmeigu',
+    }))
+    expect(resolveFreeImageForPlaceMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      allowGeneric: true,
+      placeName: 'Shinmeigu',
+    }))
+    expect(body.photoUrls).toEqual([
+      '/api/photo?ref=shrine-google-1',
+      '/api/photo?ref=shrine-google-2',
+      '/api/photo?ref=shrine-google-3',
+      '/api/photo?ref=shrine-google-4',
+      'https://images.example/generic-shrine.jpg',
+    ])
+  })
 })

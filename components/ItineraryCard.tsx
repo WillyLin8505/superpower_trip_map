@@ -215,7 +215,7 @@ export function ItineraryCard({ place, index, dateIso, draggable, onTimeChange, 
           {todayHours && (
             <p className="text-sm text-muted mt-0.5">營業 {todayHours}</p>
           )}
-          <PhotoStrip photos={photos} placeId={place.placeId} placeName={displayName.primary} className="mt-2" placeType={place.type} aliases={photoAliases} lat={place.lat} lng={place.lng} />
+          <PhotoStrip photos={photos} placeId={place.placeId} placeName={displayName.primary} className="mt-2" placeType={place.type} aliases={photoAliases} lat={place.lat} lng={place.lng} previewCount={1} autoFetchKind="cover" />
           {descriptionText && (
             <p className="text-sm text-gray-600 mt-2 italic">{descriptionText}</p>
           )}

@@ -11,7 +11,7 @@ type Category = (typeof REC_CATEGORIES)[number]
 interface Props {
   recommendations?: CategoryBuckets   // undefined = still loading (DEC-301 always-visible)
   dateIso: string
-  onAdd: (rec: DayRecommendation) => void
+  onAdd?: (rec: DayRecommendation) => void
   backfilling?: Partial<Record<Category, boolean>>
   hasCenter?: boolean                 // false = resolveDayCenter found nothing usable
   center?: RecommendationCenter | null
@@ -107,7 +107,7 @@ export function DayRecommendations({
                     key={rec.placeId}
                     rec={rec}
                     dateIso={dateIso}
-                    onAdd={() => onAdd(rec)}
+                    onAdd={onAdd ? () => onAdd(rec) : undefined}
                     onArchive={onArchive}
                     onDelete={onDelete ? () => onDelete(rec) : undefined}
                     onPhotoUnavailable={onPhotoUnavailable ? () => onPhotoUnavailable(rec) : undefined}

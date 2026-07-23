@@ -3,7 +3,10 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import type { PlanResult, TripLinkAccess } from '@/lib/types'
+import { listSharedArchived, listSharedCandidates } from '@/app/actions/candidates'
+import { listSavedPlacesForOwner } from '@/app/actions/savedPlaces'
+import type { Candidate, PlanResult, TripLinkAccess } from '@/lib/types'
+import type { SavedPlaceRow } from '@/lib/savedPlaces/types'
 import { normalizeAccessEmail } from '@/lib/tripAccess'
 
 type EmailPermissionRole = 'viewer' | 'editor'
@@ -28,6 +31,9 @@ export type SharedTrip = {
   plan: PlanResult
   linkAccess: Exclude<TripLinkAccess, 'restricted'>
   canEdit: boolean
+  candidates: Candidate[]
+  archived: Candidate[]
+  collectionRows: SavedPlaceRow[]
 }
 
 export type SaveSharedTripResult =
@@ -279,12 +285,21 @@ export async function getSharedTrip(token: string): Promise<SharedTrip | null> {
   const trip = data as SharedTripRow
   if (trip.link_access !== 'view' && trip.link_access !== 'edit') return null
 
+  const [candidates, archived, collectionRows] = await Promise.all([
+    listSharedCandidates(trip.id),
+    listSharedArchived(trip.id),
+    listSavedPlacesForOwner(trip.owner_id),
+  ])
+
   return {
     tripId: trip.id,
     title: trip.title,
     plan: trip.plan,
     linkAccess: trip.link_access,
     canEdit: trip.link_access === 'edit',
+    candidates,
+    archived,
+    collectionRows,
   }
 }
 

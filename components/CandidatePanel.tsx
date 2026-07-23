@@ -5,9 +5,9 @@ import { RecommendationCard } from './RecommendationCard'
 interface CandidatePanelProps {
   candidates: Candidate[]
   dateIso: string
-  onAdd: (candidateId: string, place: Place) => void
-  onArchive: (candidate: Candidate) => void
-  onDelete: (candidateId: string) => void
+  onAdd?: (candidateId: string, place: Place) => void
+  onArchive?: (candidate: Candidate) => void
+  onDelete?: (candidateId: string) => void
 }
 
 function candidateToRecommendation(candidate: Candidate): DayRecommendation {
@@ -59,9 +59,9 @@ export function CandidatePanel({ candidates, dateIso, onAdd, onArchive, onDelete
               <RecommendationCard
                 rec={candidateToRecommendation(candidate)}
                 dateIso={dateIso}
-                onAdd={() => onAdd(candidate.id, candidate.place)}
-                onArchive={() => onArchive(candidate)}
-                onDelete={() => onDelete(candidate.id)}
+                onAdd={onAdd ? () => onAdd(candidate.id, candidate.place) : undefined}
+                onArchive={onArchive ? () => onArchive(candidate) : undefined}
+                onDelete={onDelete ? () => onDelete(candidate.id) : undefined}
                 actionLinks={lineActionLinks(candidate)}
                 actionTestIds={{
                   add: `line-candidate-add-${candidate.id}`,

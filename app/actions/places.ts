@@ -275,19 +275,23 @@ export async function verifyPlace(
 }
 
 type NearbyPlaceType = 'attraction' | 'restaurant' | 'dessert'
-type NearbyQuery = { type?: string; keyword?: string }
+type NearbyQuery = { type?: string; keyword?: string; radius?: number }
+const NEARBY_CACHE_VERSION = '2'
+const NEARBY_DEFAULT_RADIUS_METERS = 4000
+const NEARBY_CANDIDATE_LIMIT = 20
 
 const NEARBY_QUERIES: Record<NearbyPlaceType, NearbyQuery[]> = {
   attraction: [
     { type: 'tourist_attraction' },
-    { keyword: 'sightseeing landmark museum temple park tourist attraction' },
+    { keyword: 'sightseeing landmark museum temple park tourist attraction', radius: 12000 },
   ],
   restaurant: [
     { type: 'restaurant', keyword: 'local lunch dinner restaurant' },
-    { keyword: 'local lunch dinner restaurant food' },
+    { keyword: 'local lunch dinner restaurant food', radius: 12000 },
   ],
   dessert: [
-    { keyword: '甜點 dessert cafe bakery cake drinks' },
+    { keyword: 'dessert cafe bakery cake drinks' },
+    { keyword: 'bakery sweets patisserie dessert cafe drinks', radius: 12000 },
   ],
 }
 
@@ -316,14 +320,15 @@ export async function nearbySearch(
 ): Promise<Place[]> {
   const searchLat = roundedCoordinate(lat)
   const searchLng = roundedCoordinate(lng)
-  return cachedGoogle(['nearby', String(searchLat), String(searchLng), placeType], async () => {
+  return cachedGoogle([NEARBY_CACHE_VERSION, 'nearby', String(searchLat), String(searchLng), placeType], async () => {
   const out: Place[] = []
   const seen = new Set<string>()
 
   for (const q of NEARBY_QUERIES[placeType]) {
+    const radius = q.radius ?? NEARBY_DEFAULT_RADIUS_METERS
     const params = new URLSearchParams({
       location: `${searchLat},${searchLng}`,
-      radius: '4000',
+      radius: String(radius),
       key: KEY,
       language: 'zh-TW',
     })
@@ -335,7 +340,7 @@ export async function nearbySearch(
       provider: 'google_maps',
       endpoint: 'nearby_search',
       skuHint: 'nearby_search_pro',
-      metadata: { placeType, radius: 4000, query: q },
+      metadata: { placeType, radius, query: q },
     })
     const data = await res.json()
     // Never cache a transient failure — throw so cachedGoogle skips it and the
@@ -380,9 +385,9 @@ export async function nearbySearch(
         description: placeShortDescription(placeType, r.types),
       })
     }
-    if (out.length >= 5) break
+    if (out.length >= NEARBY_CANDIDATE_LIMIT) break
   }
 
-  return out
+  return out.slice(0, NEARBY_CANDIDATE_LIMIT)
   })
 }

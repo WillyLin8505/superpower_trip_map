@@ -14,7 +14,7 @@ type Category = 'dessert' | 'attraction' | 'restaurant'
 interface Props {
   dateIso: string
   recommendations?: CategoryBuckets
-  onAddRecommendation: (rec: DayRecommendation) => void
+  onAddRecommendation?: (rec: DayRecommendation) => void
   backfilling?: Partial<Record<Category, boolean>>
   recsHasCenter?: boolean
   recsCenter?: RecommendationCenter | null
@@ -28,13 +28,13 @@ interface Props {
   onRecommendationPhotoUnavailable?: (rec: DayRecommendation) => void
   candidates: Candidate[]
   archived: Candidate[]
-  onAddReservePlace: (place: Place) => void
-  onAddReservePlaces: (places: Place[]) => void
-  onAddArchivedToDay: (candidateId: string, place: Place) => void
-  onDeleteArchived: (candidateId: string) => void
-  onAddCandidateToDay: (candidateId: string, place: Place) => void
-  onArchiveCandidate: (candidate: Candidate) => void
-  onDeleteCandidate: (candidateId: string) => void
+  onAddReservePlace?: (place: Place) => void
+  onAddReservePlaces?: (places: Place[]) => void
+  onAddArchivedToDay?: (candidateId: string, place: Place) => void
+  onDeleteArchived?: (candidateId: string) => void
+  onAddCandidateToDay?: (candidateId: string, place: Place) => void
+  onArchiveCandidate?: (candidate: Candidate) => void
+  onDeleteCandidate?: (candidateId: string) => void
   activeTab?: SidePanelTab
   onTabChange?: (tab: SidePanelTab) => void
   collectionBuckets?: CategoryBuckets
@@ -116,7 +116,9 @@ export function SidePanel(props: Props) {
         {tab === 'reserve' && (
           <section className="border border-border rounded-lg p-4 bg-surface flex flex-col gap-3" data-testid="reserve-panel">
             <h2 className="font-medium text-ink">備用行程</h2>
-            <CombinedInput onAdd={props.onAddReservePlace} onAddPlaces={props.onAddReservePlaces} />
+            {props.onAddReservePlace && props.onAddReservePlaces && (
+              <CombinedInput onAdd={props.onAddReservePlace} onAddPlaces={props.onAddReservePlaces} />
+            )}
             {props.archived.length === 0 ? (
               <p className="text-sm text-muted py-2" data-testid="archive-empty">尚未加入任何備用行程</p>
             ) : (
@@ -126,8 +128,8 @@ export function SidePanel(props: Props) {
                     <RecommendationCard
                       rec={archivedToRecommendation(archived)}
                       dateIso={props.dateIso}
-                      onAdd={() => props.onAddArchivedToDay(archived.id, archived.place)}
-                      onDelete={() => props.onDeleteArchived(archived.id)}
+                      onAdd={props.onAddArchivedToDay ? () => props.onAddArchivedToDay?.(archived.id, archived.place) : undefined}
+                      onDelete={props.onDeleteArchived ? () => props.onDeleteArchived?.(archived.id) : undefined}
                       actionTestIds={{ delete: `archive-delete-${archived.id}` }}
                     />
                   </li>
@@ -140,10 +142,10 @@ export function SidePanel(props: Props) {
           <CollectionPanel
             dateIso={props.dateIso}
             buckets={props.collectionBuckets}
-            onAdd={props.onAddCollectionPlace ?? (() => {})}
-            onArchive={props.onArchiveCollection ?? (() => {})}
-            onDelete={props.onDismissCollection ?? (() => {})}
-            onImported={props.onCollectionImported ?? (() => {})}
+            onAdd={props.onAddCollectionPlace}
+            onArchive={props.onArchiveCollection}
+            onDelete={props.onDismissCollection}
+            onImported={props.onCollectionImported}
           />
         )}
       </div>

@@ -133,6 +133,7 @@ interface Props {
   tripId?: string
   initialCandidates?: Candidate[]
   initialArchived?: Candidate[]
+  initialCollectionRows?: SavedPlaceRow[]
   initialCostUsd?: number
   canEdit?: boolean
   shareToken?: string
@@ -145,6 +146,7 @@ export function ItineraryClient({
   tripId,
   initialCandidates = [],
   initialArchived = [],
+  initialCollectionRows = [],
   initialCostUsd = 0,
   canEdit = true,
   shareToken,
@@ -152,7 +154,9 @@ export function ItineraryClient({
   personalPanelsEnabled = true,
 }: Props) {
   const router = useRouter()
-  const canUseSidePanel = canEdit && personalPanelsEnabled
+  const showSidePanel = personalPanelsEnabled
+  const canMutateSidePanel = canEdit && personalPanelsEnabled && !shareToken
+  const canAddSharedRecommendations = canEdit && personalPanelsEnabled
   const [currentTripId, setCurrentTripId] = useState<string | undefined>(tripId)
   // Latest tripId for action callbacks (many use [] deps, so reading the state
   // directly would capture a stale value after the trip is saved mid-session).
@@ -189,17 +193,17 @@ export function ItineraryClient({
   const [archived, setArchivedState] = useState<Candidate[]>(initialArchived)
   const archivedRef = useRef<Candidate[]>(initialArchived)
   const [sidePanelTabs, setSidePanelTabs] = useState<Record<number, SidePanelTab>>({})
-  const [collectionRows, setCollectionRows] = useState<SavedPlaceRow[]>([])
+  const [collectionRows, setCollectionRows] = useState<SavedPlaceRow[]>(initialCollectionRows)
   // Ephemeral per-day dismiss set for collection cards (keyed by dayIdx). Not shifted when a
   // day is deleted/scattered — a dismissed card may reappear until reload; acceptable since
   // this is a soft, session-only hide (KNOWN P2, deferred).
   const [collectionExcluded, setCollectionExcluded] = useState<Record<number, string[]>>({})
   useEffect(() => {
-    if (!canUseSidePanel) return
-    // Graceful: an anonymous session or a load failure just leaves the collection empty —
+    if (!showSidePanel || initialCollectionRows.length > 0) return
+    // Graceful: an anonymous session or a load failure just leaves the collection empty –
     // never surface an unhandled rejection from this background load.
     listSavedPlaces().then(setCollectionRows).catch(() => setCollectionRows([]))
-  }, [canUseSidePanel])
+  }, [initialCollectionRows.length, showSidePanel])
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const autosaveRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // planRef always tracks the latest committed plan (avoids stale closures in dnd-kit callbacks)
@@ -247,7 +251,7 @@ export function ItineraryClient({
   }, [])
 
   useEffect(() => {
-    if (!canUseSidePanel) return
+    if (!showSidePanel) return
     let active = true
     getDayRecommendations(planRef.current.days, tripIdRef.current)
       .then((r) => { if (active) { commitRecs(r); setRecsError(null) } })
@@ -862,8 +866,7 @@ export function ItineraryClient({
     const hasNewKey = keys.some((key) => !unavailableKeys.has(key))
     if (!hasNewKey) return
     keys.forEach((key) => unavailableKeys.add(key))
-    removeRecommendationFromShown(dayIdx, rec, keys)
-  }, [removeRecommendationFromShown])
+  }, [])
 
   const handleAddRecommendation = useCallback(async (dayIdx: number, rec: DayRecommendation) => {
     const needsDetails = !rec.openingHours?.length
@@ -1229,41 +1232,42 @@ export function ItineraryClient({
                 onSetAvoid={canEdit ? ((field, value) => handleSetAvoid(dayIdx, field, value)) : undefined}
                 arranging={arrangingDay === dayIdx}
                 draggable={canEdit}
-                recommendations={canUseSidePanel ? recsByDay?.[dayIdx] : undefined}
-                onAddRecommendation={canUseSidePanel ? ((rec) => handleAddRecommendation(dayIdx, rec)) : undefined}
-                onArchiveRecommendation={canUseSidePanel ? ((rec) => handleArchiveRecommendation(dayIdx, rec)) : undefined}
-                onDeleteRecommendation={canUseSidePanel ? ((rec) => handleDeleteRecommendation(dayIdx, rec)) : undefined}
-                onRecommendationPhotoUnavailable={canUseSidePanel ? ((rec) => handleRecommendationPhotoUnavailable(dayIdx, rec)) : undefined}
-                candidates={canUseSidePanel ? candidates : []}
-                archived={canUseSidePanel ? archived : []}
-                onAddReservePlace={canUseSidePanel ? handleAddReservePlace : undefined}
-                onAddReservePlaces={canUseSidePanel ? handleAddReservePlaces : undefined}
-                onAddArchivedToDay={canUseSidePanel ? ((candidateId, place) => handleAddArchivedToDay(candidateId, place, dayIdx)) : undefined}
-                onDeleteArchived={canUseSidePanel ? handleDeleteArchived : undefined}
-                onAddCandidateToDay={canUseSidePanel ? ((candidateId, place) => handleAddCandidateToDay(candidateId, place, dayIdx)) : undefined}
-                onArchiveCandidate={canUseSidePanel ? handleArchiveCandidate : undefined}
-                onDeleteCandidate={canUseSidePanel ? handleDeleteCandidate : undefined}
-                onArchivePlace={canUseSidePanel ? ((place) => handleArchivePlace(dayIdx, place)) : undefined}
+                showSidePanel={showSidePanel}
+                recommendations={showSidePanel ? recsByDay?.[dayIdx] : undefined}
+                onAddRecommendation={canAddSharedRecommendations ? ((rec) => handleAddRecommendation(dayIdx, rec)) : undefined}
+                onArchiveRecommendation={canMutateSidePanel ? ((rec) => handleArchiveRecommendation(dayIdx, rec)) : undefined}
+                onDeleteRecommendation={canMutateSidePanel ? ((rec) => handleDeleteRecommendation(dayIdx, rec)) : undefined}
+                onRecommendationPhotoUnavailable={showSidePanel ? ((rec) => handleRecommendationPhotoUnavailable(dayIdx, rec)) : undefined}
+                candidates={showSidePanel ? candidates : []}
+                archived={showSidePanel ? archived : []}
+                onAddReservePlace={canMutateSidePanel ? handleAddReservePlace : undefined}
+                onAddReservePlaces={canMutateSidePanel ? handleAddReservePlaces : undefined}
+                onAddArchivedToDay={canMutateSidePanel ? ((candidateId, place) => handleAddArchivedToDay(candidateId, place, dayIdx)) : undefined}
+                onDeleteArchived={canMutateSidePanel ? handleDeleteArchived : undefined}
+                onAddCandidateToDay={canMutateSidePanel ? ((candidateId, place) => handleAddCandidateToDay(candidateId, place, dayIdx)) : undefined}
+                onArchiveCandidate={canMutateSidePanel ? handleArchiveCandidate : undefined}
+                onDeleteCandidate={canMutateSidePanel ? handleDeleteCandidate : undefined}
+                onArchivePlace={canMutateSidePanel ? ((place) => handleArchivePlace(dayIdx, place)) : undefined}
                 sidePanelTab={sidePanelTabs[dayIdx]}
-                onSidePanelTabChange={canUseSidePanel ? ((tab) => handleSidePanelTabChange(dayIdx, tab)) : undefined}
-                collectionBuckets={canUseSidePanel ? selectCollectionBuckets(
+                onSidePanelTabChange={showSidePanel ? ((tab) => handleSidePanelTabChange(dayIdx, tab)) : undefined}
+                collectionBuckets={showSidePanel ? selectCollectionBuckets(
                   collectionRows,
                   resolveDayCenter(plan.days, dayIdx),
                   new Set([...(collectionExcluded[dayIdx] ?? []), ...day.places.map((p) => p.placeId)]),
                 ) : undefined}
-                onAddCollectionPlace={canUseSidePanel ? ((rec) => handleAddCollectionPlace(dayIdx, rec)) : undefined}
-                onArchiveCollection={canUseSidePanel ? ((rec) => handleArchiveCollection(dayIdx, rec)) : undefined}
-                onDismissCollection={canUseSidePanel ? ((rec) => handleDismissCollection(dayIdx, rec)) : undefined}
-                onCollectionImported={canUseSidePanel ? handleCollectionImported : undefined}
+                onAddCollectionPlace={canAddSharedRecommendations ? ((rec) => handleAddCollectionPlace(dayIdx, rec)) : undefined}
+                onArchiveCollection={canMutateSidePanel ? ((rec) => handleArchiveCollection(dayIdx, rec)) : undefined}
+                onDismissCollection={canMutateSidePanel ? ((rec) => handleDismissCollection(dayIdx, rec)) : undefined}
+                onCollectionImported={canMutateSidePanel ? handleCollectionImported : undefined}
                 backfilling={{
                   dessert: backfillKeys.has(`${dayIdx}:dessert`),
                   attraction: backfillKeys.has(`${dayIdx}:attraction`),
                   restaurant: backfillKeys.has(`${dayIdx}:restaurant`),
                 }}
                 recsHasCenter={dayHasRecommendationAnchor(day)}
-                onSetRecommendationCenter={canUseSidePanel ? ((center) => handleSetRecommendationCenter(dayIdx, center)) : undefined}
-                onClearRecommendationCenter={canUseSidePanel ? (() => handleClearRecommendationCenter(dayIdx)) : undefined}
-                onRefreshRecommendationCategory={canUseSidePanel ? ((category) => handleRefreshCategory(dayIdx, category)) : undefined}
+                onSetRecommendationCenter={canAddSharedRecommendations ? ((center) => handleSetRecommendationCenter(dayIdx, center)) : undefined}
+                onClearRecommendationCenter={canAddSharedRecommendations ? (() => handleClearRecommendationCenter(dayIdx)) : undefined}
+                onRefreshRecommendationCategory={canAddSharedRecommendations ? ((category) => handleRefreshCategory(dayIdx, category)) : undefined}
                 recsRefreshing={{
                   dessert: refreshingKeys.has(`${dayIdx}:dessert`),
                   attraction: refreshingKeys.has(`${dayIdx}:attraction`),

@@ -103,6 +103,33 @@ export async function listCandidates(tripId: string): Promise<Candidate[]> {
   )
 }
 
+export async function listSharedCandidates(tripId: string): Promise<Candidate[]> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('trip_candidates')
+    .select('id, place, added_by, source, created_at')
+    .eq('trip_id', tripId)
+    .eq('list', 'candidate')
+    .order('created_at', { ascending: true })
+  if (isMissingListColumn(error)) {
+    const { data: fallback, error: fallbackError } = await admin
+      .from('trip_candidates')
+      .select('id, place, added_by, source, created_at')
+      .eq('trip_id', tripId)
+      .order('created_at', { ascending: true })
+    if (fallbackError || !fallback) return []
+    return runWithTripId(tripId, () =>
+      resolveCandidateNames((fallback as { id: string; place: Place; added_by: string; source?: CandidateSource | null; created_at: string }[])
+        .filter((row) => row.source?.kind === 'line_group')),
+    )
+  }
+  if (error || !data) return []
+  return runWithTripId(tripId, () =>
+    resolveCandidateNames((data as { id: string; place: Place; added_by: string; source?: CandidateSource | null; created_at: string }[])
+      .filter((row) => row.source?.kind === 'line_group')),
+  )
+}
+
 export async function removeCandidate(candidateId: string): Promise<void> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -176,6 +203,21 @@ export async function listArchived(tripId: string): Promise<Candidate[]> {
   if (!user) return []
   if (!(await canEditTrip(tripId, user))) return []
 
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('trip_candidates')
+    .select('id, place, added_by, source, created_at')
+    .eq('trip_id', tripId)
+    .eq('list', 'archived')
+    .order('created_at', { ascending: true })
+  if (isMissingListColumn(error)) return []
+  if (error || !data) return []
+  return runWithTripId(tripId, () =>
+    resolveCandidateNames(data as { id: string; place: Place; added_by: string; source?: CandidateSource | null; created_at: string }[]),
+  )
+}
+
+export async function listSharedArchived(tripId: string): Promise<Candidate[]> {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('trip_candidates')

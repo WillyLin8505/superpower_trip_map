@@ -155,3 +155,28 @@ it('recommendation delete is a top-right x and calls the delete handler', () => 
   fireEvent.click(deleteButton)
   expect(onDeleteRecommendation).toHaveBeenCalledWith(expect.objectContaining({ placeId: 'r1' }))
 })
+
+it('renders LINE and reserve cards without actions in read-only mode', () => {
+  const lineCandidate = candidate('c1', 'LINE A', { kind: 'line_group', lineGroupId: 'g', messageId: 'm' })
+  const archived = candidate('a1', 'Reserve A')
+  render(
+    <SidePanel
+      dateIso="2026-07-01"
+      recommendations={emptyRecs}
+      candidates={[lineCandidate]}
+      archived={[archived]}
+    />,
+  )
+
+  fireEvent.click(screen.getByTestId('side-panel-tab-line'))
+  expect(screen.getByTestId('line-candidate-card-c1')).toBeInTheDocument()
+  expect(screen.queryByTestId('line-candidate-add-c1')).not.toBeInTheDocument()
+  expect(screen.queryByTestId('line-candidate-archive-c1')).not.toBeInTheDocument()
+  expect(screen.queryByTestId('line-candidate-delete-c1')).not.toBeInTheDocument()
+
+  fireEvent.click(screen.getByTestId('side-panel-tab-reserve'))
+  expect(screen.getByTestId('reserve-card-a1')).toBeInTheDocument()
+  expect(screen.queryByText('mock-reserve-search')).not.toBeInTheDocument()
+  expect(screen.queryByTestId('rec-add-p-a1')).not.toBeInTheDocument()
+  expect(screen.queryByTestId('archive-delete-a1')).not.toBeInTheDocument()
+})
