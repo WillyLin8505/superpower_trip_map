@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { googleMapsFetchOptions, googleMapsPhotoCacheControl, roundedCoordinate, shouldUseGooglePhotoFallback } from '@/lib/googleMapsCost'
-import { trackedApiFetch } from '@/lib/apiUsageEvents'
+import { recordApiUsageEvent, trackedApiFetch } from '@/lib/apiUsageEvents'
 import { tripIdFromReferer } from '@/lib/apiUsageContext'
 import { cachedGoogle, RETRYABLE_GOOGLE_STATUSES } from '@/lib/googleCache'
 import { resolveFreeImageForPlace } from '@/lib/openPoi'
@@ -48,6 +48,32 @@ function googleLocationBias(lat: number | null, lng: number | null): string | nu
 
 function mergePhotoUrls(primary: string[], fallback: string[], limit: number): string[] {
   return Array.from(new Set([...primary, ...fallback].filter(Boolean))).slice(0, limit)
+}
+
+async function recordPhotoLookupUnderfill(args: {
+  photoUrls: string[]
+  limit: number
+  placeId: string
+  placeName: string | undefined
+  category: PlaceType
+  tripId: string | null
+  source: string
+}): Promise<void> {
+  if (args.photoUrls.length >= args.limit) return
+  await recordApiUsageEvent({
+    provider: 'app_diagnostics',
+    endpoint: 'place_photo_underfill',
+    skuHint: 'app_diagnostic_free',
+    tripId: args.tripId,
+    metadata: {
+      placeId: args.placeId,
+      placeName: args.placeName,
+      category: args.category,
+      source: args.source,
+      requested: args.limit,
+      returned: args.photoUrls.length,
+    },
+  })
 }
 
 function shouldPreferGooglePhotos(category: PlaceType): boolean {
@@ -189,6 +215,7 @@ export async function GET(req: NextRequest) {
   const category = parsePlaceType(req.nextUrl.searchParams.get('placeType'))
   const lat = parseCoordinate(req.nextUrl.searchParams.get('lat'))
   const lng = parseCoordinate(req.nextUrl.searchParams.get('lng'))
+  const tripId = tripIdFromReferer(req.headers.get('referer'), req.nextUrl.origin) ?? null
   const googlePlaceId = isGooglePlaceId(placeId)
   let freePhotoUrls: string[] = []
   if (placeName) {
@@ -213,6 +240,7 @@ export async function GET(req: NextRequest) {
 
   const apiKey = process.env.GOOGLE_MAPS_API_KEY
   if (!apiKey) {
+    await recordPhotoLookupUnderfill({ photoUrls: freePhotoUrls, limit, placeId, placeName, category, tripId, source: 'free_no_google_key' })
     return NextResponse.json(
       { photoUrls: freePhotoUrls },
       { headers: { 'cache-control': googleMapsPhotoCacheControl() } }
@@ -220,13 +248,12 @@ export async function GET(req: NextRequest) {
   }
 
   if (!shouldUseGooglePhotoFallback()) {
+    await recordPhotoLookupUnderfill({ photoUrls: freePhotoUrls, limit, placeId, placeName, category, tripId, source: 'free_google_fallback_off' })
     return NextResponse.json(
       { photoUrls: freePhotoUrls },
       { headers: { 'cache-control': googleMapsPhotoCacheControl() } }
     )
   }
-
-  const tripId = tripIdFromReferer(req.headers.get('referer'), req.nextUrl.origin)
 
   try {
     const googlePlaceIdPhotoUrls = googlePlaceId
@@ -244,6 +271,7 @@ export async function GET(req: NextRequest) {
       ? await genericAttractionPhotoTopUp({ placeId, placeName, aliases, category, limit })
       : []
     const photoUrls = mergePhotoUrls(mergedPhotoUrls, genericTopUp, limit)
+    await recordPhotoLookupUnderfill({ photoUrls, limit, placeId, placeName, category, tripId, source: 'merged' })
 
     return NextResponse.json(
       { photoUrls },

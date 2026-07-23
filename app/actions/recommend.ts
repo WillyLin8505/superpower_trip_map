@@ -22,6 +22,7 @@ import { shouldEnrichRecommendationsWithDetails, shouldUsePaidRecommendationFall
 import { openPoiSearch } from '@/lib/openPoi'
 import { ensurePoiBackfill } from '@/lib/poiBackfill'
 import { runWithTripId } from '@/lib/apiUsageContext'
+import { recordApiUsageEvent } from '@/lib/apiUsageEvents'
 import { ensurePlaceChineseName } from '@/lib/utils/bilingualNames'
 import { isRecommendationCandidateAcceptable, sortRecommendationCandidates } from '@/lib/utils/recommendationRank'
 import { getRecommendationSources } from '@/lib/recommendationSources'
@@ -32,6 +33,7 @@ const OPEN_POI_RADII_METERS = [4000, 12000]
 const GOOGLE_SOURCE_LABEL = 'Google 推薦'
 const GOOGLE_REASON = '附近推薦'
 const OPEN_POI_SOURCE_LABEL = 'Open POI'
+const DIAGNOSTIC_SOURCE = 'app_diagnostics'
 const OPEN_POI_REASON = '開放 POI 候選池推薦'
 
 function emptyCategoryBuckets(): CategoryBuckets {
@@ -186,7 +188,40 @@ export async function getDayRecommendations(
   days: DayItinerary[],
   tripId?: string
 ): Promise<RecommendationsByDay> {
-  return runWithTripId(tripId, () => getDayRecommendationsImpl(days))
+  return runWithTripId(tripId, async () => {
+    const recommendations = await getDayRecommendationsImpl(days)
+    await recordRecommendationHealth(days, recommendations, tripId)
+    return recommendations
+  })
+}
+
+async function recordRecommendationHealth(
+  days: DayItinerary[],
+  recommendations: RecommendationsByDay,
+  tripId?: string
+): Promise<void> {
+  const underfilled = recommendations.flatMap((dayRecommendations, dayIndex) => {
+    if (!dayHasRecommendationAnchor(days[dayIndex])) return []
+    return REC_CATEGORIES
+      .map((category) => ({
+        day: dayIndex + 1,
+        category,
+        shown: dayRecommendations[category]?.shown.length ?? 0,
+      }))
+      .filter((entry) => entry.shown < REC_LIMIT)
+  })
+
+  await recordApiUsageEvent({
+    provider: DIAGNOSTIC_SOURCE,
+    endpoint: underfilled.length > 0 ? 'recommendation_underfill' : 'recommendation_health_ok',
+    skuHint: 'app_diagnostic_free',
+    tripId,
+    metadata: {
+      days: days.length,
+      categoriesChecked: days.filter(dayHasRecommendationAnchor).length * REC_CATEGORIES.length,
+      underfilled,
+    },
+  })
 }
 
 async function getDayRecommendationsImpl(

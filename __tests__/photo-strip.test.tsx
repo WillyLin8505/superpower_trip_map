@@ -137,6 +137,30 @@ describe('PhotoStrip', () => {
     expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Avoccino&v=6`)
   })
 
+  it('does not auto-load stored Google photo media when cover mode defers paid photos', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ photoUrls: ['https://free.example/cover.jpg'] }),
+    }) as unknown as typeof fetch
+
+    render(
+      <PhotoStrip
+        placeId={googlePlaceId}
+        placeName="Train Street"
+        photos={['/api/photo?ref=paid-google-cover']}
+        previewCount={1}
+        autoFetchKind="cover"
+        deferGooglePhotoMedia
+      />
+    )
+
+    expect(await screen.findByTestId('photo-thumb-0')).toBeInTheDocument()
+    const coverImg = screen.getByTestId('photo-thumb-0').querySelector('img')
+    expect(coverImg).toHaveAttribute('src', 'https://free.example/cover.jpg')
+    expect(coverImg).not.toHaveAttribute('src', '/api/photo?ref=paid-google-cover')
+    expect(global.fetch).toHaveBeenCalledWith(`/api/place-photos?placeId=${googlePlaceId}&placeName=Train+Street&v=6&limit=1`)
+  })
+
   it('fetches up to five photos when no photo URL is already available', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,

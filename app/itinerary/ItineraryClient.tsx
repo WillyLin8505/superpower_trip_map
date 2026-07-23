@@ -51,6 +51,44 @@ import {
 
 type SidePanelTab = 'recommend' | 'line' | 'reserve' | 'collection'
 type RecommendationCategory = 'dessert' | 'attraction' | 'restaurant'
+const RECOMMENDATION_CATEGORIES: RecommendationCategory[] = ['dessert', 'attraction', 'restaurant']
+
+function recommendationCoordinate(value: number): number {
+  return Math.round(value * 10000) / 10000
+}
+
+export function recommendationCacheKeyForDays(days: PlanResult['days']): string {
+  return JSON.stringify(days.map((day) => ({
+    day: day.day,
+    center: day.recommendationCenter
+      ? {
+        placeId: day.recommendationCenter.placeId ?? null,
+        lat: recommendationCoordinate(day.recommendationCenter.lat),
+        lng: recommendationCoordinate(day.recommendationCenter.lng),
+      }
+      : day.recommendationCenter ?? null,
+    places: day.places.map((place) => ({
+      placeId: place.placeId,
+      source: place.source ?? null,
+      type: place.type,
+      lat: recommendationCoordinate(place.lat),
+      lng: recommendationCoordinate(place.lng),
+    })),
+  })))
+}
+
+function hasCompleteRecommendationCache(recommendations: RecommendationsByDay | null | undefined, days: PlanResult['days']): recommendations is RecommendationsByDay {
+  if (!recommendations || recommendations.length !== days.length) return false
+  return recommendations.every((dayRecommendations, dayIndex) => {
+    if (!dayHasRecommendationAnchor(days[dayIndex])) return true
+    return RECOMMENDATION_CATEGORIES.every((category) => dayRecommendations[category]?.shown.length >= 5)
+  })
+}
+
+function cachedRecommendationsForPlan(plan: PlanResult): RecommendationsByDay | null {
+  if (plan.recommendationsCacheKey !== recommendationCacheKeyForDays(plan.days)) return null
+  return hasCompleteRecommendationCache(plan.recommendations, plan.days) ? plan.recommendations : null
+}
 
 // pointerWithin is essential for multi-container: it checks where the pointer
 // physically is, not center-to-center distance (closestCenter favors the source container)
@@ -175,8 +213,9 @@ export function ItineraryClient({
   const [plan, setPlan] = useState<PlanResult>(initial)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [targetDays, setTargetDays] = useState<number | null>(null)
-  const [recsByDay, setRecsByDay] = useState<RecommendationsByDay | null>(null)
-  const recsRef = useRef<RecommendationsByDay | null>(null)
+  const initialRecommendationCache = cachedRecommendationsForPlan(initial)
+  const [recsByDay, setRecsByDay] = useState<RecommendationsByDay | null>(initialRecommendationCache)
+  const recsRef = useRef<RecommendationsByDay | null>(initialRecommendationCache)
   const photoUnavailableKeysRef = useRef<Set<string>>(new Set())
   const [recsError, setRecsError] = useState<string | null>(null)
   const [backfillKeys, setBackfillKeys] = useState<Set<string>>(new Set())
@@ -245,6 +284,18 @@ export function ItineraryClient({
     setRecsByDay(filtered)
   }, [])
 
+  const persistRecommendationCache = useCallback((recommendations: RecommendationsByDay) => {
+    if (!canEdit || (!currentTripId && !shareToken)) return
+    const nextPlan: PlanResult = {
+      ...planRef.current,
+      recommendations,
+      recommendationsCacheKey: recommendationCacheKeyForDays(planRef.current.days),
+      recommendationsCachedAt: new Date().toISOString(),
+    }
+    planRef.current = nextPlan
+    setPlan(nextPlan)
+  }, [canEdit, currentTripId, shareToken])
+
   const isAlreadyArchived = useCallback((place: Place): boolean => {
     const key = archivePlaceKey(place)
     return archivedRef.current.some((candidate) => archivePlaceKey(candidate.place) === key)
@@ -252,9 +303,16 @@ export function ItineraryClient({
 
   useEffect(() => {
     if (!showSidePanel) return
+    const cachedRecommendations = cachedRecommendationsForPlan(planRef.current)
+    if (cachedRecommendations) {
+      commitRecs(cachedRecommendations)
+      setRecsError(null)
+      void refreshCost()
+      return
+    }
     let active = true
     getDayRecommendations(planRef.current.days, tripIdRef.current)
-      .then((r) => { if (active) { commitRecs(r); setRecsError(null) } })
+      .then((r) => { if (active) { commitRecs(r); persistRecommendationCache(r); setRecsError(null) } })
       .catch(() => { if (active) { commitRecs(null); setRecsError('推薦載入失敗，請稍後再試') } })
       .finally(() => { if (active) void refreshCost() })
     return () => { active = false }

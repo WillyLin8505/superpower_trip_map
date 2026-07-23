@@ -1,7 +1,7 @@
 'use server'
 import type { Place } from '@/lib/types'
 import { randomUUID } from 'crypto'
-import { googleMapsFetchOptions, roundedCoordinate } from '@/lib/googleMapsCost'
+import { googleMapsFetchOptions, roundedCoordinate, shouldServeGooglePhotoMedia } from '@/lib/googleMapsCost'
 import { trackedApiFetch } from '@/lib/apiUsageEvents'
 import { cachedGoogle, RETRYABLE_GOOGLE_STATUSES } from '@/lib/googleCache'
 import { readCachedPlaceId, writeCachedPlaceId } from '@/lib/placeIdCache'
@@ -17,6 +17,7 @@ const DETAILS_FIELDS = [
 const ESSENTIALS_FIELDS = ['place_id', 'name', 'geometry', 'formatted_address', 'type'].join(',')
 
 function mapPhotoUrls(photos?: Array<{ photo_reference: string }>): string[] {
+  if (!shouldServeGooglePhotoMedia()) return []
   return (photos ?? [])
     .slice(0, 5)
     .map((photo) => `/api/photo?ref=${encodeURIComponent(photo.photo_reference)}`)

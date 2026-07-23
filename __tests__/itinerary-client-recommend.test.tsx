@@ -75,7 +75,7 @@ jest.mock('@/lib/utils/hours', () => ({
   checkLateExit: jest.fn(() => false),
 }))
 
-import { ItineraryClient } from '@/app/itinerary/ItineraryClient'
+import { ItineraryClient, recommendationCacheKeyForDays } from '@/app/itinerary/ItineraryClient'
 import { getDayRecommendations, fetchReplacementRecommendation, refreshDayCategoryRecommendations } from '@/app/actions/recommend'
 import type { PlanResult, RecommendationsByDay, DayRecommendation } from '@/lib/types'
 
@@ -249,4 +249,36 @@ describe('recommendation center and refresh', () => {
     expect(await screen.findByTestId('rec-add-new1')).toBeInTheDocument()
     expect(screen.queryByTestId('rec-add-d1')).not.toBeInTheDocument()   // replaced, not appended
   })
+})
+
+it('uses complete saved recommendation cache without fetching on reload', async () => {
+  const completeCachedRecs: RecommendationsByDay = [{
+    dessert: recsWithReserve[0].dessert,
+    attraction: { shown: [drec('a1'), drec('a2'), drec('a3'), drec('a4'), drec('a5')], reserve: [] },
+    restaurant: { shown: [drec('r1'), drec('r2'), drec('r3'), drec('r4'), drec('r5')], reserve: [] },
+  }]
+  const cachedPlan: PlanResult = {
+    ...plan,
+    recommendations: completeCachedRecs,
+    recommendationsCacheKey: recommendationCacheKeyForDays(plan.days),
+    recommendationsCachedAt: '2026-07-23T00:00:00.000Z',
+  }
+
+  render(<ItineraryClient initial={cachedPlan} />)
+
+  expect(await screen.findByTestId('rec-add-d1')).toBeInTheDocument()
+  expect(getDayRecommendations).not.toHaveBeenCalled()
+})
+
+it('ignores stale saved recommendation cache and refetches', async () => {
+  ;(getDayRecommendations as jest.Mock).mockResolvedValue(recsNoReserve)
+  const stalePlan: PlanResult = {
+    ...plan,
+    recommendations: recsWithReserve,
+    recommendationsCacheKey: 'stale-cache-key',
+  }
+
+  render(<ItineraryClient initial={stalePlan} />)
+
+  await waitFor(() => expect(getDayRecommendations).toHaveBeenCalledTimes(1))
 })

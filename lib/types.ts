@@ -71,6 +71,9 @@ export interface PlanResult {
   days: DayItinerary[]
   transportMode: TransportMode
   startDate: string         // ISO 'YYYY-MM-DD'
+  recommendations?: RecommendationsByDay | null
+  recommendationsCacheKey?: string | null
+  recommendationsCachedAt?: string | null
 }
 
 export interface DayRecommendation extends Place {
