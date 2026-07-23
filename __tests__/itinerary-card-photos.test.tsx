@@ -29,9 +29,11 @@ jest.mock('@/components/TimeScrollPicker', () => ({
 
 import { ItineraryCard } from '@/components/ItineraryCard'
 
+const realFetch = global.fetch
+
 const basePlace: ScheduledPlace = {
   id: 'id-1',
-  placeId: 'pid-1',
+  placeId: 'ChIJtokyoPlace1234567890',
   name: 'Avoccino',
   type: 'dessert',
   lat: 21.03,
@@ -53,6 +55,23 @@ const basePlace: ScheduledPlace = {
 
 beforeEach(() => {
   sortableIsDragging = false
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      photoUrls: [
+        'https://images.example/tokyo-free-1.jpg',
+        'https://images.example/tokyo-free-2.jpg',
+        'https://images.example/tokyo-free-3.jpg',
+        'https://images.example/tokyo-free-4.jpg',
+        'https://images.example/tokyo-free-5.jpg',
+      ],
+    }),
+  }) as unknown as typeof fetch
+})
+
+afterEach(() => {
+  global.fetch = realFetch
+  jest.restoreAllMocks()
 })
 
 it('shows available thumbnails and previews photos from the lightbox', async () => {
@@ -75,20 +94,27 @@ it('shows available thumbnails and previews photos from the lightbox', async () 
 
   // Photos auto-load with no '載入照片' gate and preview up to 5 thumbnails.
   expect(screen.queryByRole('button', { name: '載入照片' })).not.toBeInTheDocument()
-  expect(screen.getByTestId('photo-thumb-0')).toBeInTheDocument()
-  expect(screen.getByTestId('photo-thumb-1')).toBeInTheDocument()
+  expect(await screen.findByTestId('photo-thumb-4')).toBeInTheDocument()
+  expect(screen.getByTestId('photo-thumb-0').querySelector('img')).toHaveAttribute('src', 'https://images.example/tokyo-free-1.jpg')
+  const [requestUrl] = (global.fetch as jest.Mock).mock.calls[0]
+  const params = new URL(String(requestUrl), 'http://localhost').searchParams
+  expect(params.get('placeId')).toBe('ChIJtokyoPlace1234567890')
+  expect(params.get('placeName')).toBe('Avoccino')
+  expect(params.get('placeType')).toBe('dessert')
+  expect(params.get('lat')).toBe('21.03')
+  expect(params.get('lng')).toBe('105.84')
   fireEvent.click(screen.getByTestId('photo-thumb-0'))
   expect(screen.getByRole('dialog')).toBeInTheDocument()
 
   fireEvent.click(screen.getByTestId('photo-next'))
-  await waitFor(() => expect(screen.getByAltText('Avoccino 照片 2')).toHaveAttribute('src', '/api/photo?ref=two'))
+  await waitFor(() => expect(screen.getByAltText('Avoccino 照片 2')).toHaveAttribute('src', 'https://images.example/tokyo-free-2.jpg'))
   fireEvent.click(screen.getByTestId('photo-next'))
-  await waitFor(() => expect(screen.getByAltText('Avoccino 照片 3')).toHaveAttribute('src', '/api/photo?ref=three'))
+  await waitFor(() => expect(screen.getByAltText('Avoccino 照片 3')).toHaveAttribute('src', 'https://images.example/tokyo-free-3.jpg'))
   fireEvent.click(screen.getByTestId('photo-next'))
-  await waitFor(() => expect(screen.getByAltText('Avoccino 照片 4')).toHaveAttribute('src', '/api/photo?ref=four'))
+  await waitFor(() => expect(screen.getByAltText('Avoccino 照片 4')).toHaveAttribute('src', 'https://images.example/tokyo-free-4.jpg'))
 })
 
-it('falls back to legacy single photoUrl when photoUrls is absent', () => {
+it('replaces legacy single Google photoUrl with auto-fetched free photos', async () => {
   render(
     <ItineraryCard
       place={{
@@ -100,9 +126,10 @@ it('falls back to legacy single photoUrl when photoUrls is absent', () => {
     />
   )
 
-  // Legacy single photoUrl also renders immediately without a load gate.
+  // Legacy single Google photoUrl is replaced by free photos without a load gate.
   expect(screen.queryByRole('button', { name: '載入照片' })).not.toBeInTheDocument()
-  expect(screen.getByTestId('photo-thumb-0')).toBeInTheDocument()
+  expect(await screen.findByTestId('photo-thumb-4')).toBeInTheDocument()
+  expect(screen.getByTestId('photo-thumb-0').querySelector('img')).toHaveAttribute('src', 'https://images.example/tokyo-free-1.jpg')
 })
 
 it('collapses to title and type badge while the card is being dragged', () => {

@@ -2,6 +2,7 @@ import { buildDayEmbedUrl } from '@/lib/utils/mapUrl'
 import type { ScheduledPlace } from '@/lib/types'
 
 process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY = 'TEST_KEY'
+process.env.NEXT_PUBLIC_GOOGLE_MAPS_EMBED_MODE = 'on'
 
 function makePlace(lat: number, lng: number): ScheduledPlace {
   return {
@@ -20,6 +21,15 @@ test('returns empty string for 0 places', () => {
 
 test('returns empty string for 1 place', () => {
   expect(buildDayEmbedUrl([makePlace(25.04, 121.56)], 'driving')).toBe('')
+})
+
+test('returns empty string when Google Maps embeds are disabled', () => {
+  process.env.NEXT_PUBLIC_GOOGLE_MAPS_EMBED_MODE = 'off'
+  expect(buildDayEmbedUrl(
+    [makePlace(25.04, 121.56), makePlace(25.05, 121.57)],
+    'driving'
+  )).toBe('')
+  process.env.NEXT_PUBLIC_GOOGLE_MAPS_EMBED_MODE = 'on'
 })
 
 test('builds valid URL for 2 places with no waypoints', () => {

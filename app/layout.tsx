@@ -11,13 +11,17 @@ const notoSansTC = Noto_Sans_TC({ weight: ['400', '500', '700'], variable: '--fo
 export const metadata: Metadata = { title: '旅遊行程規劃' }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const shouldLoadGoogleMapsJs = process.env.NEXT_PUBLIC_GOOGLE_MAPS_JS_MODE === 'on' && process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+
   return (
     <html lang="zh-TW" className={`${fraunces.variable} ${notoSerifTC.variable} ${notoSansTC.variable}`}>
       <head>
-        <Script
-          src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places&loading=async`}
-          strategy="beforeInteractive"
-        />
+        {shouldLoadGoogleMapsJs && (
+          <Script
+            src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places&loading=async`}
+            strategy="beforeInteractive"
+          />
+        )}
       </head>
       <body className="font-body bg-paper text-ink"><Header />{children}</body>
     </html>

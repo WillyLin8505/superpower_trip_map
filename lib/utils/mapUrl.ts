@@ -16,6 +16,7 @@ export function buildDayEmbedUrl(
   mode: TransportMode
 ): string {
   if (places.length < 2) return ''
+  if (process.env.NEXT_PUBLIC_GOOGLE_MAPS_EMBED_MODE !== 'on') return ''
   const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
   if (!key) return ''
   const origin = encodeURIComponent(`${places[0].lat},${places[0].lng}`)

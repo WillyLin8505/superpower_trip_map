@@ -19,6 +19,7 @@ interface Props {
   previewCount?: number
   autoFetchKind?: 'cover' | 'all'
   deferGooglePhotoMedia?: boolean
+  showDeferredGooglePhotoButton?: boolean
 }
 
 const MAX_PHOTOS = 5
@@ -131,7 +132,7 @@ async function fetchPhotoUrls(
   return request
 }
 
-export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFallback = null, placeType, aliases = [], lat, lng, onPhotoUnavailable, autoFetch = true, previewCount = MAX_PHOTOS, autoFetchKind = 'all', deferGooglePhotoMedia = false }: Props) {
+export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFallback = null, placeType, aliases = [], lat, lng, onPhotoUnavailable, autoFetch = true, previewCount = MAX_PHOTOS, autoFetchKind = 'all', deferGooglePhotoMedia = false, showDeferredGooglePhotoButton = true }: Props) {
   const photoKey = photos.join('\u0000')
   const aliasKey = aliases.join('\u0000')
   const rawIncomingPhotos = useMemo(() => (photoKey ? photoKey.split('\u0000').slice(0, MAX_PHOTOS) : []), [photoKey])
@@ -231,7 +232,7 @@ export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFa
     return nextPhotos
   }, [fetchablePlaceId, fetchedPhotos, lat, lng, placeName, placeType, photoAliases, resolvedPhotos])
 
-  if (!coverPhoto && deferredGooglePhotos.length > 0 && !googlePhotoMediaReleased && (fetchedPhotos || !shouldFetchPhotos)) {
+  if (showDeferredGooglePhotoButton && !coverPhoto && deferredGooglePhotos.length > 0 && !googlePhotoMediaReleased && (fetchedPhotos || !shouldFetchPhotos)) {
     return (
       <button
         type="button"

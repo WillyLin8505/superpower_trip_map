@@ -22,7 +22,7 @@ const day: DayItinerary = {
 const OLD_ENV = process.env
 
 beforeEach(() => {
-  process.env = { ...OLD_ENV, NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: 'test-key' }
+  process.env = { ...OLD_ENV, NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: 'test-key', NEXT_PUBLIC_GOOGLE_MAPS_EMBED_MODE: 'on' }
 })
 afterEach(() => {
   process.env = OLD_ENV
@@ -39,14 +39,14 @@ it('renders the map full-width without the AI summary, not inside the side colum
 
 it('renders SidePanel (not the old bare DayRecommendations sidebar) alongside the day column', () => {
   render(
-    <ItineraryDay day={day} dayIdx={0} mode="driving" startDate="2026-07-01" onAddRecommendation={() => {}} />
+    <ItineraryDay day={day} dayIdx={0} mode="driving" startDate="2026-07-01" showSidePanel onAddRecommendation={() => {}} />
   )
   expect(screen.getByTestId('side-panel')).toBeInTheDocument()
 })
 
 it('day column and side panel share the same row container with equal-height stretch', () => {
   render(
-    <ItineraryDay day={day} dayIdx={0} mode="driving" startDate="2026-07-01" onAddRecommendation={() => {}} />
+    <ItineraryDay day={day} dayIdx={0} mode="driving" startDate="2026-07-01" showSidePanel onAddRecommendation={() => {}} />
   )
   const row = screen.getByTestId('day-content-row')
   expect(row).toContainElement(screen.getByTestId('side-panel'))
@@ -56,7 +56,7 @@ it('day column and side panel share the same row container with equal-height str
 it('stacks on small screens: row is flex-col below lg, side panel full-width below lg', () => {
   // QA regression: at 375px the fixed w-96 panel squeezed the itinerary to ~120px
   render(
-    <ItineraryDay day={day} dayIdx={0} mode="driving" startDate="2026-07-01" onAddRecommendation={() => {}} />
+    <ItineraryDay day={day} dayIdx={0} mode="driving" startDate="2026-07-01" showSidePanel onAddRecommendation={() => {}} />
   )
   const row = screen.getByTestId('day-content-row')
   expect(row.className).toContain('flex-col')
