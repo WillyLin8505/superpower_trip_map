@@ -2,6 +2,7 @@ import { mapOpenPoiRowToPlace, mapOpenPoiRowToPlaceWithFreeImages, openPoiSearch
 import type { OpenPoiRow } from '@/lib/openPoi'
 import { resolveFreeImageForPlace } from '@/lib/openPoi'
 
+const DEFAULT_IMAGE_POLICY_SIGNATURE = 'default:1:official_website>wikimedia_commons>wikidata>wikipedia>openverse'
 const mockGetImageSources = jest.fn(async () => [])
 
 jest.mock('@/lib/recommendationSources', () => ({
@@ -122,7 +123,13 @@ it('maps open-data quality metadata used by recommendation ranking', () => {
 it('prioritizes dessert-specific Open POI rows before nearby generic cafes', async () => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role'
-  const recentMiss = { status: 'not_found', version: 12, fetchedAt: new Date().toISOString() }
+  const recentMiss = {
+    status: 'not_found',
+    version: 13,
+    policyVersion: 1,
+    policySignature: DEFAULT_IMAGE_POLICY_SIGNATURE,
+    fetchedAt: new Date().toISOString(),
+  }
   const row = (
     source_place_id: string,
     name_primary: string,
@@ -962,7 +969,7 @@ it('varies generic Openverse category fallback photos between different places',
   expect(second?.photoUrls).not.toEqual(first?.photoUrls)
 })
 
-it('ignores previously persisted generic free image metadata', () => {
+it('ignores previously persisted free image metadata without the current policy signature', () => {
   expect(mapOpenPoiRowToPlace({
     source: 'osm',
     source_place_id: 'node/orick',
@@ -978,7 +985,7 @@ it('ignores previously persisted generic free image metadata', () => {
       photoUrls: ['https://images.example/generic-cafe-dessert.jpg'],
       free_image: {
         status: 'found',
-        version: 12,
+        version: 13,
         source: 'openverse',
         generic: true,
         url: 'https://images.example/generic-cafe-dessert.jpg',
@@ -1077,7 +1084,9 @@ it('skips external image lookups for recent not-found cache entries', async () =
       wikidata: 'Q999999',
       free_image: {
         status: 'not_found',
-        version: 12,
+        version: 13,
+        policyVersion: 1,
+        policySignature: DEFAULT_IMAGE_POLICY_SIGNATURE,
         fetchedAt: new Date().toISOString(),
       },
     },
@@ -1117,7 +1126,9 @@ it('persists not-found image lookups so future reloads skip external searches', 
     metadata: expect.objectContaining({
       free_image: expect.objectContaining({
         status: 'not_found',
-        version: 12,
+        version: 13,
+        policyVersion: 1,
+        policySignature: DEFAULT_IMAGE_POLICY_SIGNATURE,
       }),
     }),
   }))

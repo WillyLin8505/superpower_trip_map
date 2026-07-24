@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import { unstable_cache } from 'next/cache'
 import type { ImageSourceProvider, Place, PlaceType, Source } from '@/lib/types'
 import { haversineMeters } from '@/lib/haversine'
@@ -10,10 +10,20 @@ import { getImageSources } from '@/lib/recommendationSources'
 type OpenPoiSource = 'overture' | 'osm' | 'wikidata' | 'user'
 type FreeImageSource = 'metadata' | 'official_website' | 'wikimedia_commons' | 'wikidata' | 'wikipedia' | 'openverse' | 'static_free'
 const FREE_IMAGE_TTL_SECONDS = 60 * 60 * 24 * 30
-const FREE_IMAGE_LOOKUP_VERSION = 12
+const FREE_IMAGE_LOOKUP_VERSION = 13
+const IMAGE_SOURCE_POLICY_VERSION = 1
 const FREE_IMAGE_FETCH_TIMEOUT_MS = 4000
 const MAX_FREE_IMAGE_URLS = 5
 const MAX_GENERIC_IMAGE_POOL_URLS = 50
+const DEFAULT_IMAGE_SOURCE_PROVIDERS: ImageSourceProvider[] = [
+  'official_website',
+  'wikimedia_commons',
+  'wikidata',
+  'wikipedia',
+  'openverse',
+]
+const DEFAULT_IMAGE_SOURCE_POLICY_SIGNATURE =
+  `default:${IMAGE_SOURCE_POLICY_VERSION}:${DEFAULT_IMAGE_SOURCE_PROVIDERS.join('>')}`
 
 export interface OpenPoiRow {
   source: OpenPoiSource
@@ -179,16 +189,33 @@ function isKnownNonEmbeddableImageUrl(value: string): boolean {
   }
 }
 
-function imageUrlsFromMetadata(metadata: Record<string, unknown> | null | undefined): string[] {
+function isCurrentFreeImageCache(
+  cache: Record<string, unknown> | null,
+  policySignature: string | null | undefined,
+): boolean {
+  return Boolean(
+    cache &&
+    cache.version === FREE_IMAGE_LOOKUP_VERSION &&
+    cache.policyVersion === IMAGE_SOURCE_POLICY_VERSION &&
+    typeof policySignature === 'string' &&
+    cache.policySignature === policySignature
+  )
+}
+
+function imageUrlsFromMetadata(
+  metadata: Record<string, unknown> | null | undefined,
+  policySignature?: string | null
+): string[] {
   const genericImageUrls = genericFreeImageUrlSet(metadata)
   const cache = freeImageCache(metadata)
-  const useCachedFreeImageUrls = !cache || cache.version === FREE_IMAGE_LOOKUP_VERSION
+  const useCachedFreeImageUrls = isCurrentFreeImageCache(cache, policySignature)
+  const useRootPhotoFields = !cache || useCachedFreeImageUrls
   const candidates = [
-    ...(useCachedFreeImageUrls ? metadataStrings(metadata, 'photoUrls') : []),
-    ...(useCachedFreeImageUrls ? metadataStrings(metadata, 'photo_urls') : []),
+    ...(useRootPhotoFields ? metadataStrings(metadata, 'photoUrls') : []),
+    ...(useRootPhotoFields ? metadataStrings(metadata, 'photo_urls') : []),
     ...metadataStrings(metadata, 'images'),
-    ...(useCachedFreeImageUrls ? [metadataString(metadata, 'photoUrl')] : []),
-    ...(useCachedFreeImageUrls ? [metadataString(metadata, 'photo_url')] : []),
+    ...(useRootPhotoFields ? [metadataString(metadata, 'photoUrl')] : []),
+    ...(useRootPhotoFields ? [metadataString(metadata, 'photo_url')] : []),
     metadataString(metadata, 'imageUrl'),
     metadataString(metadata, 'image_url'),
     metadataString(metadata, 'thumbnailUrl'),
@@ -213,8 +240,11 @@ function genericFreeImageUrlSet(metadata: Record<string, unknown> | null | undef
   ].map(normalizeImageUrl).filter((url): url is string => url !== null))
 }
 
-function directImageResultFromMetadata(metadata: Record<string, unknown> | null | undefined): FreeImageResult | null {
-  const photoUrls = imageUrlsFromMetadata(metadata)
+function directImageResultFromMetadata(
+  metadata: Record<string, unknown> | null | undefined,
+  policySignature?: string | null
+): FreeImageResult | null {
+  const photoUrls = imageUrlsFromMetadata(metadata, policySignature)
   return photoUrls.length > 0 ? imageResultWithProvenance({ photoUrls, source: 'metadata' }) : null
 }
 
@@ -361,9 +391,12 @@ function freeImageCache(metadata: Record<string, unknown> | null | undefined): R
   return isRecord(value) ? value : null
 }
 
-function hasRecentNotFoundImageCache(metadata: Record<string, unknown> | null | undefined): boolean {
+function hasRecentNotFoundImageCache(
+  metadata: Record<string, unknown> | null | undefined,
+  policySignature: string
+): boolean {
   const cache = freeImageCache(metadata)
-  if (cache?.status !== 'not_found' || cache.version !== FREE_IMAGE_LOOKUP_VERSION) return false
+  if (cache?.status !== 'not_found' || !isCurrentFreeImageCache(cache, policySignature)) return false
   const fetchedAt = typeof cache.fetchedAt === 'string' ? Date.parse(cache.fetchedAt) : NaN
   if (!Number.isFinite(fetchedAt)) return false
   return Date.now() - fetchedAt < FREE_IMAGE_TTL_SECONDS * 1000
@@ -1279,16 +1312,28 @@ interface ImageResolverSpec {
   run: () => Promise<FreeImageResult | null>
 }
 
-const DEFAULT_IMAGE_SOURCE_PROVIDERS: ImageSourceProvider[] = [
-  'official_website',
-  'wikimedia_commons',
-  'wikidata',
-  'wikipedia',
-  'openverse',
-]
+interface ImageSourcePolicy {
+  sources: Source[]
+  signature: string
+}
 
 function imageSourcePriority(source: Source): number {
   return source.config.priority ?? Number.MAX_SAFE_INTEGER
+}
+
+function imageSourcePolicySignature(sources: Source[]): string {
+  if (sources.length === 0) return DEFAULT_IMAGE_SOURCE_POLICY_SIGNATURE
+  const payload = sources.map((source) => ({
+    url: source.url,
+    provider: source.config.provider ?? 'custom',
+    scope: source.config.scope ?? 'custom',
+    country: source.config.country ?? null,
+    region: source.config.region ?? null,
+    condition: source.config.condition ?? null,
+    priority: source.config.priority ?? null,
+  }))
+  return `managed:${IMAGE_SOURCE_POLICY_VERSION}:` +
+    createHash('sha256').update(JSON.stringify(payload)).digest('hex').slice(0, 16)
 }
 
 async function orderedImageSources(): Promise<Source[]> {
@@ -1300,6 +1345,14 @@ async function orderedImageSources(): Promise<Source[]> {
     })
   } catch {
     return []
+  }
+}
+
+async function currentImageSourcePolicy(): Promise<ImageSourcePolicy> {
+  const sources = await orderedImageSources()
+  return {
+    sources,
+    signature: imageSourcePolicySignature(sources),
   }
 }
 
@@ -1360,10 +1413,9 @@ function addProviderImageResolvers(
   }
 }
 
-async function imageResolverSpecsForRow(context: ImageResolverContext): Promise<ImageResolverSpec[]> {
+function imageResolverSpecsForRow(context: ImageResolverContext, configuredSources: Source[]): ImageResolverSpec[] {
   const specs: ImageResolverSpec[] = []
   const seenKeys = new Set<string>()
-  const configuredSources = await orderedImageSources()
 
   if (configuredSources.length > 0) {
     for (const source of configuredSources) {
@@ -1378,15 +1430,20 @@ async function imageResolverSpecsForRow(context: ImageResolverContext): Promise<
   return specs
 }
 
-async function freeImageResultForRow(row: OpenPoiRow, allowGenericFallback = false): Promise<FreeImageLookupOutcome> {
-  let merged = directImageResultFromMetadata(row.metadata)
+async function freeImageResultForRow(
+  row: OpenPoiRow,
+  allowGenericFallback = false,
+  policy?: ImageSourcePolicy
+): Promise<FreeImageLookupOutcome> {
+  const imagePolicy = policy ?? await currentImageSourcePolicy()
+  let merged = directImageResultFromMetadata(row.metadata, imagePolicy.signature)
   if ((merged?.photoUrls.length ?? 0) >= MAX_FREE_IMAGE_URLS) return { result: merged, cacheableMiss: true }
 
   const knownEntity = knownFreeImageEntityForAliases(imageSearchAliasesForRow(row))
   const commonsCategory = commonsCategoryFromMetadata(row.metadata) ?? knownEntity?.commonsCategory ?? null
   const qid = wikidataIdFromMetadata(row.metadata) ?? knownEntity?.wikidata ?? null
   const wikipedia = wikipediaTagFromMetadata(row.metadata) ?? knownEntity?.wikipedia ?? null
-  const resolvers = await imageResolverSpecsForRow({ row, commonsCategory, qid, wikipedia })
+  const resolvers = imageResolverSpecsForRow({ row, commonsCategory, qid, wikipedia }, imagePolicy.sources)
 
   let hadFailure = false
   for (const resolver of resolvers) {
@@ -1426,6 +1483,7 @@ export async function resolveFreeImageForPlace({
 }): Promise<FreeImageResult | null> {
   const sourcePlaceId = cleanText(placeId) ?? cleanText(placeName) ?? 'unknown'
   const metadataAliases = aliases.filter((alias) => cleanText(alias))
+  const policy = await currentImageSourcePolicy()
   const { result } = await freeImageResultForRow({
     source: 'user',
     source_place_id: sourcePlaceId,
@@ -1437,7 +1495,7 @@ export async function resolveFreeImageForPlace({
     category,
     confidence: null,
     metadata: metadataAliases.length ? { image_search_aliases: metadataAliases } : {},
-  }, allowGeneric)
+  }, allowGeneric, policy)
   if (!result?.photoUrls.length) return null
   return {
     ...result,
@@ -1447,7 +1505,8 @@ export async function resolveFreeImageForPlace({
 
 function buildFreeImageMetadataPatch(
   metadata: Record<string, unknown> | null | undefined,
-  result: FreeImageResult | null
+  result: FreeImageResult | null,
+  policySignature: string
 ): Record<string, unknown> {
   const fetchedAt = new Date().toISOString()
   const base = { ...(metadata ?? {}) }
@@ -1457,6 +1516,8 @@ function buildFreeImageMetadataPatch(
       free_image: {
         status: 'not_found',
         version: FREE_IMAGE_LOOKUP_VERSION,
+        policyVersion: IMAGE_SOURCE_POLICY_VERSION,
+        policySignature,
         fetchedAt,
       },
     }
@@ -1465,6 +1526,8 @@ function buildFreeImageMetadataPatch(
   const freeImage: Record<string, unknown> = {
     status: 'found',
     version: FREE_IMAGE_LOOKUP_VERSION,
+    policyVersion: IMAGE_SOURCE_POLICY_VERSION,
+    policySignature,
     source: result.source,
     fetchedAt,
     url: result.photoUrls[0],
@@ -1496,14 +1559,18 @@ function buildFreeImageMetadataPatch(
   }
 }
 
-async function persistOpenPoiFreeImageMetadata(row: OpenPoiRow, result: FreeImageResult | null): Promise<void> {
+async function persistOpenPoiFreeImageMetadata(
+  row: OpenPoiRow,
+  result: FreeImageResult | null,
+  policySignature: string
+): Promise<void> {
   if (!hasSupabaseAdminEnv()) return
   try {
     const { createAdminClient } = await import('@/lib/supabase/admin')
     await createAdminClient()
       .from('poi_places')
       .update({
-        metadata: buildFreeImageMetadataPatch(row.metadata, result),
+        metadata: buildFreeImageMetadataPatch(row.metadata, result, policySignature),
         updated_at: new Date().toISOString(),
       })
       .eq('source', row.source)
@@ -1516,12 +1583,12 @@ async function persistOpenPoiFreeImageMetadata(row: OpenPoiRow, result: FreeImag
   }
 }
 
-export function mapOpenPoiRowToPlace(row: OpenPoiRow): OpenPoiPlace {
+export function mapOpenPoiRowToPlace(row: OpenPoiRow, policySignature?: string | null): OpenPoiPlace {
   const description = cleanText(row.metadata?.description) ?? placeShortDescription(row.category)
   const zhName = cleanText(row.name_zh)
   const localName = cleanText(row.name_local)
   const primaryName = cleanText(row.name_primary) ?? row.source_place_id
-  const photoUrls = imageUrlsFromMetadata(row.metadata)
+  const photoUrls = imageUrlsFromMetadata(row.metadata, policySignature)
   const rating = metadataNumber(row.metadata, ['rating', 'google_rating', 'stars'])
   const reviewCount = metadataNumber(row.metadata, [
     'reviewCount',
@@ -1555,25 +1622,29 @@ export function mapOpenPoiRowToPlace(row: OpenPoiRow): OpenPoiPlace {
   }
 }
 
-export async function mapOpenPoiRowToPlaceWithFreeImages(row: OpenPoiRow): Promise<OpenPoiPlace> {
-  const place = mapOpenPoiRowToPlace(row)
+export async function mapOpenPoiRowToPlaceWithFreeImages(
+  row: OpenPoiRow,
+  policy?: ImageSourcePolicy
+): Promise<OpenPoiPlace> {
+  const imagePolicy = policy ?? await currentImageSourcePolicy()
+  const place = mapOpenPoiRowToPlace(row, imagePolicy.signature)
   if ((place.photoUrls?.length ?? 0) > 0 || place.photoUrl) {
     await persistOpenPoiFreeImageMetadata(row, {
       photoUrls: place.photoUrls?.length ? place.photoUrls : place.photoUrl ? [place.photoUrl] : [],
       source: 'metadata',
-    })
+    }, imagePolicy.signature)
     return place
   }
 
-  if (hasRecentNotFoundImageCache(row.metadata)) return place
+  if (hasRecentNotFoundImageCache(row.metadata, imagePolicy.signature)) return place
 
-  const { result, cacheableMiss } = await freeImageResultForRow(row)
+  const { result, cacheableMiss } = await freeImageResultForRow(row, false, imagePolicy)
   if (!result?.photoUrls.length) {
-    if (cacheableMiss) await persistOpenPoiFreeImageMetadata(row, null)
+    if (cacheableMiss) await persistOpenPoiFreeImageMetadata(row, null, imagePolicy.signature)
     return place
   }
 
-  await persistOpenPoiFreeImageMetadata(row, result)
+  await persistOpenPoiFreeImageMetadata(row, result, imagePolicy.signature)
   return {
     ...place,
     photoUrl: result.photoUrls[0],
@@ -1637,5 +1708,6 @@ export async function openPoiSearch(
       )
     })
     .slice(0, limit)
-  return Promise.all(rankedRows.map(({ row }) => mapOpenPoiRowToPlaceWithFreeImages(row)))
+  const imagePolicy = await currentImageSourcePolicy()
+  return Promise.all(rankedRows.map(({ row }) => mapOpenPoiRowToPlaceWithFreeImages(row, imagePolicy)))
 }

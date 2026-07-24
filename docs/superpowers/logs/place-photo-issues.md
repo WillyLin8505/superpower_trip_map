@@ -244,3 +244,22 @@ Examples such as Tokyo, Osaka, Kyoto, Nara, Hokkaido, Okinawa, and Hiroshima are
 1. `/admin` should show one regional official image rule, not one row per region.
 2. New image source form placeholders should guide agents to add one generic regional condition.
 3. The regional official rule should remain priority `10`, before national official and public image sources.
+
+## 2026-07-24 - Image Cache Must Match Source Policy
+
+### Rule
+
+Persisted `free_image` metadata is valid only when all of these match:
+
+- `FREE_IMAGE_LOOKUP_VERSION`
+- `IMAGE_SOURCE_POLICY_VERSION`
+- current image source policy signature derived from `/admin` image rules
+
+If a cached row has no policy signature, or has an old signature, the UI must not use its root-level `photoUrl` / `photoUrls`. The resolver must rebuild images under the current source rules instead.
+
+### Regression Checklist
+
+1. Old cached photos without `policySignature` must not render.
+2. Recent `not_found` cache entries should skip lookups only when policy signature matches.
+3. Persisted `found` and `not_found` metadata must include `policyVersion` and `policySignature`.
+4. Changing admin image source order must naturally invalidate old persisted photo selections.
