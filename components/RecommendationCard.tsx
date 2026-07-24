@@ -136,7 +136,7 @@ export function RecommendationCard({ rec, dateIso, onAdd, onArchive, onDelete, a
           {displayName.secondary && <p className="text-xs text-gray-500 mt-0.5">{displayName.secondary}</p>}
           {!compact && todayHours && <p className="text-xs text-gray-500 mt-0.5">營業 {todayHours}</p>}
           {hasPhotoSource ? (
-            <PhotoStrip photos={photos} placeId={rec.placeId} placeName={displayName.primary} className="mt-2" emptyFallback={photoFallback} placeType={rec.type} aliases={photoAliases} lat={rec.lat} lng={rec.lng} onPhotoUnavailable={onPhotoUnavailable} previewCount={5} autoFetchKind="all" deferGooglePhotoMedia showDeferredGooglePhotoButton={false} eagerAutoFetch />
+            <PhotoStrip photos={photos} placeId={rec.placeId} placeName={displayName.primary} className="mt-2" emptyFallback={photoFallback} placeType={rec.type} aliases={photoAliases} lat={rec.lat} lng={rec.lng} onPhotoUnavailable={onPhotoUnavailable} previewCount={5} autoFetchKind="all" deferGooglePhotoMedia showDeferredGooglePhotoButton={false} eagerAutoFetch refreshFetchedPhotos />
           ) : photoFallback}
           {compact && shortExplanation && <p className="text-xs text-gray-600 mt-1 break-words [overflow-wrap:anywhere]">{shortExplanation}</p>}
           {!compact && rec.description && <p className="text-xs text-gray-600 mt-1 italic break-words [overflow-wrap:anywhere]">{rec.description}</p>}

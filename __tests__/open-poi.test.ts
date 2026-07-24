@@ -125,7 +125,7 @@ it('prioritizes dessert-specific Open POI rows before nearby generic cafes', asy
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role'
   const recentMiss = {
     status: 'not_found',
-    version: 13,
+    version: 15,
     policyVersion: 1,
     policySignature: DEFAULT_IMAGE_POLICY_SIGNATURE,
     fetchedAt: new Date().toISOString(),
@@ -401,6 +401,76 @@ it('orders free image resolvers by managed image source priority', async () => {
   expect(fetchMock.mock.calls[0]?.[0]?.toString()).toContain('api.openverse.org')
   expect(fetchMock.mock.calls.some((call) => call[0]?.toString() === 'https://priority.example/')).toBe(false)
 })
+
+it('does not search public image indexes for unsafe short CJK names', async () => {
+  const fetchMock = jest.fn(async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      query: {
+        pages: {
+          '1': {
+            title: 'File:丸的舊字形.PNG',
+            imageinfo: [{ thumburl: 'https://upload.wikimedia.org/wrong-kanji.png', mime: 'image/png' }],
+          },
+        },
+      },
+      results: [
+        {
+          title: '丸的舊字形',
+          url: 'https://images.example/wrong-kanji.png',
+          foreign_landing_url: 'https://example.org/wrong-kanji',
+        },
+      ],
+    }),
+  }))
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  await expect(resolveFreeImageForPlace({
+    placeId: 'osm:node/marubun',
+    placeName: '丸文',
+    category: 'dessert',
+    limit: 5,
+  })).resolves.toBeNull()
+
+  expect(fetchMock).not.toHaveBeenCalled()
+})
+
+it('does not search transliterated aliases for unsafe short CJK names without structured identity', async () => {
+  const fetchMock = jest.fn(async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      query: {
+        pages: {
+          '1': {
+            title: 'File:Maruman piezo-electric table lighter.jpg',
+            imageinfo: [{ thumburl: 'https://upload.wikimedia.org/wrong-brand.jpg', mime: 'image/jpeg' }],
+          },
+        },
+      },
+      results: [
+        {
+          title: 'Maruman piezo electric table lighter',
+          url: 'https://images.example/wrong-brand.jpg',
+          foreign_landing_url: 'https://example.org/wrong-brand',
+        },
+      ],
+    }),
+  }))
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  await expect(resolveFreeImageForPlace({
+    placeId: 'osm:node/marubun',
+    placeName: '丸文',
+    aliases: ['Maruman'],
+    category: 'dessert',
+    limit: 5,
+  })).resolves.toBeNull()
+
+  expect(fetchMock).not.toHaveBeenCalled()
+})
+
 it('resolves Wikimedia Commons category metadata to a free image', async () => {
   global.fetch = jest.fn(async () => ({
     ok: true,
@@ -985,7 +1055,7 @@ it('ignores previously persisted free image metadata without the current policy 
       photoUrls: ['https://images.example/generic-cafe-dessert.jpg'],
       free_image: {
         status: 'found',
-        version: 13,
+        version: 15,
         source: 'openverse',
         generic: true,
         url: 'https://images.example/generic-cafe-dessert.jpg',
@@ -1084,7 +1154,7 @@ it('skips external image lookups for recent not-found cache entries', async () =
       wikidata: 'Q999999',
       free_image: {
         status: 'not_found',
-        version: 13,
+        version: 15,
         policyVersion: 1,
         policySignature: DEFAULT_IMAGE_POLICY_SIGNATURE,
         fetchedAt: new Date().toISOString(),
@@ -1126,7 +1196,7 @@ it('persists not-found image lookups so future reloads skip external searches', 
     metadata: expect.objectContaining({
       free_image: expect.objectContaining({
         status: 'not_found',
-        version: 13,
+        version: 15,
         policyVersion: 1,
         policySignature: DEFAULT_IMAGE_POLICY_SIGNATURE,
       }),

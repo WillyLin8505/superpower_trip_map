@@ -10,7 +10,7 @@ import { getImageSources } from '@/lib/recommendationSources'
 type OpenPoiSource = 'overture' | 'osm' | 'wikidata' | 'user'
 type FreeImageSource = 'metadata' | 'official_website' | 'wikimedia_commons' | 'wikidata' | 'wikipedia' | 'openverse' | 'static_free'
 const FREE_IMAGE_TTL_SECONDS = 60 * 60 * 24 * 30
-const FREE_IMAGE_LOOKUP_VERSION = 13
+const FREE_IMAGE_LOOKUP_VERSION = 15
 const IMAGE_SOURCE_POLICY_VERSION = 1
 const FREE_IMAGE_FETCH_TIMEOUT_MS = 4000
 const MAX_FREE_IMAGE_URLS = 5
@@ -674,6 +674,31 @@ function cjkChars(value: string): string[] {
   return Array.from(normalizeCjkLookupText(value).match(/[\u3040-\u30ff\u3400-\u9fff]/g) ?? [])
 }
 
+function isUnsafeBroadPublicImageQuery(value: string): boolean {
+  const cleanValue = cleanText(value)
+  if (!cleanValue || !containsCjk(cleanValue)) return false
+  if (significantSearchTokens(cleanValue).length > 0) return false
+  return Array.from(new Set(cjkChars(cleanValue))).length <= 2
+}
+
+function hasStructuredImageIdentity(row: OpenPoiRow): boolean {
+  return Boolean(
+    wikidataIdFromMetadata(row.metadata) ||
+    wikipediaTagFromMetadata(row.metadata) ||
+    commonsCategoryFromMetadata(row.metadata) ||
+    metadataWebsiteUrls(row.metadata).length > 0
+  )
+}
+
+function isUnsafeBroadPublicImageRow(row: OpenPoiRow): boolean {
+  if (hasStructuredImageIdentity(row)) return false
+  return [
+    row.name_local,
+    row.name_primary,
+    row.name_zh,
+  ].some((name) => isUnsafeBroadPublicImageQuery(name ?? ''))
+}
+
 function cjkFuzzyTitleMatch(query: string, title: string): boolean {
   const queryChars = Array.from(new Set(cjkChars(query)))
   const titleChars = new Set(cjkChars(title))
@@ -733,6 +758,7 @@ async function wikipediaSearchTitle(lang: string, query: string): Promise<string
 async function wikipediaSearchImageResultForQuery(query: string, category: PlaceType): Promise<FreeImageResult | null> {
   const cleanQuery = cleanText(query)
   if (!cleanQuery) return null
+  if (isUnsafeBroadPublicImageQuery(cleanQuery)) return null
 
   for (const lang of WIKIPEDIA_SEARCH_LANGS) {
     const title = await wikipediaSearchTitle(lang, cleanQuery)
@@ -867,6 +893,7 @@ async function wikimediaCommonsCategoryImageResult(category: string): Promise<Fr
 async function wikimediaCommonsSearchImageResultForQuery(query: string, category: PlaceType): Promise<FreeImageResult | null> {
   const cleanQuery = cleanText(query)
   if (!cleanQuery) return null
+  if (isUnsafeBroadPublicImageQuery(cleanQuery)) return null
 
   return cachedFreeImage(['wikimedia-commons-search', cleanQuery], async () => {
     const params = new URLSearchParams({
@@ -1179,6 +1206,7 @@ function openverseEmbeddableUrl(item: OpenverseImageResult): string | null {
 
 async function openverseImageResultForQuery(query: string, category: PlaceType): Promise<FreeImageResult | null> {
   if (!query) return null
+  if (isUnsafeBroadPublicImageQuery(query)) return null
   return cachedFreeImage(['openverse', query], async () => {
     const params = new URLSearchParams({
       q: query,
@@ -1212,6 +1240,7 @@ async function openverseImageResultForQuery(query: string, category: PlaceType):
 }
 
 async function openverseImageResult(row: OpenPoiRow): Promise<FreeImageResult | null> {
+  if (isUnsafeBroadPublicImageRow(row)) return null
   let merged: FreeImageResult | null = null
   for (const query of imageSearchAliasesForRow(row)) {
     const result = await openverseImageResultForQuery(query, row.category)
@@ -1222,6 +1251,7 @@ async function openverseImageResult(row: OpenPoiRow): Promise<FreeImageResult | 
 }
 
 async function wikimediaCommonsSearchImageResult(row: OpenPoiRow): Promise<FreeImageResult | null> {
+  if (isUnsafeBroadPublicImageRow(row)) return null
   let merged: FreeImageResult | null = null
   for (const query of imageSearchAliasesForRow(row)) {
     const result = await wikimediaCommonsSearchImageResultForQuery(query, row.category)
@@ -1232,6 +1262,7 @@ async function wikimediaCommonsSearchImageResult(row: OpenPoiRow): Promise<FreeI
 }
 
 async function wikipediaSearchImageResult(row: OpenPoiRow): Promise<FreeImageResult | null> {
+  if (isUnsafeBroadPublicImageRow(row)) return null
   let merged: FreeImageResult | null = null
   for (const query of imageSearchAliasesForRow(row)) {
     const result = await wikipediaSearchImageResultForQuery(query, row.category)

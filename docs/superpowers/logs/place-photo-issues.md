@@ -263,3 +263,69 @@ If a cached row has no policy signature, or has an old signature, the UI must no
 2. Recent `not_found` cache entries should skip lookups only when policy signature matches.
 3. Persisted `found` and `not_found` metadata must include `policyVersion` and `policySignature`.
 4. Changing admin image source order must naturally invalidate old persisted photo selections.
+
+## 2026-07-24 - Admin Source Order Did Not Visibly Refresh Saved Trip Photos
+
+### Context
+
+User reported that changing image source priority in `/admin` still appeared to show the same photos on:
+
+- `https://superpower-trip-map.vercel.app/itinerary/fec9bbb2-3fd5-4db7-af03-d6ce0bd8860a`
+
+Unauthenticated browser QA on `/itinerary/...` returned 404, so QA also used the same trip's public `/share/...` route and direct Supabase inspection.
+
+### Evidence
+
+- Production share page still requested `/api/place-photos?...&v=11`.
+- The saved trip's persisted `plan` contained old `photoUrls`:
+  - `days`: 220 stored Google `/api/photo?ref=...` references.
+  - `recommendations`: stored Flickr/Wikimedia URLs.
+- `RecommendationCard` did not pass `refreshFetchedPhotos`, so cards with stored photos could skip resolver refresh entirely.
+- `PhotoStrip` refresh mode replaced photos only when the refreshed result returned at least the target count. If the current resolver returned fewer than 5 or 0 photos, stale photos remained visible.
+- Short CJK names with Latin aliases could still hit unrelated public image results. Example: `丸文` + `Maruman` can match unrelated Maruman brand images.
+
+### Fixes Applied
+
+- Bumped frontend `PHOTO_LOOKUP_VERSION` to `15`.
+- Bumped server `FREE_IMAGE_LOOKUP_VERSION` to `15`.
+- `RecommendationCard` now passes `refreshFetchedPhotos`.
+- `PhotoStrip` refresh mode now replaces stale photos with the current resolver result even when fewer than 5 photos return.
+- `PhotoStrip` refresh mode now clears stale photos when the current resolver returns 0 photos.
+- Public image search now skips unsafe short CJK rows unless structured identity exists through Wikidata, Wikipedia, Commons category, or official website metadata.
+- Unsafe short CJK rows no longer use transliterated aliases for broad public image search.
+
+### Regression Tests Added Or Updated
+
+- `__tests__/photo-strip.test.tsx`
+  - Refresh replaces stale full sets even when current results return fewer than 5 photos.
+  - Refresh clears stale photos when current results return 0 photos.
+  - Lookup version expectations are `v=15`.
+- `__tests__/open-poi.test.ts`
+  - Short CJK names do not search public image indexes.
+  - Short CJK names do not search transliterated aliases without structured identity.
+  - Resolver cache version expectations are `15`.
+
+### QA Evidence
+
+- Production old behavior screenshot:
+  - `D:\vibe_coding_project\food_map\superpowers_food_map\.gstack\qa-reports\screenshots\qa-production-share-image-policy-cards.png`
+- Local fixed behavior screenshot:
+  - `D:\vibe_coding_project\food_map\superpowers_food_map\.gstack\qa-reports\screenshots\qa-local-share-image-policy-cards.png`
+- Local fixed network metrics:
+  - `/api/place-photos` requests use `v=15`.
+  - paid `/api/photo` requests: `0`.
+- Direct local `丸文` API check:
+  - response source: `static_free`.
+  - response generic: `true`.
+  - paid `/api/photo` requests: `0`.
+
+### Verification Commands
+
+- `npm test -- --runTestsByPath __tests__/photo-strip.test.tsx __tests__/open-poi.test.ts __tests__/place-photos-route.test.ts`
+  - Result: 3 suites passed, 60 tests passed.
+- `NEXT_PUBLIC_GOOGLE_MAPS_JS_MODE=off NEXT_PUBLIC_GOOGLE_MAPS_EMBED_MODE=off npm run build`
+  - Result: passed.
+
+### Follow-Up Risk
+
+Exactness and five-photo fill are still separate product goals. If free exact sources do not have five trustworthy images, the app should prefer fewer exact images or clearly label generic fallback instead of silently mixing unrelated photos.

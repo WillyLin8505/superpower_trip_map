@@ -26,7 +26,7 @@ interface Props {
 
 const MAX_PHOTOS = 5
 const photoRequestCache = new Map<string, Promise<string[]>>()
-const PHOTO_LOOKUP_VERSION = '11'
+const PHOTO_LOOKUP_VERSION = '15'
 const PHOTO_CACHE_PREFIX = `photo-strip:v${PHOTO_LOOKUP_VERSION}`
 
 function mergePhotos(primary: string[], fetched: string[]): string[] {
@@ -215,13 +215,14 @@ export function PhotoStrip({ photos, placeId, placeName, className = '', emptyFa
       .then((photoUrls) => {
         if (cancelled) return
         if (!photoUrls.length) {
-          if (!resolvedPhotos.length && !notifiedUnavailableRef.current) {
+          if (refreshFetchedPhotos) setResolvedPhotos([])
+          if ((!resolvedPhotos.length || refreshFetchedPhotos) && !notifiedUnavailableRef.current) {
             notifiedUnavailableRef.current = true
             onPhotoUnavailable?.()
           }
           return
         }
-        setResolvedPhotos((current) => refreshFetchedPhotos && photoUrls.length >= targetPhotoCount
+        setResolvedPhotos((current) => refreshFetchedPhotos
           ? photoUrls.slice(0, MAX_PHOTOS)
           : mergePhotos(current, photoUrls))
       })
