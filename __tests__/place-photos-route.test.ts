@@ -318,6 +318,15 @@ describe('GET /api/place-photos', () => {
         'https://images.example/free-king-roti-5.jpg',
       ],
       source: 'openverse',
+      confidence: 72,
+      provenance: [
+        {
+          url: 'https://images.example/free-king-roti-1.jpg',
+          source: 'openverse',
+          confidence: 72,
+          pageUrl: 'https://openverse.example/king-roti',
+        },
+      ],
     })
 
     const req = new NextRequest('http://localhost/api/place-photos?placeId=osm%3Anode%2F4427721996&placeName=King+Roti&placeType=dessert&alias=Cua+Hang+Banh+Mi+King+Roti&lat=21.0324&lng=105.8507')
@@ -331,6 +340,15 @@ describe('GET /api/place-photos', () => {
       'https://images.example/free-king-roti-3.jpg',
       'https://images.example/free-king-roti-4.jpg',
       'https://images.example/free-king-roti-5.jpg',
+    ])
+    expect(body.confidence).toBe(72)
+    expect(body.photos).toEqual([
+      {
+        url: 'https://images.example/free-king-roti-1.jpg',
+        source: 'openverse',
+        confidence: 72,
+        pageUrl: 'https://openverse.example/king-roti',
+      },
     ])
   })
 

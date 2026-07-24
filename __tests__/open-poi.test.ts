@@ -1,6 +1,12 @@
-﻿import { mapOpenPoiRowToPlace, mapOpenPoiRowToPlaceWithFreeImages, openPoiSearch } from '@/lib/openPoi'
+import { mapOpenPoiRowToPlace, mapOpenPoiRowToPlaceWithFreeImages, openPoiSearch } from '@/lib/openPoi'
 import type { OpenPoiRow } from '@/lib/openPoi'
 import { resolveFreeImageForPlace } from '@/lib/openPoi'
+
+const mockGetImageSources = jest.fn(async () => [])
+
+jest.mock('@/lib/recommendationSources', () => ({
+  getImageSources: () => mockGetImageSources(),
+}))
 
 const mockUpdateBuilder: { error: null; eq: jest.Mock } = {
   error: null,
@@ -33,6 +39,8 @@ beforeEach(() => {
   mockSelectBuilder.gte.mockImplementation(() => mockSelectBuilder)
   mockSelectBuilder.lte.mockImplementation(() => mockSelectBuilder)
   mockSelectBuilder.limit.mockImplementation(async () => ({ data: mockSelectRows, error: mockSelectError }))
+  mockGetImageSources.mockReset()
+  mockGetImageSources.mockResolvedValue([])
   process.env = { ...originalEnv }
   delete process.env.NEXT_PUBLIC_SUPABASE_URL
   delete process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -114,7 +122,7 @@ it('maps open-data quality metadata used by recommendation ranking', () => {
 it('prioritizes dessert-specific Open POI rows before nearby generic cafes', async () => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role'
-  const recentMiss = { status: 'not_found', version: 10, fetchedAt: new Date().toISOString() }
+  const recentMiss = { status: 'not_found', version: 12, fetchedAt: new Date().toISOString() }
   const row = (
     source_place_id: string,
     name_primary: string,
@@ -249,7 +257,143 @@ it('persists resolved free image metadata back to poi_places', async () => {
     }),
   }))
 })
+it('uses official website metadata images with high confidence', async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role'
+  const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url === 'https://sensoji.example/') {
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => 'text/html' },
+        text: async () => '<html><head><meta property="og:image" content="/photos/sensoji-main.jpg"></head></html>',
+      }
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ query: { search: [], pages: {} }, results: [] }),
+    }
+  })
+  global.fetch = fetchMock as unknown as typeof fetch
 
+  await expect(mapOpenPoiRowToPlaceWithFreeImages({
+    source: 'osm',
+    source_place_id: 'way/sensoji',
+    name_primary: 'Sensoji',
+    name_zh: '淺草寺',
+    name_local: '浅草寺',
+    lat: 35.7148,
+    lng: 139.7967,
+    category: 'attraction',
+    confidence: null,
+    metadata: { website: 'https://sensoji.example/' },
+  })).resolves.toMatchObject({
+    photoUrl: 'https://sensoji.example/photos/sensoji-main.jpg',
+    photoUrls: ['https://sensoji.example/photos/sensoji-main.jpg'],
+  })
+
+  expect(fetchMock.mock.calls[0]?.[0]?.toString()).toBe('https://sensoji.example/')
+  expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({
+    metadata: expect.objectContaining({
+      free_image: expect.objectContaining({
+        source: 'official_website',
+        confidence: 95,
+        photos: expect.arrayContaining([
+          expect.objectContaining({
+            url: 'https://sensoji.example/photos/sensoji-main.jpg',
+            source: 'official_website',
+            confidence: 95,
+            pageUrl: 'https://sensoji.example/',
+          }),
+        ]),
+      }),
+    }),
+  }))
+})
+
+it('orders free image resolvers by managed image source priority', async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role'
+  mockGetImageSources.mockResolvedValue([
+    {
+      id: 'openverse-first',
+      url: 'https://openverse.org/',
+      label: 'Openverse first',
+      kind: 'image',
+      enabled: true,
+      config: { provider: 'openverse', scope: 'public_media', priority: 10 },
+      lastFetchedAt: null,
+      lastFetchStatus: null,
+    },
+    {
+      id: 'official-second',
+      url: 'https://priority.example/',
+      label: 'Official second',
+      kind: 'image',
+      enabled: true,
+      config: { provider: 'official_website', scope: 'regional_official', priority: 20 },
+      lastFetchedAt: null,
+      lastFetchStatus: null,
+    },
+  ])
+  const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url.includes('api.openverse.org')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          results: Array.from({ length: 5 }, (_, index) => ({
+            title: `Priority Cafe image ${index + 1}`,
+            url: `https://images.example/priority-cafe-${index + 1}.jpg`,
+            foreign_landing_url: `https://example.org/priority-cafe-${index + 1}`,
+          })),
+        }),
+      }
+    }
+    if (url === 'https://priority.example/') {
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => 'text/html' },
+        text: async () => '<html><head><meta property="og:image" content="/official.jpg"></head></html>',
+      }
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ query: { search: [], pages: {} }, results: [] }),
+    }
+  })
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  await expect(mapOpenPoiRowToPlaceWithFreeImages({
+    source: 'osm',
+    source_place_id: 'node/priority-cafe',
+    name_primary: 'Priority Cafe',
+    name_zh: null,
+    name_local: 'Priority Cafe',
+    lat: 35.6,
+    lng: 139.7,
+    category: 'dessert',
+    confidence: null,
+    metadata: { website: 'https://priority.example/' },
+  })).resolves.toMatchObject({
+    photoUrl: 'https://images.example/priority-cafe-1.jpg',
+    photoUrls: [
+      'https://images.example/priority-cafe-1.jpg',
+      'https://images.example/priority-cafe-2.jpg',
+      'https://images.example/priority-cafe-3.jpg',
+      'https://images.example/priority-cafe-4.jpg',
+      'https://images.example/priority-cafe-5.jpg',
+    ],
+  })
+
+  expect(fetchMock.mock.calls[0]?.[0]?.toString()).toContain('api.openverse.org')
+  expect(fetchMock.mock.calls.some((call) => call[0]?.toString() === 'https://priority.example/')).toBe(false)
+})
 it('resolves Wikimedia Commons category metadata to a free image', async () => {
   global.fetch = jest.fn(async () => ({
     ok: true,
@@ -335,6 +479,53 @@ it('uses Openverse exact search when metadata has no direct Wikimedia image', as
       }),
     }),
   }))
+})
+it('does not mix generic fallback images into partial exact place matches', async () => {
+  const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url.includes('commons.wikimedia.org')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          query: {
+            pages: {
+              '1': {
+                title: 'File:Sensoji temple main hall.jpg',
+                imageinfo: [
+                  {
+                    thumburl: 'https://upload.wikimedia.org/sensoji-main.jpg',
+                    mime: 'image/jpeg',
+                  },
+                ],
+              },
+            },
+          },
+        }),
+      }
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ query: { search: [], pages: {} }, results: [] }),
+    }
+  })
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  const result = await resolveFreeImageForPlace({
+    placeId: 'user:sensoji',
+    placeName: 'Sensoji',
+    category: 'attraction',
+    allowGeneric: true,
+  })
+
+  expect(result).toMatchObject({
+    photoUrls: ['https://upload.wikimedia.org/sensoji-main.jpg'],
+    source: 'wikimedia_commons',
+  })
+  expect(result?.generic).toBeUndefined()
+
+  expect(fetchMock.mock.calls.some((call) => String(call[0]).includes('travel+landmark+attraction'))).toBe(false)
 })
 
 it('uses alternate names to resolve free images for localized landmark names', async () => {
@@ -645,7 +836,8 @@ it('rejects non-photo Commons search hits for localized landmark names', async (
   expect(result?.source).toBe('wikimedia_commons')
   expect(result?.photoUrls[0]).toBe('https://upload.wikimedia.org/godzilla-landmark.jpg')
   expect(result?.photoUrls).not.toContain('https://upload.wikimedia.org/generic-book-page.jpg')
-  expect(result?.photoUrls).toHaveLength(5)
+  expect(result?.photoUrls).toHaveLength(1)
+  expect(fetchMock.mock.calls.some((call) => String(call[0]).includes('travel+landmark+attraction'))).toBe(false)
 })
 
 it('returns up to five generic Openverse category images when generic fallback is allowed', async () => {
@@ -786,7 +978,7 @@ it('ignores previously persisted generic free image metadata', () => {
       photoUrls: ['https://images.example/generic-cafe-dessert.jpg'],
       free_image: {
         status: 'found',
-        version: 10,
+        version: 12,
         source: 'openverse',
         generic: true,
         url: 'https://images.example/generic-cafe-dessert.jpg',
@@ -885,7 +1077,7 @@ it('skips external image lookups for recent not-found cache entries', async () =
       wikidata: 'Q999999',
       free_image: {
         status: 'not_found',
-        version: 10,
+        version: 12,
         fetchedAt: new Date().toISOString(),
       },
     },
@@ -925,7 +1117,7 @@ it('persists not-found image lookups so future reloads skip external searches', 
     metadata: expect.objectContaining({
       free_image: expect.objectContaining({
         status: 'not_found',
-        version: 10,
+        version: 12,
       }),
     }),
   }))

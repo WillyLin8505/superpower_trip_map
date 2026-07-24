@@ -1,15 +1,16 @@
 import { randomUUID } from 'crypto'
 import { unstable_cache } from 'next/cache'
-import type { Place, PlaceType } from '@/lib/types'
+import type { ImageSourceProvider, Place, PlaceType, Source } from '@/lib/types'
 import { haversineMeters } from '@/lib/haversine'
 import { placeShortDescription } from '@/lib/utils/placeShortDescription'
 import { trackedApiFetch } from '@/lib/apiUsageEvents'
 import { compareRecommendationCandidates, isRecommendationCandidateAcceptable } from '@/lib/utils/recommendationRank'
+import { getImageSources } from '@/lib/recommendationSources'
 
 type OpenPoiSource = 'overture' | 'osm' | 'wikidata' | 'user'
-type FreeImageSource = 'metadata' | 'wikimedia_commons' | 'wikidata' | 'wikipedia' | 'openverse' | 'static_free'
+type FreeImageSource = 'metadata' | 'official_website' | 'wikimedia_commons' | 'wikidata' | 'wikipedia' | 'openverse' | 'static_free'
 const FREE_IMAGE_TTL_SECONDS = 60 * 60 * 24 * 30
-const FREE_IMAGE_LOOKUP_VERSION = 10
+const FREE_IMAGE_LOOKUP_VERSION = 12
 const FREE_IMAGE_FETCH_TIMEOUT_MS = 4000
 const MAX_FREE_IMAGE_URLS = 5
 const MAX_GENERIC_IMAGE_POOL_URLS = 50
@@ -35,6 +36,18 @@ export type OpenPoiPlace = Place & {
 export interface FreeImageResult {
   photoUrls: string[]
   source: FreeImageSource
+  pageUrl?: string | null
+  license?: string | null
+  attribution?: string | null
+  confidence?: number
+  generic?: boolean
+  provenance?: FreeImageProvenance[]
+}
+
+export interface FreeImageProvenance {
+  url: string
+  source: FreeImageSource
+  confidence: number
   pageUrl?: string | null
   license?: string | null
   attribution?: string | null
@@ -202,22 +215,83 @@ function genericFreeImageUrlSet(metadata: Record<string, unknown> | null | undef
 
 function directImageResultFromMetadata(metadata: Record<string, unknown> | null | undefined): FreeImageResult | null {
   const photoUrls = imageUrlsFromMetadata(metadata)
-  return photoUrls.length > 0 ? { photoUrls, source: 'metadata' } : null
+  return photoUrls.length > 0 ? imageResultWithProvenance({ photoUrls, source: 'metadata' }) : null
+}
+
+function confidenceForImageSource(source: FreeImageSource, generic = false): number {
+  if (generic) return 30
+  switch (source) {
+    case 'official_website':
+      return 95
+    case 'metadata':
+      return 92
+    case 'wikidata':
+      return 90
+    case 'wikipedia':
+      return 86
+    case 'wikimedia_commons':
+      return 82
+    case 'openverse':
+      return 72
+    case 'static_free':
+      return 30
+  }
+}
+
+function provenanceForImageResult(result: FreeImageResult): FreeImageProvenance[] {
+  if (result.provenance?.length) {
+    return result.provenance
+      .filter((item) => result.photoUrls.includes(item.url))
+      .slice(0, MAX_FREE_IMAGE_URLS)
+  }
+
+  const confidence = result.confidence ?? confidenceForImageSource(result.source, result.generic === true)
+  return result.photoUrls.slice(0, MAX_FREE_IMAGE_URLS).map((url) => ({
+    url,
+    source: result.source,
+    confidence,
+    pageUrl: result.pageUrl,
+    license: result.license,
+    attribution: result.attribution,
+    generic: result.generic,
+  }))
+}
+
+function imageResultWithProvenance(result: FreeImageResult): FreeImageResult {
+  const provenance = provenanceForImageResult(result)
+  const confidence = result.confidence ?? Math.max(...provenance.map((item) => item.confidence))
+  return {
+    ...result,
+    confidence,
+    provenance,
+  }
 }
 
 function mergeFreeImageResults(current: FreeImageResult | null, next: FreeImageResult | null): FreeImageResult | null {
   if (!next?.photoUrls.length) return current
   if (!current?.photoUrls.length) {
-    return {
+    return imageResultWithProvenance({
       ...next,
       photoUrls: next.photoUrls.slice(0, MAX_FREE_IMAGE_URLS),
-    }
+    })
   }
+
+  const provenanceByUrl = new Map<string, FreeImageProvenance>()
+  for (const item of provenanceForImageResult(current)) {
+    if (!provenanceByUrl.has(item.url)) provenanceByUrl.set(item.url, item)
+  }
+  for (const item of provenanceForImageResult(next)) {
+    if (!provenanceByUrl.has(item.url)) provenanceByUrl.set(item.url, item)
+  }
+  const provenance = Array.from(provenanceByUrl.values()).slice(0, MAX_FREE_IMAGE_URLS)
+  const photoUrls = provenance.map((item) => item.url)
 
   return {
     ...current,
-    photoUrls: Array.from(new Set([...current.photoUrls, ...next.photoUrls])).slice(0, MAX_FREE_IMAGE_URLS),
-    generic: current.generic === true && next.generic === true,
+    photoUrls,
+    provenance,
+    confidence: Math.max(...provenance.map((item) => item.confidence)),
+    generic: current.generic === true || next.generic === true,
   }
 }
 
@@ -242,6 +316,37 @@ async function fetchJsonWithTimeout(
     })
     if (!response.ok) throw new Error(`free_image_http_${response.status}`)
     return await response.json()
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+async function fetchTextWithTimeout(
+  url: string,
+  usage: { provider: string; endpoint: string; skuHint: string; metadata?: Record<string, unknown> }
+): Promise<string> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), FREE_IMAGE_FETCH_TIMEOUT_MS)
+  try {
+    const response = await trackedApiFetch(url, {
+      headers: {
+        'User-Agent': 'superpower-trip-map/1.0 (official website image metadata)',
+        'Accept': 'text/html,application/xhtml+xml',
+      },
+      signal: controller.signal,
+      next: { revalidate: FREE_IMAGE_TTL_SECONDS },
+    } as RequestInit & { next: { revalidate: number } }, {
+      provider: usage.provider,
+      endpoint: usage.endpoint,
+      skuHint: usage.skuHint,
+      metadata: usage.metadata,
+    })
+    if (!response.ok) throw new Error(`free_image_http_${response.status}`)
+    const contentType = response.headers?.get?.('content-type')?.toLowerCase() ?? ''
+    if (contentType && !contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
+      throw new Error('official_website_not_html')
+    }
+    return await response.text()
   } finally {
     clearTimeout(timeout)
   }
@@ -273,6 +378,13 @@ interface WikidataEntityResponse {
   entities?: Record<string, {
     claims?: {
       P18?: Array<{
+        mainsnak?: {
+          datavalue?: {
+            value?: unknown
+          }
+        }
+      }>
+      P856?: Array<{
         mainsnak?: {
           datavalue?: {
             value?: unknown
@@ -333,6 +445,186 @@ async function wikipediaImageResult(lang: string, title: string): Promise<FreeIm
     const url = normalizeImageUrl(cleanText(data.thumbnail?.source) ?? cleanText(data.originalimage?.source))
     return url ? { photoUrls: [url], source: 'wikipedia', pageUrl: `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}` } : null
   })
+}
+
+function ipv4IsPrivate(hostname: string): boolean {
+  const parts = hostname.split('.').map((part) => Number(part))
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false
+  const [first, second] = parts
+  return first === 10 ||
+    first === 127 ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168) ||
+    (first === 169 && second === 254) ||
+    first === 0
+}
+
+function safePublicHttpUrl(value: string | null | undefined, baseUrl?: string): string | null {
+  const cleaned = cleanText(value)
+  if (!cleaned) return null
+  const withProtocol = baseUrl || /^[a-z][a-z0-9+.-]*:\/\//i.test(cleaned)
+    ? cleaned
+    : `https://${cleaned}`
+  try {
+    const url = new URL(withProtocol, baseUrl)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
+    if (url.username || url.password) return null
+    const hostname = url.hostname.toLowerCase()
+    if (!hostname || hostname === 'localhost' || hostname.endsWith('.localhost')) return null
+    if (hostname === '::1' || hostname.startsWith('[')) return null
+    if (ipv4IsPrivate(hostname)) return null
+    return url.href
+  } catch {
+    return null
+  }
+}
+
+function decodeHtmlAttribute(value: string): string {
+  return value
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+}
+
+function htmlAttribute(tag: string, name: string): string | null {
+  const match = tag.match(new RegExp(`\\s${name}\\s*=\\s*([\"'])(.*?)\\1`, 'i'))
+  return match?.[2] ? decodeHtmlAttribute(match[2]) : null
+}
+
+function isLikelyContentImageUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    const path = decodeURIComponent(url.pathname).toLowerCase()
+    if (/\.(?:svg|ico)(?:$|\?)/i.test(path)) return false
+    if (/(?:^|[-_/])(logo|favicon|icon|sprite|placeholder|noimage|no-photo|loading|avatar|marker)(?:[-_. /]|$)/i.test(path)) {
+      return false
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
+function addOfficialImageUrl(urls: string[], value: string | null | undefined, pageUrl: string): void {
+  const safeUrl = safePublicHttpUrl(value, pageUrl)
+  const normalized = normalizeImageUrl(safeUrl)
+  if (!normalized || !isLikelyContentImageUrl(normalized)) return
+  if (!urls.includes(normalized)) urls.push(normalized)
+}
+
+function imageValuesFromJsonLd(value: unknown): string[] {
+  if (!value) return []
+  if (typeof value === 'string') return [value]
+  if (Array.isArray(value)) return value.flatMap(imageValuesFromJsonLd)
+  if (!isRecord(value)) return []
+  const direct = imageValuesFromJsonLd(value.image)
+  const url = typeof value.url === 'string' && Object.keys(value).length <= 3 ? [value.url] : []
+  return [...direct, ...url]
+}
+
+function officialImageUrlsFromHtml(html: string, pageUrl: string): string[] {
+  const urls: string[] = []
+  const metaPattern = /<meta\b[^>]*>/gi
+  for (const match of html.matchAll(metaPattern)) {
+    const tag = match[0]
+    const key = (htmlAttribute(tag, 'property') ?? htmlAttribute(tag, 'name') ?? htmlAttribute(tag, 'itemprop'))?.toLowerCase()
+    if (!key || !['og:image', 'og:image:secure_url', 'twitter:image', 'twitter:image:src', 'image'].includes(key)) continue
+    addOfficialImageUrl(urls, htmlAttribute(tag, 'content'), pageUrl)
+    if (urls.length >= MAX_FREE_IMAGE_URLS) return urls
+  }
+
+  const jsonLdPattern = /<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
+  for (const match of html.matchAll(jsonLdPattern)) {
+    try {
+      const parsed = JSON.parse(match[1].trim())
+      for (const value of imageValuesFromJsonLd(parsed)) {
+        addOfficialImageUrl(urls, value, pageUrl)
+        if (urls.length >= MAX_FREE_IMAGE_URLS) return urls
+      }
+    } catch {
+    }
+  }
+
+  return urls
+}
+
+function metadataWebsiteUrls(metadata: Record<string, unknown> | null | undefined): string[] {
+  const candidates = [
+    metadataString(metadata, 'website'),
+    metadataString(metadata, 'official_website'),
+    metadataString(metadata, 'officialWebsite'),
+    metadataString(metadata, 'url'),
+    metadataString(metadata, 'contact:website'),
+  ]
+  const osm = metadata?.osm
+  if (isRecord(osm)) {
+    candidates.push(
+      cleanText(osm.website),
+      cleanText(osm['contact:website']),
+      cleanText(osm.url),
+    )
+  }
+  return Array.from(new Set(candidates
+    .map((url) => safePublicHttpUrl(url))
+    .filter((url): url is string => url !== null)))
+}
+
+async function officialWebsiteImageResultForUrl(websiteUrl: string): Promise<FreeImageResult | null> {
+  return cachedFreeImage(['official-website-image', websiteUrl], async () => {
+    const html = await fetchTextWithTimeout(websiteUrl, {
+      provider: 'official_website',
+      endpoint: 'page_metadata_image',
+      skuHint: 'official_website_free',
+      metadata: { websiteUrl },
+    })
+    const photoUrls = officialImageUrlsFromHtml(html, websiteUrl).slice(0, MAX_FREE_IMAGE_URLS)
+    if (photoUrls.length === 0) return null
+    return imageResultWithProvenance({
+      photoUrls,
+      source: 'official_website',
+      pageUrl: websiteUrl,
+      confidence: confidenceForImageSource('official_website'),
+    })
+  })
+}
+
+async function officialWebsiteImageResult(row: OpenPoiRow): Promise<FreeImageResult | null> {
+  let merged: FreeImageResult | null = null
+  for (const websiteUrl of metadataWebsiteUrls(row.metadata)) {
+    const result = await officialWebsiteImageResultForUrl(websiteUrl)
+    merged = mergeFreeImageResults(merged, result)
+    if ((merged?.photoUrls.length ?? 0) >= MAX_FREE_IMAGE_URLS) return merged
+  }
+  return merged
+}
+
+async function wikidataOfficialWebsiteUrls(qid: string): Promise<string[]> {
+  return cachedFreeImage(['wikidata-official-website', qid], async () => {
+    const data = await fetchJsonWithTimeout(
+      `https://www.wikidata.org/wiki/Special:EntityData/${encodeURIComponent(qid)}.json`,
+      {
+        provider: 'wikimedia',
+        endpoint: 'wikidata_entity_official_website',
+        skuHint: 'wikimedia_free',
+        metadata: { qid },
+      },
+    ) as WikidataEntityResponse
+    return Array.from(new Set((data.entities?.[qid]?.claims?.P856 ?? [])
+      .map((claim) => safePublicHttpUrl(claim.mainsnak?.datavalue?.value as string | undefined))
+      .filter((url): url is string => url !== null)))
+  })
+}
+
+async function wikidataOfficialWebsiteImageResult(qid: string): Promise<FreeImageResult | null> {
+  let merged: FreeImageResult | null = null
+  for (const websiteUrl of await wikidataOfficialWebsiteUrls(qid)) {
+    const result = await officialWebsiteImageResultForUrl(websiteUrl)
+    merged = mergeFreeImageResults(merged, result)
+    if ((merged?.photoUrls.length ?? 0) >= MAX_FREE_IMAGE_URLS) return merged
+  }
+  return merged
 }
 
 const WIKIPEDIA_SEARCH_LANGS = ['zh', 'ja', 'en'] as const
@@ -975,31 +1267,143 @@ async function runImageResolver(resolver: () => Promise<FreeImageResult | null>)
   }
 }
 
+interface ImageResolverContext {
+  row: OpenPoiRow
+  commonsCategory: string | null
+  qid: string | null
+  wikipedia: { lang: string; title: string } | null
+}
+
+interface ImageResolverSpec {
+  key: string
+  run: () => Promise<FreeImageResult | null>
+}
+
+const DEFAULT_IMAGE_SOURCE_PROVIDERS: ImageSourceProvider[] = [
+  'official_website',
+  'wikimedia_commons',
+  'wikidata',
+  'wikipedia',
+  'openverse',
+]
+
+function imageSourcePriority(source: Source): number {
+  return source.config.priority ?? Number.MAX_SAFE_INTEGER
+}
+
+async function orderedImageSources(): Promise<Source[]> {
+  try {
+    return (await getImageSources()).sort((left, right) => {
+      const priorityDelta = imageSourcePriority(left) - imageSourcePriority(right)
+      if (priorityDelta !== 0) return priorityDelta
+      return left.label.localeCompare(right.label)
+    })
+  } catch {
+    return []
+  }
+}
+
+function addImageResolverSpec(
+  specs: ImageResolverSpec[],
+  seenKeys: Set<string>,
+  key: string,
+  run: () => Promise<FreeImageResult | null>
+): void {
+  if (seenKeys.has(key)) return
+  seenKeys.add(key)
+  specs.push({ key, run })
+}
+
+function addProviderImageResolvers(
+  provider: ImageSourceProvider,
+  context: ImageResolverContext,
+  specs: ImageResolverSpec[],
+  seenKeys: Set<string>
+): void {
+  switch (provider) {
+    case 'official_website':
+      addImageResolverSpec(specs, seenKeys, 'metadata-official-website', () => officialWebsiteImageResult(context.row))
+      if (context.qid) {
+        const qid = context.qid
+        addImageResolverSpec(specs, seenKeys, 'wikidata-official-website', () => wikidataOfficialWebsiteImageResult(qid))
+      }
+      return
+    case 'wikimedia_commons':
+      if (context.commonsCategory) {
+        const commonsCategory = context.commonsCategory
+        addImageResolverSpec(specs, seenKeys, 'wikimedia-commons-category', () => wikimediaCommonsCategoryImageResult(commonsCategory))
+      }
+      addImageResolverSpec(specs, seenKeys, 'wikimedia-commons-search', () => wikimediaCommonsSearchImageResult(context.row))
+      return
+    case 'wikidata':
+      if (context.qid) {
+        const qid = context.qid
+        addImageResolverSpec(specs, seenKeys, 'wikidata-official-website', () => wikidataOfficialWebsiteImageResult(qid))
+        addImageResolverSpec(specs, seenKeys, 'wikidata-image', () => wikidataImageResult(qid))
+      }
+      return
+    case 'wikipedia':
+      if (context.wikipedia) {
+        const wikipedia = context.wikipedia
+        addImageResolverSpec(specs, seenKeys, 'wikipedia-tag', () => wikipediaImageResult(wikipedia.lang, wikipedia.title))
+      }
+      addImageResolverSpec(specs, seenKeys, 'wikipedia-search', () => wikipediaSearchImageResult(context.row))
+      return
+    case 'openverse':
+      addImageResolverSpec(specs, seenKeys, 'openverse-search', () => openverseImageResult(context.row))
+      return
+    case 'rebake':
+    case 'yahoo_map':
+    case 'tabelog':
+    case 'custom':
+      return
+  }
+}
+
+async function imageResolverSpecsForRow(context: ImageResolverContext): Promise<ImageResolverSpec[]> {
+  const specs: ImageResolverSpec[] = []
+  const seenKeys = new Set<string>()
+  const configuredSources = await orderedImageSources()
+
+  if (configuredSources.length > 0) {
+    for (const source of configuredSources) {
+      addProviderImageResolvers(source.config.provider ?? 'custom', context, specs, seenKeys)
+    }
+  } else {
+    for (const provider of DEFAULT_IMAGE_SOURCE_PROVIDERS) {
+      addProviderImageResolvers(provider, context, specs, seenKeys)
+    }
+  }
+
+  return specs
+}
+
 async function freeImageResultForRow(row: OpenPoiRow, allowGenericFallback = false): Promise<FreeImageLookupOutcome> {
   let merged = directImageResultFromMetadata(row.metadata)
   if ((merged?.photoUrls.length ?? 0) >= MAX_FREE_IMAGE_URLS) return { result: merged, cacheableMiss: true }
 
-  const resolvers: Array<() => Promise<FreeImageResult | null>> = []
   const knownEntity = knownFreeImageEntityForAliases(imageSearchAliasesForRow(row))
   const commonsCategory = commonsCategoryFromMetadata(row.metadata) ?? knownEntity?.commonsCategory ?? null
-  if (commonsCategory) resolvers.push(() => wikimediaCommonsCategoryImageResult(commonsCategory))
   const qid = wikidataIdFromMetadata(row.metadata) ?? knownEntity?.wikidata ?? null
-  if (qid) resolvers.push(() => wikidataImageResult(qid))
   const wikipedia = wikipediaTagFromMetadata(row.metadata) ?? knownEntity?.wikipedia ?? null
-  if (wikipedia) resolvers.push(() => wikipediaImageResult(wikipedia.lang, wikipedia.title))
-  resolvers.push(() => wikimediaCommonsSearchImageResult(row))
-  resolvers.push(() => wikipediaSearchImageResult(row))
-  resolvers.push(() => openverseImageResult(row))
-  if (allowGenericFallback) resolvers.push(() => openverseCategoryImageResult(row.category, genericImageSeedForRow(row)))
+  const resolvers = await imageResolverSpecsForRow({ row, commonsCategory, qid, wikipedia })
 
   let hadFailure = false
   for (const resolver of resolvers) {
-    const { result, failed } = await runImageResolver(resolver)
+    const { result, failed } = await runImageResolver(resolver.run)
     hadFailure = hadFailure || failed
     merged = mergeFreeImageResults(merged, result)
     if ((merged?.photoUrls.length ?? 0) >= MAX_FREE_IMAGE_URLS) {
       return { result: merged, cacheableMiss: true }
     }
+  }
+
+  if (merged?.photoUrls.length) return { result: merged, cacheableMiss: !hadFailure }
+
+  if (allowGenericFallback) {
+    const { result, failed } = await runImageResolver(() => openverseCategoryImageResult(row.category, genericImageSeedForRow(row)))
+    hadFailure = hadFailure || failed
+    if (result?.photoUrls.length) return { result, cacheableMiss: true }
   }
 
   return { result: merged, cacheableMiss: !hadFailure }
@@ -1065,6 +1469,18 @@ function buildFreeImageMetadataPatch(
     fetchedAt,
     url: result.photoUrls[0],
     urls: result.photoUrls,
+  }
+  if (typeof result.confidence === 'number') freeImage.confidence = result.confidence
+  if (result.provenance?.length) {
+    freeImage.photos = result.provenance.map((item) => ({
+      url: item.url,
+      source: item.source,
+      confidence: item.confidence,
+      pageUrl: item.pageUrl ?? null,
+      license: item.license ?? null,
+      attribution: item.attribution ?? null,
+      generic: item.generic === true,
+    }))
   }
   if (result.pageUrl) freeImage.pageUrl = result.pageUrl
   if (result.license) freeImage.license = result.license

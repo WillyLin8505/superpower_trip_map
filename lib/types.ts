@@ -107,10 +107,27 @@ export type ImageSourceProvider =
   | 'rebake'
   | 'yahoo_map'
   | 'tabelog'
+  | 'wikidata'
+  | 'wikipedia'
+  | 'wikimedia_commons'
+  | 'openverse'
+  | 'custom'
+
+export type ImageSourceScope =
+  | 'regional_official'
+  | 'national_official'
+  | 'public_database'
+  | 'public_media'
+  | 'commercial_directory'
   | 'custom'
 
 export interface SourceConfig {
   provider?: ImageSourceProvider
+  scope?: ImageSourceScope
+  country?: string
+  region?: string
+  condition?: string
+  priority?: number
   notes?: string
 }
 

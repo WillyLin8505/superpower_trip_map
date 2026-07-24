@@ -3,10 +3,12 @@ function makeBuilder(overrides: { select?: unknown; mutate?: unknown } = {}) {
   const order = jest.fn(async () => overrides.select ?? { data: [], error: null })
   const eqMutate = jest.fn(async () => overrides.mutate ?? { data: [{ id: 's1' }], error: null })
   const insertResolved = jest.fn(async () => overrides.mutate ?? { data: [{ id: 's1' }], error: null })
+  const inResolved = jest.fn(async () => overrides.select ?? { data: [], error: null })
 
   const builder: any = {
     select: jest.fn(() => builder),
     order,
+    in: jest.fn(() => inResolved()),
     insert: jest.fn(() => insertResolved()),
     update: jest.fn(() => builder),
     delete: jest.fn(() => builder),
@@ -54,7 +56,14 @@ describe('getSources', () => {
           label: 'A',
           kind: 'image',
           enabled: false,
-          config: { provider: 'tabelog' },
+          config: {
+            provider: 'tabelog',
+            scope: 'regional_official',
+            country: 'JP',
+            region: 'Osaka',
+            condition: 'country=JP AND region=Osaka',
+            priority: 10,
+          },
           last_fetched_at: '2026-07-01T00:00:00Z',
           last_fetch_status: 'ok',
         }],
@@ -69,7 +78,14 @@ describe('getSources', () => {
       label: 'A',
       kind: 'image',
       enabled: false,
-      config: { provider: 'tabelog' },
+      config: {
+        provider: 'tabelog',
+        scope: 'regional_official',
+        country: 'JP',
+        region: 'Osaka',
+        condition: 'country=JP AND region=Osaka',
+        priority: 10,
+      },
       lastFetchedAt: '2026-07-01T00:00:00Z',
       lastFetchStatus: 'ok',
     }])
@@ -103,6 +119,11 @@ describe('addSource', () => {
       label: 'A',
       kind: 'image',
       provider: 'rebake',
+      scope: 'regional_official',
+      country: 'jp',
+      region: 'Tokyo',
+      condition: 'country=JP AND region=Tokyo',
+      priority: '10',
       enabled: 'true',
     }))
     expect(adminBuilder.insert).toHaveBeenCalledWith(expect.objectContaining({
@@ -110,7 +131,14 @@ describe('addSource', () => {
       label: 'A',
       kind: 'image',
       enabled: true,
-      config: { provider: 'rebake' },
+      config: {
+        provider: 'rebake',
+        scope: 'regional_official',
+        country: 'JP',
+        region: 'Tokyo',
+        condition: 'country=JP AND region=Tokyo',
+        priority: 10,
+      },
     }))
   })
 })
@@ -146,6 +174,30 @@ describe('editSource', () => {
     const { editSource } = require('@/app/actions/sources')
     await editSource('does-not-exist', formData({ url: 'https://b.com', label: 'B' }))
     expect(adminBuilder.insert).not.toHaveBeenCalled()
+  })
+})
+
+describe('reorderImageSources', () => {
+  it('stores image source priorities in the dropped order', async () => {
+    adminBuilder = makeBuilder({
+      select: {
+        data: [
+          { id: 's2', kind: 'image', config: { provider: 'official_website', scope: 'national_official', country: 'JP' } },
+          { id: 's1', kind: 'image', config: { provider: 'official_website', scope: 'regional_official', country: 'JP', region: 'Tokyo' } },
+        ],
+        error: null,
+      },
+    })
+    const { reorderImageSources } = require('@/app/actions/sources')
+    await reorderImageSources(['s2', 's1'])
+
+    expect(adminBuilder.in).toHaveBeenCalledWith('id', ['s2', 's1'])
+    expect(adminBuilder.update).toHaveBeenNthCalledWith(1, {
+      config: { provider: 'official_website', scope: 'national_official', country: 'JP', priority: 10 },
+    })
+    expect(adminBuilder.update).toHaveBeenNthCalledWith(2, {
+      config: { provider: 'official_website', scope: 'regional_official', country: 'JP', region: 'Tokyo', priority: 20 },
+    })
   })
 })
 

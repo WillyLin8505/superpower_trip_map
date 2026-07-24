@@ -63,7 +63,16 @@ export function overpassElementToRow(el: OverpassElement, category: OpenPoiCateg
     category: category as PlaceType,
     confidence: null,
     metadata: {
-      osm: { amenity: tags.amenity, tourism: tags.tourism, shop: tags.shop, historic: tags.historic },
+      osm: {
+        amenity: tags.amenity,
+        tourism: tags.tourism,
+        shop: tags.shop,
+        historic: tags.historic,
+        website: cleanTag(tags.website) ?? null,
+        'contact:website': cleanTag(tags['contact:website']) ?? null,
+        url: cleanTag(tags.url) ?? null,
+      },
+      website: cleanTag(tags.website) ?? cleanTag(tags['contact:website']) ?? cleanTag(tags.url) ?? null,
       image: cleanTag(tags.image) ?? null,
       wikimedia_commons: cleanTag(tags.wikimedia_commons) ?? null,
       wikidata: cleanTag(tags.wikidata) ?? null,

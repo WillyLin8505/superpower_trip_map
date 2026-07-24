@@ -3,7 +3,7 @@ import { googleMapsFetchOptions, googleMapsPhotoCacheControl, roundedCoordinate,
 import { recordApiUsageEvent, trackedApiFetch } from '@/lib/apiUsageEvents'
 import { tripIdFromReferer } from '@/lib/apiUsageContext'
 import { cachedGoogle, RETRYABLE_GOOGLE_STATUSES } from '@/lib/googleCache'
-import { resolveFreeImageForPlace } from '@/lib/openPoi'
+import { resolveFreeImageForPlace, type FreeImageProvenance, type FreeImageResult } from '@/lib/openPoi'
 import type { PlaceType } from '@/lib/types'
 
 const BASE = 'https://maps.googleapis.com/maps/api/place'
@@ -48,6 +48,12 @@ function googleLocationBias(lat: number | null, lng: number | null): string | nu
 
 function mergePhotoUrls(primary: string[], fallback: string[], limit: number): string[] {
   return Array.from(new Set([...primary, ...fallback].filter(Boolean))).slice(0, limit)
+}
+
+function photoProvenanceForUrls(result: FreeImageResult | null | undefined, photoUrls: string[]): FreeImageProvenance[] {
+  if (!result?.provenance?.length) return []
+  const requested = new Set(photoUrls)
+  return result.provenance.filter((item) => requested.has(item.url))
 }
 
 async function recordPhotoLookupUnderfill(args: {
@@ -193,8 +199,9 @@ export async function GET(req: NextRequest) {
   const tripId = tripIdFromReferer(req.headers.get('referer'), req.nextUrl.origin) ?? null
   const googlePlaceId = isGooglePlaceId(placeId)
   let freePhotoUrls: string[] = []
+  let freeImage: FreeImageResult | null = null
   if (placeName) {
-    const freeImage = await resolveFreeImageForPlace({
+    freeImage = await resolveFreeImageForPlace({
       placeId,
       placeName,
       aliases,
@@ -207,7 +214,13 @@ export async function GET(req: NextRequest) {
       : []
     if (freePhotoUrls.length >= limit) {
       return NextResponse.json(
-        { photoUrls: freePhotoUrls, source: freeImage?.source, generic: freeImage?.generic === true },
+        {
+          photoUrls: freePhotoUrls,
+          photos: photoProvenanceForUrls(freeImage, freePhotoUrls),
+          source: freeImage?.source,
+          confidence: freeImage?.confidence,
+          generic: freeImage?.generic === true,
+        },
         { headers: { 'cache-control': googleMapsPhotoCacheControl() } }
       )
     }
@@ -217,7 +230,7 @@ export async function GET(req: NextRequest) {
   if (!apiKey) {
     await recordPhotoLookupUnderfill({ photoUrls: freePhotoUrls, limit, placeId, placeName, category, tripId, source: 'free_no_google_key' })
     return NextResponse.json(
-      { photoUrls: freePhotoUrls },
+      { photoUrls: freePhotoUrls, photos: photoProvenanceForUrls(freeImage, freePhotoUrls), source: freeImage?.source, confidence: freeImage?.confidence, generic: freeImage?.generic === true },
       { headers: { 'cache-control': googleMapsPhotoCacheControl() } }
     )
   }
@@ -225,7 +238,7 @@ export async function GET(req: NextRequest) {
   if (!shouldUseGooglePhotoFallback()) {
     await recordPhotoLookupUnderfill({ photoUrls: freePhotoUrls, limit, placeId, placeName, category, tripId, source: 'free_google_fallback_off' })
     return NextResponse.json(
-      { photoUrls: freePhotoUrls },
+      { photoUrls: freePhotoUrls, photos: photoProvenanceForUrls(freeImage, freePhotoUrls), source: freeImage?.source, confidence: freeImage?.confidence, generic: freeImage?.generic === true },
       { headers: { 'cache-control': googleMapsPhotoCacheControl() } }
     )
   }

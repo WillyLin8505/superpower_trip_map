@@ -46,6 +46,7 @@ const ESTIMATED_USD_PER_1000_UNITS: Record<string, number> = {
   wikimedia_free: 0,
   wikipedia_free: 0,
   openverse_free: 0,
+  official_website_free: 0,
   app_diagnostic_free: 0,
 }
 

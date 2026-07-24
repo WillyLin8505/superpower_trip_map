@@ -118,3 +118,111 @@ One repeated set remained only for the same title/place duplicated in the trip. 
 - `D:\vibe_coding_project\food_map\superpowers_food_map\.gstack\qa-reports\screenshots\image-qa-2026-07-23-after-refresh-settled\02-settled-1600.png`
 - `D:\vibe_coding_project\food_map\superpowers_food_map\.gstack\qa-reports\screenshots\image-qa-2026-07-23-after-refresh-settled\03-settled-2400.png`
 - `D:\vibe_coding_project\food_map\superpowers_food_map\.gstack\qa-reports\screenshots\image-qa-2026-07-23-after-refresh-settled\07-settled-16561.png`
+
+## 2026-07-24 - Exact Images Mixed With Generic Fallback
+
+### Context
+
+User reported `淺草寺` showing a tower image in:
+
+- `https://superpower-trip-map.vercel.app/itinerary/fec9bbb2-3fd5-4db7-af03-d6ce0bd8860a`
+
+Direct production API check:
+
+- `https://superpower-trip-map.vercel.app/api/place-photos?placeId=user%3Aasakusa&placeName=%E6%B7%BA%E8%8D%89%E5%AF%BA&placeType=attraction&limit=5&v=11`
+
+### Observed First Five URLs
+
+1. `浅草寺_(52852135842).jpg` — accurate Senso-ji image.
+2. `浅草寺宝蔵門20250719-P1070566.jpg` — accurate Senso-ji Hozomon image.
+3. `Meiji-jingū_vin_de_Bourgogne.jpg` — inaccurate; unrelated Meiji Shrine image.
+4. `Main_Hall,_Sensō-ji_Temple,_Tokyo...jpg` — accurate Senso-ji image.
+5. `Akihabara_Electric_Town_9999_14.jpg` — inaccurate; unrelated Akihabara image.
+
+The screenshot also showed a tower image. That can come from the generic attraction fallback pool, which currently includes Tokyo Skytree URLs.
+
+### Root Cause
+
+- Exact free sources returned fewer than 5 images.
+- The resolver then continued to generic category fallback to force-fill 5 images.
+- `mergeFreeImageResults()` preserves the first result's `source`, so a mixed exact-plus-generic result can still be labeled `wikimedia_commons`.
+- `mergeFreeImageResults()` also marks `generic` as true only when both current and next results are generic, so mixed results can incorrectly report `generic: false`.
+
+### Product Decision Needed
+
+There is a direct conflict between:
+
+- showing exactly 5 images for every place;
+- guaranteeing all images are actually from that exact place.
+
+The safer default should be exactness first: do not fill exact place cards with generic category fallback images unless the UI clearly labels them as generic or the user explicitly accepts approximate images.
+
+### Regression Checklist
+
+1. Query `淺草寺` and confirm unrelated tower, Meiji Shrine, and Akihabara URLs are not mixed into the first five exact place photos.
+2. If fewer than 5 exact photos exist, return fewer exact photos or clearly label approximate fallback.
+3. Ensure the API response exposes enough provenance to distinguish exact, mixed, and generic photos.
+4. Add a test where an exact Commons result has fewer than 5 URLs and generic fallback has unrelated URLs.
+
+## 2026-07-24 - Official Website Metadata Pipeline
+
+### Decision
+
+Do not search the open web blindly by place name. The image pipeline should use official URLs only when the URL comes from structured metadata:
+
+- OSM `website`, `contact:website`, or `url`.
+- Wikidata `P856` official website.
+- Admin-configured image sources when they identify a provider-specific source.
+
+The official website fetch should read only page-level metadata images:
+
+- `og:image`
+- `og:image:secure_url`
+- `twitter:image`
+- `twitter:image:src`
+- schema.org / JSON-LD `image`
+
+Do not crawl arbitrary `<img>` tags from the whole site. That increases wrong-image, logo, ad, and copyright risk.
+
+### Confidence Rules
+
+Scores are deterministic 0-100 values:
+
+- `official_website`: 95
+- `metadata`: 92
+- `wikidata`: 90
+- `wikipedia`: 86
+- `wikimedia_commons`: 82
+- `openverse`: 72
+- `static_free` or generic category fallback: 30
+
+The score measures source precision, not visual quality. Generic fallback is intentionally low confidence and must not be mixed into an exact place result just to fill five slots.
+
+### Implementation Notes
+
+- `/api/place-photos` should return per-image provenance in addition to `photoUrls`.
+- `free_image` cache metadata should persist `confidence` and per-photo `photos[]` provenance.
+- Exact sources should be exhausted first.
+- Generic category fallback should be used only when no exact images exist, unless the UI explicitly labels approximate images.
+
+## 2026-07-24 - Admin-Managed Image Source Order
+
+### Rule
+
+Image source priority must be controlled from `/admin`, not hard-coded only in `lib/openPoi.ts`.
+
+Default intended order:
+
+1. Regional official tourism source for the place area, such as Tokyo or Osaka official tourism sites.
+2. National official tourism source for the place country, such as JNTO for Japan.
+3. Structured official website metadata from OSM or Wikidata `P856`.
+4. Public exact sources: Wikidata image, Wikipedia summary image, Wikimedia Commons exact match, Openverse strict match.
+5. Generic fallback only when no exact image exists, and only with low confidence.
+
+### Regression Checklist
+
+1. `/admin` must show every image source rule with provider, scope, country, region, condition, priority, and enabled status.
+2. Dragging image source rows must update `sources.config.priority`.
+3. `getImageSources()` must return enabled image sources in priority order.
+4. The free image resolver must read managed image source order before falling back to built-in defaults.
+5. Stale cached image metadata must be invalidated when resolver semantics change by bumping `FREE_IMAGE_LOOKUP_VERSION`.

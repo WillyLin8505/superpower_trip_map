@@ -22,10 +22,10 @@ export default async function AdminPage() {
         <div className="rounded-lg border border-border bg-surface p-4 text-sm text-gray-700">
           <p>目前登入 email：{email ?? '尚未登入'}</p>
           <p>Vercel ADMIN_EMAILS：{adminEmailsConfigured ? '已設定' : '未設定'}</p>
-          <p>目前 email 是否在 allowlist：{emailAllowed ? '是' : '否'}</p>
+          <p>email 是否在 allowlist：{emailAllowed ? '是' : '否'}</p>
         </div>
         <p className="mt-4 text-sm text-gray-500">
-          請用管理員 email 登入，或在 Vercel Environment Variables 設定 `ADMIN_EMAILS`。
+          請使用管理員 email 登入，或在 Vercel Environment Variables 設定 `ADMIN_EMAILS`。
         </p>
         {!email && (
           <Link
@@ -45,18 +45,18 @@ export default async function AdminPage() {
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-10">
-      <h1 className="mb-2 text-2xl font-bold text-gray-900">後台管理</h1>
+      <h1 className="mb-2 text-2xl font-bold text-gray-900">後台設定</h1>
       <p className="mb-8 text-sm text-gray-500">
-        管理行程推薦文章來源與圖片來源網站。圖片來源會獨立管理，不會被拿去產生行程推薦文字。
+        管理推薦來源與圖片來源規則。圖片規則會顯示適用條件與優先順序，可在列表中拖拉調整。
       </p>
       <SaveDiagnosticsPanel />
       <section className="mb-8">
-        <h2 className="mb-3 text-base font-semibold text-gray-700">新增來源網站</h2>
+        <h2 className="mb-3 text-base font-semibold text-gray-700">新增來源</h2>
         <SourceForm />
       </section>
       <section>
         <h2 className="mb-3 text-base font-semibold text-gray-700">
-          來源設定（推薦 {recommendationCount} 個，圖片 {imageCount} 個）
+          來源設定：推薦 {recommendationCount} 筆、圖片 {imageCount} 筆
         </h2>
         <SourceList sources={sources} />
       </section>

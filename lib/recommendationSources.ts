@@ -90,7 +90,15 @@ async function getSourcesFromConfigFile(): Promise<Source[]> {
 async function getManagedSources(kind: SourceKind): Promise<Source[]> {
   const supabaseSources = await getSourcesFromSupabase()
   const sources = supabaseSources ?? await getSourcesFromConfigFile()
-  return sources.filter((source) => source.enabled && source.kind === kind)
+  const managedSources = sources.filter((source) => source.enabled && source.kind === kind)
+  if (kind !== 'image') return managedSources
+  return managedSources.sort((left, right) => {
+    const leftPriority = left.config.priority ?? Number.MAX_SAFE_INTEGER
+    const rightPriority = right.config.priority ?? Number.MAX_SAFE_INTEGER
+    const priorityDelta = leftPriority - rightPriority
+    if (priorityDelta !== 0) return priorityDelta
+    return left.label.localeCompare(right.label)
+  })
 }
 
 export async function getRecommendationSources(): Promise<Source[]> {

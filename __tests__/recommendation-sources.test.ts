@@ -176,8 +176,40 @@ it('loads enabled image sources separately', async () => {
     label: 'Tabelog',
     kind: 'image',
     enabled: true,
-    config: { provider: 'tabelog' },
+    config: { provider: 'tabelog', scope: 'custom' },
     lastFetchedAt: null,
     lastFetchStatus: null,
   }])
+})
+
+it('orders enabled image sources by priority', async () => {
+  builder = makeBuilder({
+    data: [
+      {
+        id: 'image-late',
+        url: 'https://openverse.example',
+        label: 'Openverse',
+        kind: 'image',
+        enabled: true,
+        config: { provider: 'openverse', priority: 200 },
+        last_fetched_at: null,
+        last_fetch_status: null,
+      },
+      {
+        id: 'image-first',
+        url: 'https://official.example',
+        label: 'Official',
+        kind: 'image',
+        enabled: true,
+        config: { provider: 'official_website', scope: 'regional_official', priority: 10 },
+        last_fetched_at: null,
+        last_fetch_status: null,
+      },
+    ],
+  })
+
+  await expect(getImageSources()).resolves.toMatchObject([
+    { id: 'image-first' },
+    { id: 'image-late' },
+  ])
 })
