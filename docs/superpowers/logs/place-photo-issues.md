@@ -226,3 +226,21 @@ Default intended order:
 3. `getImageSources()` must return enabled image sources in priority order.
 4. The free image resolver must read managed image source order before falling back to built-in defaults.
 5. Stale cached image metadata must be invalidated when resolver semantics change by bumping `FREE_IMAGE_LOOKUP_VERSION`.
+
+## 2026-07-24 - Collapse Regional Official Sources
+
+### Decision
+
+Do not list every regional official tourism site as a separate `/admin` image rule. The regional-official category should be one rule:
+
+- Provider: `official_website`
+- Scope: `regional_official`
+- Condition: `依地點 country + region 對應該區域官方旅遊網站；不逐一列出區域站`
+
+Examples such as Tokyo, Osaka, Kyoto, Nara, Hokkaido, Okinawa, and Hiroshima are implementation details, not separate manager-facing rules.
+
+### Regression Checklist
+
+1. `/admin` should show one regional official image rule, not one row per region.
+2. New image source form placeholders should guide agents to add one generic regional condition.
+3. The regional official rule should remain priority `10`, before national official and public image sources.

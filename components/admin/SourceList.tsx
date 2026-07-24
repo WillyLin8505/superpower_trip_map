@@ -161,13 +161,13 @@ function SourceEditRow({
               <input
                 name="region"
                 defaultValue={source.config.region ?? ''}
-                placeholder="Tokyo"
+                placeholder="留空代表通用區域條件"
                 className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
               />
               <input
                 name="condition"
                 defaultValue={source.config.condition ?? ''}
-                placeholder="country=JP AND region=Tokyo"
+                placeholder="依地點 country + region 對應該區域官方旅遊網站"
                 className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
               />
               <input

@@ -48,7 +48,7 @@ export function SourceForm() {
           <input
             name="label"
             type="text"
-            placeholder={isImage ? '東京官方旅遊 GO TOKYO' : '日本官方旅遊局 JNTO'}
+            placeholder={isImage ? '圖片規則 / 區域官方旅遊網站' : '日本官方旅遊局 JNTO'}
             required
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
           />
@@ -98,7 +98,7 @@ export function SourceForm() {
             <span className="mb-1 block text-gray-600">區域</span>
             <input
               name="region"
-              placeholder="Tokyo"
+              placeholder="留空代表通用區域條件"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
             />
           </label>
@@ -106,7 +106,7 @@ export function SourceForm() {
             <span className="mb-1 block text-gray-600">適用條件</span>
             <input
               name="condition"
-              placeholder="country=JP AND region=Tokyo"
+              placeholder="依地點 country + region 對應該區域官方旅遊網站"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
             />
           </label>
@@ -131,7 +131,7 @@ export function SourceForm() {
           <span className="mb-1 block text-gray-600">備註</span>
           <input
             name="notes"
-            placeholder={isImage ? '只取 metadata 圖，不掃整站圖片' : '官方旅遊推薦來源'}
+            placeholder={isImage ? '區域官方站用一條通用條件管理，不逐一列區域站' : '官方旅遊推薦來源'}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
           />
         </label>
@@ -148,7 +148,7 @@ export function SourceForm() {
         </button>
       </div>
       <p className="mt-3 text-xs text-gray-500">
-        圖片來源規則用來描述優先順序與適用條件；實際抓圖仍只使用結構化官方網址與公開精準來源，不會用名稱亂猜官網。
+        圖片來源規則用來描述優先順序與適用條件；區域官方網站請用一條通用條件管理，不需要逐一列東京、大阪、京都等區域站。
       </p>
     </form>
   )
