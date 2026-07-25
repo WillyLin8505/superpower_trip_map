@@ -4,6 +4,7 @@ export type Change =
   | { id: string; day: number; kind: 'move'; placeId: string; placeName: string; toDay: number }
   | { id: string; day: number; kind: 'duration'; placeId: string; placeName: string; from: number; to: number }
   | { id: string; day: number; kind: 'window'; field: 'dayStart' | 'dayEnd'; from: string; to: string }
+  | { id: string; day: number; kind: 'remove'; placeId: string; placeName: string; instanceId: string; keptDay: number }
 
 function placeDayMap(plan: PlanResult): Map<string, number> {
   const m = new Map<string, number>()
@@ -80,6 +81,16 @@ export function applyChanges(current: PlanResult, accepted: Change[]): PlanResul
       }
       const target = byDay.get(c.toDay)
       if (moved && target) target.places.push(moved)
+    }
+  }
+  // Remove targets a specific instance by its unique id (placeId can collide
+  // across duplicates, which is exactly what dedup removes).
+  for (const c of accepted) {
+    if (c.kind === 'remove') {
+      for (const d of days) {
+        const idx = d.places.findIndex((x) => x.id === c.instanceId)
+        if (idx !== -1) { d.places.splice(idx, 1); break }
+      }
     }
   }
   return { ...current, days }

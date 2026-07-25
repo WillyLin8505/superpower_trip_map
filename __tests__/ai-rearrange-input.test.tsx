@@ -53,6 +53,42 @@ it('removing a change with ✗ excludes it; 一鍵同意全部 applies only the 
   expect(newPlan.days[0].dayStart).toBe('10:00')
 })
 
+function dupPlan(): PlanResult {
+  return {
+    days: [
+      d(1, [sp('淺草寺', { id: 's1', placeId: 'SENSOJI' }), sp('B', { id: 'b', placeId: 'B' })]),
+      d(2, [sp('淺草寺', { id: 's2', placeId: 'SENSOJI' })]),
+    ],
+    transportMode: 'driving',
+    startDate: '2026-07-10',
+  }
+}
+
+it('typing a remove-duplicates instruction dedupes locally without calling the AI action', async () => {
+  const onApply = jest.fn()
+  render(<AiRearrangeInput plan={dupPlan()} onApply={onApply} />)
+  fireEvent.change(screen.getByPlaceholderText(/第二天太滿/), { target: { value: '刪掉重複的' } })
+  fireEvent.click(screen.getByRole('button', { name: '重排' }))
+  await screen.findByText(/移除重複.*淺草寺/)
+  expect(rearrangeItinerary).not.toHaveBeenCalled()
+
+  fireEvent.click(screen.getByRole('button', { name: '一鍵同意全部' }))
+  expect(onApply).toHaveBeenCalledTimes(1)
+  const newPlan: PlanResult = onApply.mock.calls[0][0]
+  const ids = newPlan.days.flatMap((dd) => dd.places.map((p) => p.id))
+  expect(ids).toEqual(['s1', 'b'])
+})
+
+it('reports when a remove-duplicates instruction finds nothing, without calling the AI action', async () => {
+  const onApply = jest.fn()
+  render(<AiRearrangeInput plan={plan()} onApply={onApply} />)
+  fireEvent.change(screen.getByPlaceholderText(/第二天太滿/), { target: { value: '刪掉重複的' } })
+  fireEvent.click(screen.getByRole('button', { name: '重排' }))
+  await screen.findByText('沒有找到重複的地點')
+  expect(rearrangeItinerary).not.toHaveBeenCalled()
+  expect(onApply).not.toHaveBeenCalled()
+})
+
 it('shows an error and does not call onApply when the action fails', async () => {
   rearrangeItinerary.mockResolvedValue({ ok: false, error: 'AI 重排失敗，請換個說法再試' })
   const onApply = jest.fn()
