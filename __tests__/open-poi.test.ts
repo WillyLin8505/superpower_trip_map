@@ -125,7 +125,7 @@ it('prioritizes dessert-specific Open POI rows before nearby generic cafes', asy
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role'
   const recentMiss = {
     status: 'not_found',
-    version: 15,
+    version: 17,
     policyVersion: 1,
     policySignature: DEFAULT_IMAGE_POLICY_SIGNATURE,
     fetchedAt: new Date().toISOString(),
@@ -471,6 +471,64 @@ it('does not search transliterated aliases for unsafe short CJK names without st
   expect(fetchMock).not.toHaveBeenCalled()
 })
 
+it('resolves Sensoji Google place names through the known Commons category', async () => {
+  mockGetImageSources.mockResolvedValue([
+    {
+      id: 'commons-only',
+      url: 'https://commons.wikimedia.org/',
+      label: 'Wikimedia Commons',
+      kind: 'image',
+      enabled: true,
+      config: { provider: 'wikimedia_commons', scope: 'public_media', priority: 10 },
+      lastFetchedAt: null,
+      lastFetchStatus: null,
+    },
+  ])
+  const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url.includes('commons.wikimedia.org') && url.includes('gcmtitle=Category%3ASensoji')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          query: {
+            pages: Object.fromEntries(Array.from({ length: 5 }, (_, index) => [
+              String(index + 1),
+              {
+                title: `File:Sensoji ${index + 1}.jpg`,
+                imageinfo: [{
+                  thumburl: `https://upload.wikimedia.org/sensoji-${index + 1}.jpg`,
+                  mime: 'image/jpeg',
+                }],
+              },
+            ])),
+          },
+        }),
+      }
+    }
+
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ query: { pages: {} }, results: [] }),
+    }
+  })
+  global.fetch = fetchMock as unknown as typeof fetch
+
+  const result = await resolveFreeImageForPlace({
+    placeId: 'ChIJ8T1GpMGOGGARDYGSgpooDWw',
+    placeName: '淺草寺',
+    category: 'attraction',
+    limit: 5,
+  })
+
+  expect(result?.source).toBe('wikimedia_commons')
+  expect(result?.generic).toBeFalsy()
+  expect(result?.photoUrls).toHaveLength(5)
+  expect(result?.photoUrls[0]).toBe('https://upload.wikimedia.org/sensoji-1.jpg')
+  expect(fetchMock.mock.calls[0]?.[0]?.toString()).toContain('gcmtitle=Category%3ASensoji')
+})
+
 it('resolves Wikimedia Commons category metadata to a free image', async () => {
   global.fetch = jest.fn(async () => ({
     ok: true,
@@ -600,7 +658,7 @@ it('does not mix generic fallback images into partial exact place matches', asyn
     photoUrls: ['https://upload.wikimedia.org/sensoji-main.jpg'],
     source: 'wikimedia_commons',
   })
-  expect(result?.generic).toBeUndefined()
+  expect(result?.generic).toBe(false)
 
   expect(fetchMock.mock.calls.some((call) => String(call[0]).includes('travel+landmark+attraction'))).toBe(false)
 })
@@ -1055,7 +1113,7 @@ it('ignores previously persisted free image metadata without the current policy 
       photoUrls: ['https://images.example/generic-cafe-dessert.jpg'],
       free_image: {
         status: 'found',
-        version: 15,
+        version: 17,
         source: 'openverse',
         generic: true,
         url: 'https://images.example/generic-cafe-dessert.jpg',
@@ -1116,6 +1174,28 @@ it('normalizes direct Wikimedia original image URLs to embeddable thumbnails', (
   })
 })
 
+it('dedupes the same Wikimedia image across Special FilePath and thumbnail URLs', () => {
+  expect(mapOpenPoiRowToPlace({
+    source: 'osm',
+    source_place_id: 'way/sensoji',
+    name_primary: 'Sensoji',
+    name_zh: '淺草寺',
+    name_local: '浅草寺',
+    lat: 35.7148,
+    lng: 139.7967,
+    category: 'attraction',
+    confidence: null,
+    metadata: {
+      photoUrls: [
+        'https://commons.wikimedia.org/wiki/Special:FilePath/Sensoji%202023.jpg?width=900',
+        'https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Sensoji_2023.jpg/330px-Sensoji_2023.jpg',
+      ],
+    },
+  })).toMatchObject({
+    photoUrls: ['https://commons.wikimedia.org/wiki/Special:FilePath/Sensoji%202023.jpg?width=900'],
+  })
+})
+
 it('ignores Openverse thumb proxy URLs that render as broken images', () => {
   expect(mapOpenPoiRowToPlace({
     source: 'osm',
@@ -1154,7 +1234,7 @@ it('skips external image lookups for recent not-found cache entries', async () =
       wikidata: 'Q999999',
       free_image: {
         status: 'not_found',
-        version: 15,
+        version: 17,
         policyVersion: 1,
         policySignature: DEFAULT_IMAGE_POLICY_SIGNATURE,
         fetchedAt: new Date().toISOString(),
@@ -1196,7 +1276,7 @@ it('persists not-found image lookups so future reloads skip external searches', 
     metadata: expect.objectContaining({
       free_image: expect.objectContaining({
         status: 'not_found',
-        version: 15,
+        version: 17,
         policyVersion: 1,
         policySignature: DEFAULT_IMAGE_POLICY_SIGNATURE,
       }),

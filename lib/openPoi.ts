@@ -10,7 +10,7 @@ import { getImageSources } from '@/lib/recommendationSources'
 type OpenPoiSource = 'overture' | 'osm' | 'wikidata' | 'user'
 type FreeImageSource = 'metadata' | 'official_website' | 'wikimedia_commons' | 'wikidata' | 'wikipedia' | 'openverse' | 'static_free'
 const FREE_IMAGE_TTL_SECONDS = 60 * 60 * 24 * 30
-const FREE_IMAGE_LOOKUP_VERSION = 15
+const FREE_IMAGE_LOOKUP_VERSION = 17
 const IMAGE_SOURCE_POLICY_VERSION = 1
 const FREE_IMAGE_FETCH_TIMEOUT_MS = 4000
 const MAX_FREE_IMAGE_URLS = 5
@@ -178,6 +178,45 @@ function normalizeImageUrl(value: string | null): string | null {
   return null
 }
 
+function wikimediaImageFileKey(value: string): string | null {
+  try {
+    const url = new URL(value)
+    const hostname = url.hostname.toLowerCase()
+    let fileName: string | null = null
+    if (hostname === 'commons.wikimedia.org') {
+      const match = url.pathname.match(/^\/wiki\/Special:FilePath\/(.+)$/i)
+      fileName = match?.[1] ? decodeURIComponent(match[1]) : null
+    } else if (hostname === 'upload.wikimedia.org') {
+      const parts = url.pathname.split('/').filter(Boolean)
+      const thumbIndex = parts.indexOf('thumb')
+      if (parts[0] === 'wikipedia' && parts[1] === 'commons') {
+        fileName = thumbIndex >= 0
+          ? parts[thumbIndex + 3] ?? null
+          : parts[4] ?? null
+      }
+      fileName = fileName ? decodeURIComponent(fileName) : null
+    }
+    return fileName
+      ? `wikimedia:${fileName.replace(/ /g, '_').toLowerCase()}`
+      : null
+  } catch {
+    return null
+  }
+}
+
+function imageDedupKey(value: string): string {
+  return wikimediaImageFileKey(value) ?? value
+}
+
+function uniqueImageUrls(values: string[]): string[] {
+  const byImage = new Map<string, string>()
+  for (const value of values) {
+    const key = imageDedupKey(value)
+    if (!byImage.has(key)) byImage.set(key, value)
+  }
+  return Array.from(byImage.values())
+}
+
 function isKnownNonEmbeddableImageUrl(value: string): boolean {
   try {
     const url = new URL(value)
@@ -225,9 +264,9 @@ function imageUrlsFromMetadata(
     metadataString(metadata, 'image:1'),
     metadataString(metadata, 'wikimedia_commons'),
   ]
-  return Array.from(new Set(candidates
+  return uniqueImageUrls(candidates
     .map(normalizeImageUrl)
-    .filter((url): url is string => url !== null && !genericImageUrls.has(url))))
+    .filter((url): url is string => url !== null && !genericImageUrls.has(url)))
     .slice(0, 5)
 }
 
@@ -287,11 +326,21 @@ function provenanceForImageResult(result: FreeImageResult): FreeImageProvenance[
   }))
 }
 
+function uniqueImageProvenance(items: FreeImageProvenance[]): FreeImageProvenance[] {
+  const byImage = new Map<string, FreeImageProvenance>()
+  for (const item of items) {
+    const key = imageDedupKey(item.url)
+    if (!byImage.has(key)) byImage.set(key, item)
+  }
+  return Array.from(byImage.values())
+}
+
 function imageResultWithProvenance(result: FreeImageResult): FreeImageResult {
-  const provenance = provenanceForImageResult(result)
+  const provenance = uniqueImageProvenance(provenanceForImageResult(result)).slice(0, MAX_FREE_IMAGE_URLS)
   const confidence = result.confidence ?? Math.max(...provenance.map((item) => item.confidence))
   return {
     ...result,
+    photoUrls: provenance.map((item) => item.url),
     confidence,
     provenance,
   }
@@ -306,14 +355,10 @@ function mergeFreeImageResults(current: FreeImageResult | null, next: FreeImageR
     })
   }
 
-  const provenanceByUrl = new Map<string, FreeImageProvenance>()
-  for (const item of provenanceForImageResult(current)) {
-    if (!provenanceByUrl.has(item.url)) provenanceByUrl.set(item.url, item)
-  }
-  for (const item of provenanceForImageResult(next)) {
-    if (!provenanceByUrl.has(item.url)) provenanceByUrl.set(item.url, item)
-  }
-  const provenance = Array.from(provenanceByUrl.values()).slice(0, MAX_FREE_IMAGE_URLS)
+  const provenance = uniqueImageProvenance([
+    ...provenanceForImageResult(current),
+    ...provenanceForImageResult(next),
+  ]).slice(0, MAX_FREE_IMAGE_URLS)
   const photoUrls = provenance.map((item) => item.url)
 
   return {
@@ -816,7 +861,7 @@ function commonsResultFromPages(pages: CommonsPage[]): FreeImageResult | null {
     const url = normalizeImageUrl(cleanText(imageInfo.thumburl) ?? cleanText(imageInfo.url))
     if (!url) continue
     const title = cleanText(page.title)
-    if (!photoUrls.includes(url)) photoUrls.push(url)
+    if (!photoUrls.some((existing) => imageDedupKey(existing) === imageDedupKey(url))) photoUrls.push(url)
     firstPageUrl ??= title ? `https://commons.wikimedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}` : null
     firstLicense ??= commonsMetadataText(imageInfo.extmetadata, 'LicenseShortName')
     firstAttribution ??= commonsMetadataText(imageInfo.extmetadata, 'Artist')
@@ -1099,6 +1144,22 @@ const KNOWN_FREE_IMAGE_ENTITIES: KnownFreeImageEntity[] = [
     wikidata: 'Q85788921',
     wikipedia: { lang: 'en', title: 'Hanoi Train Street' },
     commonsCategory: 'Category:Hanoi Train Street',
+  },
+  {
+    aliases: [
+      '淺草寺',
+      '浅草寺',
+      'Sensō-ji',
+      'Senso-ji',
+      'Sensoji',
+      'Sensō-ji Temple',
+      'Sensoji Temple',
+      'Asakusa Kannon',
+      'Asakusa Temple',
+    ],
+    wikidata: 'Q615183',
+    wikipedia: { lang: 'en', title: 'Sensō-ji' },
+    commonsCategory: 'Category:Sensoji',
   },
 ]
 

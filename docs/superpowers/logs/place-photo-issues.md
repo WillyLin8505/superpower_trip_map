@@ -329,3 +329,45 @@ Unauthenticated browser QA on `/itinerary/...` returned 404, so QA also used the
 ### Follow-Up Risk
 
 Exactness and five-photo fill are still separate product goals. If free exact sources do not have five trustworthy images, the app should prefer fewer exact images or clearly label generic fallback instead of silently mixing unrelated photos.
+
+## 2026-07-24 - Famous Landmark Returned Only One Photo
+
+### Context
+
+User reported that the saved itinerary card for `淺草寺` displayed only one photo even though it is a major Tokyo landmark.
+
+### Evidence
+
+- Saved trip data for `淺草寺` still had 5 old Google photo refs, but frontend refresh invalidated those paid refs.
+- Production `/api/place-photos?...placeName=淺草寺&v=15` returned:
+  - `count: 1`
+  - `source: wikipedia`
+  - `generic: false`
+- Wikimedia Commons has multiple usable images under `Category:Sensoji`; direct category API inspection returned at least 10 file pages.
+
+### Root Cause
+
+This was not a card rendering bug. Google-place itinerary rows only had Google `placeId` plus place name, with no structured free-image identity. Without a known Wikidata/Commons mapping, the resolver found only the Wikipedia summary image and stopped with one exact photo.
+
+### Fixes Applied
+
+- Added known free-image entity mapping for `淺草寺` / `浅草寺` / `Sensoji`:
+  - Wikidata: `Q615183`
+  - Wikipedia: `Sensō-ji`
+  - Wikimedia Commons: `Category:Sensoji`
+- Bumped frontend `PHOTO_LOOKUP_VERSION` to `17`.
+- Bumped server `FREE_IMAGE_LOOKUP_VERSION` to `17`.
+- Added Wikimedia file-name dedupe so `Special:FilePath/Sensoji%202023.jpg` and `upload.wikimedia.org/.../Sensoji_2023.jpg` count as the same image.
+
+### Regression Tests Added Or Updated
+
+- `__tests__/open-poi.test.ts`
+  - `淺草寺` Google-place lookup must use `Category:Sensoji` and return 5 Commons images.
+  - Resolver cache version expectations are `17`.
+  - Same Wikimedia image through FilePath and thumbnail URLs must dedupe to one card image.
+- `__tests__/photo-strip.test.tsx`
+  - Lookup version expectations are `v=17`.
+
+### Regression Rule
+
+For famous landmarks that come from Google rows, do not rely on public name search alone. Add structured identity through Wikidata and Commons category when a direct category is known, then bump the resolver version so stale one-photo cache entries are bypassed.
